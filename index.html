@@ -76,6 +76,20 @@ button,input,select,textarea{font-family:inherit;color:inherit}
 .btn.ghost:hover{background:rgba(0,0,0,.09)}
 .btn.danger{background:var(--red);box-shadow:0 3px 10px rgba(255,59,48,.24)}
 .btn.sm{padding:9px;font-size:12.5px;border-radius:9px}
+.uacc{display:flex;align-items:center;gap:10px;width:100%;background:#fff;border:1px solid var(--border2);
+  border-radius:12px;padding:9px 11px;margin-bottom:7px;cursor:pointer;text-align:left;transition:.13s;font-family:inherit}
+.uacc:hover{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-glow)}
+.uacc-av{width:36px;height:36px;border-radius:50%;background:linear-gradient(150deg,var(--accent),#4b9dff);
+  color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:14px;flex-shrink:0}
+.uacc-av.mgr{background:linear-gradient(150deg,#5856d6,#8a89e6)}
+.uacc-t{flex:1;min-width:0}
+.uacc-n{font-size:13.5px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:flex;align-items:center;gap:6px}
+.uacc-s{font-size:11px;color:var(--text3);font-family:var(--mono);margin-top:1px}
+.uacc-x{background:none;border:none;color:var(--text3);font-size:17px;cursor:pointer;padding:0 3px;line-height:1;flex-shrink:0}
+.uacc-x:hover{color:var(--red)}
+.lg-or{display:flex;align-items:center;gap:9px;margin:14px 0 12px;color:var(--text3);font-size:11px}
+.lg-or::before,.lg-or::after{content:'';flex:1;height:1px;background:var(--border2)}
+.lg-rem{display:flex;align-items:center;gap:9px;font-size:12.5px;color:var(--text2);margin:-2px 0 12px;cursor:pointer}
 .lg-err{background:var(--red-dim);color:#d92c20;border-radius:9px;padding:9px 12px;font-size:12px;margin-bottom:12px}
 
 /* ═══════ MANAGER ═══════ */
@@ -358,6 +372,7 @@ button,input,select,textarea{font-family:inherit;color:inherit}
     <div id="lgErr" class="lg-err hide"></div>
 
     <div id="lgTeam">
+      <div id="lgUsers"></div>
       <div class="fld"><label>รหัสพนักงาน</label>
         <input id="inCode" placeholder="เช่น 1009477" autocapitalize="characters" autocomplete="username"></div>
       <div id="lgDyn"></div>
@@ -694,6 +709,69 @@ function isAdmin(u){ return !!(u && u.role==='admin'); }
 /* ═════════════════════════════════════════════════════════
    LOGIN
    ═════════════════════════════════════════════════════════ */
+/* ── บัญชีที่เคยเข้าในเครื่องนี้ — แตะเลือกได้ ไม่ต้องพิมพ์รหัสซ้ำ ── */
+function usersGet(){ try{ return JSON.parse(localStorage.getItem('it_users')||'[]'); }catch(e){ return []; } }
+function usersPut(a){ try{ localStorage.setItem('it_users', JSON.stringify(a.slice(0,6))); }catch(e){} }
+function userRemember(staff, pin, keepPin){
+  var a=usersGet().filter(function(x){ return x.emp!==staff.emp_code; });
+  a.unshift({emp:staff.emp_code, name:staff.name||staff.emp_code, role:staff.role||'staff',
+             pin: keepPin? pin : null, at: Date.now()});
+  usersPut(a);
+}
+function userForget(emp){ usersPut(usersGet().filter(function(x){ return x.emp!==emp; })); lgRender(); }
+
+function renderUserPicker(){
+  var host=$('lgUsers'); if(!host) return;
+  var a=usersGet();
+  if(!a.length || LG.mode!=='code'){ host.innerHTML=''; return; }
+  host.innerHTML='<div style="font-size:11px;font-weight:600;color:var(--text2);margin-bottom:7px">เข้าใช้งานด้วยบัญชีเดิม</div>'+
+    a.map(function(x,i){
+      var mgr = x.role==='manager'||x.role==='admin';
+      return '<div class="uacc" data-i="'+i+'">'+
+        '<div class="uacc-av'+(mgr?' mgr':'')+'">'+esc(String(x.name||x.emp).trim().charAt(0).toUpperCase())+'</div>'+
+        '<div class="uacc-t"><div class="uacc-n">'+esc(x.name||x.emp)+
+          (mgr?'<span class="chip c-purple">'+esc(ROLES[x.role])+'</span>':'')+
+          (x.pin?'<span class="chip c-green">แตะเข้าได้เลย</span>':'')+'</div>'+
+          '<div class="uacc-s">'+esc(x.emp)+'</div></div>'+
+        '<button class="uacc-x" data-x="'+i+'" title="เอาออกจากรายการ">×</button></div>';
+    }).join('')+
+    '<div class="lg-or">หรือใส่รหัสพนักงาน</div>';
+
+  host.querySelectorAll('.uacc-x').forEach(function(b){
+    b.onclick=function(e){ e.stopPropagation();
+      var x=usersGet()[+b.dataset.x]; if(!x) return;
+      if(confirm('เอา '+(x.name||x.emp)+' ออกจากรายการในเครื่องนี้?')) userForget(x.emp);
+    };
+  });
+  host.querySelectorAll('.uacc').forEach(function(el){
+    el.onclick=function(){ pickUser(usersGet()[+el.dataset.i]); };
+  });
+}
+
+async function pickUser(u){
+  if(!u) return;
+  $('inCode').value=u.emp; lgOk();
+  var btn=$('btnNext'); btn.disabled=true; btn.textContent='กำลังเข้าใช้งาน…';
+  try{
+    var r=await db.from('it_staff').select('*').eq('emp_code',u.emp).limit(1);
+    if(r.error) throw r.error;
+    if(!r.data || !r.data.length){ userForget(u.emp); throw new Error('ไม่พบบัญชีนี้แล้ว — ผู้จัดการอาจลบออกจากระบบ'); }
+    var st=r.data[0];
+    if(!st.active) throw new Error('บัญชีนี้ถูกปิดใช้งาน ติดต่อผู้จัดการ');
+    LG.staff=st;
+    if(u.pin && String(st.pin)===u.pin){
+      await db.from('it_staff').update({last_login_at:new Date().toISOString()}).eq('id',st.id);
+      userRemember(st, u.pin, true);
+      btn.disabled=false; btn.textContent='ถัดไป';
+      return finishLogin(st, u.pin, true);
+    }
+    if(u.pin){ userRemember(st, null, false); toast('PIN เปลี่ยนไปแล้ว ใส่ PIN ใหม่อีกครั้ง', 3600); }
+    LG.mode = st.pin ? 'login' : 'setpin';
+    lgRender();
+  }catch(e){ lgErr(e.message||'เข้าใช้งานไม่สำเร็จ'); }
+  btn.disabled=false; btn.textContent='ถัดไป';
+}
+
 function lgErr(m){ $('lgErr').textContent=m; $('lgErr').classList.remove('hide'); }
 function lgOk(){ $('lgErr').classList.add('hide'); }
 
@@ -703,6 +781,7 @@ function lgBack(){ LG.mode='code'; LG.staff=null; $('inCode').disabled=false; lg
 
 function lgRender(){
   var d=$('lgDyn'), b=$('btnNext'), h=$('lgHint');
+  renderUserPicker();
   var backLink='<button type="button" onclick="lgBack()" style="background:none;border:none;color:var(--accent);'+
     'font-size:12px;cursor:pointer;padding:2px 0;font-weight:600">‹ ใช้รหัสพนักงานอื่น</button>';
 
@@ -716,7 +795,8 @@ function lgRender(){
 
   if(LG.mode==='login'){
     d.innerHTML='<div class="fld"><label>PIN</label><input id="inPin" type="tel" inputmode="numeric" maxlength="6" '+
-      'placeholder="••••" autocomplete="current-password"></div>'+backLink;
+      'placeholder="••••" autocomplete="current-password"></div>'+
+      '<label class="lg-rem"><input type="checkbox" id="lgRemember" checked> จดจำบัญชีนี้ในเครื่อง — ครั้งหน้าแตะรูปเข้าได้เลย</label>'+backLink;
     b.textContent='เข้าใช้งาน';
     h.innerHTML='เข้าใช้ในชื่อ <b style="color:var(--text)">'+esc(LG.staff.name||LG.staff.emp_code)+'</b>'+
       (isMgr(LG.staff)? (' · <span style="color:var(--accent);font-weight:600">'+ROLES[LG.staff.role]+'</span>')
@@ -724,7 +804,8 @@ function lgRender(){
   }
   else if(LG.mode==='setpin'){
     d.innerHTML='<div class="fld"><label>ตั้ง PIN (4–6 หลัก)</label><input id="inPin" type="tel" inputmode="numeric" maxlength="6" placeholder="••••"></div>'+
-      '<div class="fld"><label>ยืนยัน PIN อีกครั้ง</label><input id="inPin2" type="tel" inputmode="numeric" maxlength="6" placeholder="••••"></div>'+backLink;
+      '<div class="fld"><label>ยืนยัน PIN อีกครั้ง</label><input id="inPin2" type="tel" inputmode="numeric" maxlength="6" placeholder="••••"></div>'+
+      '<label class="lg-rem"><input type="checkbox" id="lgRemember" checked> จดจำบัญชีนี้ในเครื่อง — ครั้งหน้าแตะรูปเข้าได้เลย</label>'+backLink;
     b.textContent='ตั้งรหัสและเข้าใช้งาน';
     h.innerHTML='ครั้งแรกของ <b style="color:var(--text)">'+esc(LG.staff.name||LG.staff.emp_code)+'</b> — ตั้ง PIN ไว้ใช้ครั้งต่อไป อย่าบอกคนอื่น';
   }
@@ -732,7 +813,8 @@ function lgRender(){
     d.innerHTML='<div class="fld"><label>ชื่อ–สกุล</label><input id="inName" placeholder="เช่น สมชาย ก."></div>'+
       '<div class="fld"><label>เบอร์โทร</label><input id="inPhone" type="tel" inputmode="tel" placeholder="08x-xxx-xxxx"></div>'+
       '<div class="fld"><label>ตั้ง PIN (4–6 หลัก)</label><input id="inPin" type="tel" inputmode="numeric" maxlength="6" placeholder="••••"></div>'+
-      '<div class="fld"><label>ยืนยัน PIN อีกครั้ง</label><input id="inPin2" type="tel" inputmode="numeric" maxlength="6" placeholder="••••"></div>'+backLink;
+      '<div class="fld"><label>ยืนยัน PIN อีกครั้ง</label><input id="inPin2" type="tel" inputmode="numeric" maxlength="6" placeholder="••••"></div>'+
+      '<label class="lg-rem"><input type="checkbox" id="lgRemember" checked> จดจำบัญชีนี้ในเครื่อง — ครั้งหน้าแตะรูปเข้าได้เลย</label>'+backLink;
     b.textContent='ลงทะเบียนและเข้าใช้งาน';
     h.innerHTML='ยังไม่มีรหัส <b style="color:var(--text)">'+esc($('inCode').value.trim())+'</b> ในระบบ — ลงทะเบียนได้เลย '+
       'แล้วผู้จัดการจะจัดคุณเข้าทีมให้';
@@ -771,7 +853,7 @@ $('btnNext').onclick=async function(){
       var pin=$('inPin').value.trim();
       if(String(LG.staff.pin)!==pin) throw new Error('PIN ไม่ถูกต้อง');
       await db.from('it_staff').update({last_login_at:new Date().toISOString()}).eq('id',LG.staff.id);
-      finishLogin(LG.staff, pin);
+      finishLogin(LG.staff, pin, $('lgRemember') && $('lgRemember').checked);
     }
     else if(LG.mode==='setpin'){
       var p1=$('inPin').value.trim(), p2=$('inPin2').value.trim();
@@ -779,7 +861,7 @@ $('btnNext').onclick=async function(){
       var now=new Date().toISOString();
       var u=await db.from('it_staff').update({pin:p1, first_login_at:now, last_login_at:now}).eq('id',LG.staff.id).select().single();
       if(u.error) throw u.error;
-      finishLogin(u.data, p1);
+      finishLogin(u.data, p1, $('lgRemember') && $('lgRemember').checked);
     }
     else if(LG.mode==='register'){
       var nm=$('inName').value.trim(), ph=$('inPhone').value.trim();
@@ -790,7 +872,7 @@ $('btnNext').onclick=async function(){
       var ins=await db.from('it_staff').insert({emp_code:code, name:nm, phone:ph||null, pin:q1,
         active:true, first_login_at:now2, last_login_at:now2}).select().single();
       if(ins.error) throw ins.error;
-      finishLogin(ins.data, q1);
+      finishLogin(ins.data, q1, $('lgRemember') && $('lgRemember').checked);
     }
   }catch(e){
     lgErr(e.message||'ทำรายการไม่สำเร็จ — ตรวจอินเทอร์เน็ตแล้วลองใหม่');
@@ -799,8 +881,9 @@ $('btnNext').onclick=async function(){
 };
 $('inCode').addEventListener('keydown', function(e){ if(e.key==='Enter') $('btnNext').click(); });
 
-function finishLogin(staff, pin){
+function finishLogin(staff, pin, remember){
   S.me=staff;
+  userRemember(staff, pin, !!remember);
   saveSess({role:'user', emp:staff.emp_code, pin:pin});
   if(isMgr(staff)){ S.role='mgr'; S.mgrName=meName(); startMgr(); }
   else{ S.role='team'; startTeam(); }
@@ -824,6 +907,11 @@ async function boot(){
   hideSplash();
 }
 function logout(){ localStorage.removeItem('it_sess'); location.reload(); }
+/* ล้างรายชื่อบัญชีทั้งหมดในเครื่องนี้ — ใช้ตอนส่งต่อเครื่องให้คนอื่น */
+function forgetAll(){
+  if(!confirm('ล้างรายชื่อบัญชีทั้งหมดในเครื่องนี้?\nทุกคนต้องพิมพ์รหัสพนักงานและ PIN ใหม่')) return;
+  localStorage.removeItem('it_users'); localStorage.removeItem('it_sess'); location.reload();
+}
 
 /* ═════════════════════════════════════════════════════════
    MANAGER
@@ -1281,7 +1369,11 @@ function myAccount(){
     '<div class="sec-h" style="margin-top:18px">เปลี่ยน PIN (เว้นว่างไว้ถ้าไม่เปลี่ยน)</div>'+
     '<div class="fld"><label>PIN เดิม</label><input id="m_p0" type="tel" inputmode="numeric" maxlength="6" placeholder="••••"></div>'+
     '<div class="row"><div class="fld"><label>PIN ใหม่</label><input id="m_p1" type="tel" inputmode="numeric" maxlength="6" placeholder="••••"></div>'+
-    '<div class="fld"><label>ยืนยัน PIN ใหม่</label><input id="m_p2" type="tel" inputmode="numeric" maxlength="6" placeholder="••••"></div></div>',
+    '<div class="fld"><label>ยืนยัน PIN ใหม่</label><input id="m_p2" type="tel" inputmode="numeric" maxlength="6" placeholder="••••"></div></div>'+
+    '<div class="sec-h" style="margin-top:18px">เครื่องนี้</div>'+
+    '<p style="font-size:11.5px;color:var(--text2);line-height:1.6;margin-bottom:9px">จำบัญชีไว้ '+usersGet().length+
+      ' รายการ สำหรับแตะเข้าใช้งานเร็ว — ถ้าจะส่งเครื่องให้คนอื่นควรล้างทิ้งก่อน</p>'+
+    '<button class="btn ghost sm" onclick="forgetAll()">ล้างรายชื่อบัญชีในเครื่องนี้</button>',
     '<button class="btn sm" id="m_save">บันทึก</button>');
 
   $('m_save').onclick=async function(){
