@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
-<title>Install Tracker — ติดตามทีมติดตั้ง</title>
+<title>Install-QA Tracker — ติดตามทีมติดตั้ง</title>
 <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css">
 <style>
@@ -318,7 +318,7 @@ button,input,select,textarea{font-family:inherit;color:inherit}
 <body>
 <div id="splash">
   <div class="splash-logo"><div class="brandmark" style="width:240px;height:85px"></div></div>
-  <div class="splash-sub">Install Tracker &middot; ติดตามทีมติดตั้ง</div>
+  <div class="splash-sub">Install-QA Tracker &middot; ติดตามทีมติดตั้ง</div>
   <div class="splash-bar"><div class="splash-bar-fill"></div></div>
   <div class="splash-dots"><span></span><span></span><span></span></div>
   <div id="splashErr"></div>
@@ -352,7 +352,7 @@ button,input,select,textarea{font-family:inherit;color:inherit}
 <div id="login">
   <div class="lg-card">
     <div class="brandmark" style="width:168px;height:60px;margin:0 0 14px -6px"></div>
-    <h1>Install Tracker</h1>
+    <h1>Install-QA Tracker</h1>
     <p class="sub">ติดตามทีมติดตั้งหน้างาน · รายงานความคืบหน้าและปัญหาแบบเรียลไทม์</p>
 
     <div class="lg-tabs">
@@ -381,7 +381,7 @@ button,input,select,textarea{font-family:inherit;color:inherit}
 <!-- ══════════ MANAGER ══════════ -->
 <div id="mgr" class="hide">
   <div class="tb">
-    <div class="tb-title"><div class="brandmark" style="width:96px;height:24px"></div><span style="color:var(--border2)">|</span> Install Tracker <span class="v" id="mgrWho"></span></div>
+    <div class="tb-title"><div class="brandmark" style="width:96px;height:24px"></div><span style="color:var(--border2)">|</span> Install-QA Tracker <span class="v" id="mgrWho"></span></div>
     <input type="date" id="dtPick" class="tin" style="height:28px;padding:4px 9px">
     <button class="tb-btn" id="btnToday">วันนี้</button>
     <div class="tb-live"><span class="tb-dot" id="liveDot"></span><span id="liveTxt">กำลังเชื่อมต่อ…</span></div>
@@ -393,7 +393,7 @@ button,input,select,textarea{font-family:inherit;color:inherit}
   <div class="tabs">
     <button class="tab on" data-p="ov">📍 ภาพรวมหน้างาน</button>
     <button class="tab" data-p="is">⚠️ ปัญหา <b id="tabIssueN" class="q">0</b></button>
-    <button class="tab" data-p="pl">🗂 ไซต์ & ทีม <b id="tabStaffN" style="display:none">0</b></button>
+    <button class="tab" data-p="pl">🗂 Work &amp; Team <b id="tabStaffN" style="display:none">0</b></button>
     <button class="tab" data-p="rp">📤 รายงาน / Export</button>
   </div>
 
@@ -427,7 +427,7 @@ button,input,select,textarea{font-family:inherit;color:inherit}
     <div style="padding:0 14px 16px"><div class="card"><div id="isTblWrap"></div></div></div>
   </div>
 
-  <!-- ไซต์ & ทีม -->
+  <!-- Work & Team -->
   <div class="pane" id="pPl">
     <div class="split" style="grid-template-columns:1fr 1fr;padding-top:12px">
       <div class="card">
@@ -502,7 +502,7 @@ button,input,select,textarea{font-family:inherit;color:inherit}
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
 /* =====================================================================
-   Install Tracker v1.0 — ติดตามทีมติดตั้งหลายทีม หลายหน้างาน
+   Install-QA Tracker v1.2 — ติดตามทีมติดตั้งหลายทีม หลายหน้างาน
    ใช้ Supabase project เดียวกับ production_v2.html (ตาราง it_*)
    ===================================================================== */
 var SB_URL = 'https://vyzsdfezmzawctfkehbk.supabase.co';
@@ -588,6 +588,13 @@ function dist(a,b,c,d){ if(a==null||c==null) return null; var R=6371000,r=Math.P
   s=Math.sin(x/2)*Math.sin(x/2)+Math.cos(a*r)*Math.cos(c*r)*Math.sin(y/2)*Math.sin(y/2);
   return Math.round(R*2*Math.atan2(Math.sqrt(s),Math.sqrt(1-s))); }
 function pct(n){ return Math.max(0,Math.min(100,Math.round(n||0))); }
+/* ระยะทางแสดงเป็นกิโลเมตรเป็นหลัก · ต่ำกว่า 1 กม. กำกับเมตรไว้ด้วยจะได้เห็นละเอียด */
+function fmtDist(m){
+  if(m==null) return '—';
+  var km=m/1000;
+  return km>=1 ? (km.toFixed(2)+' กม.') : (km.toFixed(2)+' กม. ('+m+' ม.)');
+}
+function distTone(m){ return m==null?'c-gray' : (m>1000?'c-red' : (m>CHECKIN_RADIUS?'c-orange':'c-green')); }
 function lightbox(u){ $('lbImg').src=u; $('lightbox').classList.add('on'); }
 $('lightbox').onclick=function(){ this.classList.remove('on'); };
 
@@ -946,7 +953,14 @@ function renderKPI(){
     kpi('ยังไม่เข้าหน้างาน', tot-arrived, tot?Math.round((tot-arrived)/tot*100)+'% ของทีมทั้งหมด':'—', (tot-arrived)>0 && new Date().getHours()>=10)+
     kpi('คืบหน้าเฉลี่ย', avg+'<small>%</small>', done+' ไซต์ปิดงานแล้ว', false)+
     kpi('ปัญหาค้างอยู่', open.length, stale+' เรื่องค้างเกิน 4 ชม.', open.length>0)+
-    kpi('เรื่องด่วน', urgent, blocked+' ทีมหยุดงานเพราะติดปัญหา', urgent>0);
+    kpi('เรื่องด่วน', urgent, blocked+' ทีมหยุดงานเพราะติดปัญหา', urgent>0)+
+    (function(){
+      var far=a.filter(function(x){ return x.checkin_dist_m!=null && x.checkin_dist_m>CHECKIN_RADIUS; });
+      var max=far.length? Math.max.apply(null, far.map(function(x){return x.checkin_dist_m;})) : 0;
+      return kpi('เช็คอินนอกพื้นที่', far.length,
+        far.length? ('ไกลสุด '+fmtDist(max)+' จากไซต์') : ('ทุกทีมเช็คอินในรัศมี '+fmtDist(CHECKIN_RADIUS)),
+        far.length>0);
+    })();
 }
 function kpi(k,v,d,alert){
   return '<div class="kpi'+(alert?' alert':'')+'"><div class="k">'+k+'</div><div class="v">'+v+'</div><div class="d">'+d+'</div></div>';
@@ -1003,6 +1017,7 @@ function renderBoard(){
       '<div class="brow-t"><span class="nm">'+esc(s.name||'—')+'</span><span class="chip '+st.c+'">'+st.l+'</span></div>'+
       '<div class="brow-s"><span>'+esc(t.name||'—')+'</span><span>·</span><span>'+esc(t.leader_name||'')+'</span>'+
         (a.checkin_at?'<span class="tm">เข้า '+fmtT(a.checkin_at)+'</span>':'')+
+        (a.checkin_dist_m!=null?'<span class="chip '+distTone(a.checkin_dist_m)+'">📍 '+fmtDist(a.checkin_dist_m)+'</span>':'')+
         (iss?'<span class="chip c-red">⚠ '+iss+'</span>':'')+'</div>'+
       '<div class="brow-p"><div class="bar'+(a.progress>=100?' ok':'')+'"><i style="width:'+pct(a.progress)+'%"></i></div>'+
         '<span class="pc">'+pct(a.progress)+'%</span></div>'+
@@ -1042,7 +1057,8 @@ function renderMap(){
     /* หมุดไซต์ตามทะเบียน — วงกลมโปร่ง ให้เทียบกับตำแหน่งจริงได้ */
     if(hasCk && hasSite){
       L.circleMarker([s.lat,s.lng],{radius:6,color:'#8e8e93',weight:2,fillOpacity:.15,dashArray:'3,3'})
-        .addTo(S.mapLayer).bindPopup('พิกัดไซต์ตามทะเบียน<br><b>'+esc(s.name||'')+'</b>');
+        .addTo(S.mapLayer).bindPopup('พิกัดไซต์ตามทะเบียน<br><b>'+esc(s.name||'')+'</b>'+
+          (a.checkin_dist_m!=null?('<br>ทีมเช็คอินห่างจากจุดนี้ '+fmtDist(a.checkin_dist_m)):''));
       if(a.checkin_dist_m==null || a.checkin_dist_m>25){
         L.polyline([[s.lat,s.lng], at],{color:'#8e8e93',weight:1.5,dashArray:'4,5',opacity:.7}).addTo(S.mapLayer);
       }
@@ -1057,7 +1073,7 @@ function renderMap(){
     var m=L.marker(at,{icon:ic}).addTo(S.mapLayer);
     m.bindPopup('<b>'+esc(s.name||'')+'</b><br>'+esc(t.name||'')+' · '+st.l+'<br>คืบหน้า '+pct(a.progress)+'%'+
       (hasCk? ('<br>เช็คอิน '+fmtT(a.checkin_at)+
-               (a.checkin_dist_m!=null? ' · ห่างพิกัดไซต์ '+a.checkin_dist_m+' ม.':'')+
+               (a.checkin_dist_m!=null? '<br>ห่างพิกัดไซต์ <b>'+fmtDist(a.checkin_dist_m)+'</b>':'')+
                (a.checkin_acc_m? '<br><span style="color:#8e8e93">GPS แม่นยำ ±'+a.checkin_acc_m+' ม.</span>':''))
             : '<br><span style="color:#8e8e93">ยังไม่เช็คอิน — แสดงพิกัดไซต์</span>')+
       (iss?'<br><b style="color:#ff3b30">ปัญหาค้าง '+iss+' เรื่อง</b>':''));
@@ -1128,13 +1144,10 @@ async function openAsg(id){
       '<dt>ผู้ติดต่อ</dt><dd>'+esc(s.contact||'—')+'</dd>'+
       '<dt>หัวหน้าทีม</dt><dd>'+esc(t.leader_name||'—')+(t.phone?' · <a href="tel:'+esc(t.phone)+'">'+esc(t.phone)+'</a>':'')+'</dd>'+
       '<dt>ขอบเขต</dt><dd>'+esc(a.scope||'—')+'</dd>'+
-      '<dt>เช็คอิน</dt><dd>'+(a.checkin_at
-        ? fmtDT(a.checkin_at)+(a.checkin_dist_m!=null?' · ห่างพิกัดไซต์ '+a.checkin_dist_m+' ม.':'')+
-          (a.checkin_acc_m?' <span style="color:var(--text3)">(GPS ±'+a.checkin_acc_m+' ม.)</span>':'')+
-          (a.checkin_lat!=null?' · <a href="https://www.google.com/maps/search/?api=1&query='+a.checkin_lat+','+a.checkin_lng+'" target="_blank">ดูจุดที่เช็คอิน</a>':'')
-        :'ยังไม่เช็คอิน')+'</dd>'+
+      '<dt>เช็คอิน</dt><dd>'+(a.checkin_at? fmtDT(a.checkin_at) : 'ยังไม่เช็คอิน')+'</dd>'+
       '<dt>คืบหน้า</dt><dd>'+pct(a.progress)+'% · เช็กลิสต์ '+ckDone+'/'+ck.length+'</dd>'+
     '</dl></div>'+
+    (a.checkin_at? checkinBlock(a, s) : '')+
     (ck.length?('<div class="sec"><div class="sec-h">เช็กลิสต์</div>'+
       ck.map(function(c){ return '<div style="font-size:13px;padding:4px 0;color:'+(c.done?'var(--text3)':'var(--text)')+'">'+
         (c.done?'✅':'⬜')+' '+esc(c.label)+'</div>'; }).join('')+'</div>'):'')+
@@ -1154,6 +1167,52 @@ async function openAsg(id){
   $('dwCall').onclick=function(){ if(t.phone) location.href='tel:'+t.phone; else toast('ทีมนี้ยังไม่ได้ใส่เบอร์โทร'); };
   $('dwGo').onclick=function(){ if(s.lat!=null) window.open('https://www.google.com/maps/search/?api=1&query='+s.lat+','+s.lng,'_blank');
     else toast('ไซต์นี้ยังไม่ได้ใส่พิกัด'); };
+}
+
+/* ── จุดที่เช็คอินจริง: พิกัด ระยะห่างเป็น กม. และทางเปิดดูบนแผนที่ ── */
+function checkinBlock(a, s){
+  var hasCk=a.checkin_lat!=null && a.checkin_lng!=null;
+  var d=a.checkin_dist_m;
+  var far = d!=null && d>CHECKIN_RADIUS;
+  var gmap = hasCk? ('https://www.google.com/maps/search/?api=1&query='+a.checkin_lat+','+a.checkin_lng) : '';
+  var route = (hasCk && s.lat!=null)
+    ? ('https://www.google.com/maps/dir/?api=1&origin='+s.lat+','+s.lng+'&destination='+a.checkin_lat+','+a.checkin_lng)
+    : '';
+  return '<div class="sec"><div class="sec-h">จุดที่เช็คอินจริง</div>'+
+    '<div style="background:'+(far?'var(--red-dim)':'var(--s1)')+';border:1px solid '+(far?'rgba(255,59,48,.25)':'var(--border)')+
+      ';border-radius:12px;padding:12px 14px">'+
+      '<div style="display:flex;align-items:baseline;gap:9px;flex-wrap:wrap">'+
+        '<span style="font-size:22px;font-weight:700;letter-spacing:-.02em;font-variant-numeric:tabular-nums;color:'+
+          (far?'var(--red)':'var(--text)')+'">'+(d!=null? fmtDist(d) : '—')+'</span>'+
+        '<span style="font-size:12px;color:var(--text2)">ห่างจากพิกัดไซต์ตามทะเบียน</span>'+
+      '</div>'+
+      (a.checkin_acc_m? '<div style="font-size:11.5px;color:var(--text3);margin-top:3px">'+
+        'GPS มือถือแม่นยำ ±'+a.checkin_acc_m+' ม. — ระยะจริงอาจคลาดได้ประมาณนี้</div>':'')+
+      (hasCk? '<div style="font-size:11.5px;color:var(--text2);margin-top:8px;font-family:var(--mono)">'+
+        a.checkin_lat.toFixed(6)+', '+a.checkin_lng.toFixed(6)+'</div>':'')+
+      '<div style="font-size:11.5px;color:var(--text2);margin-top:2px">เช็คอินเมื่อ '+fmtDT(a.checkin_at)+'</div>'+
+      (hasCk? '<div class="row" style="margin-top:10px">'+
+        '<button class="btn ghost sm" onclick="focusCheckin(\''+a.id+'\')">ดูบนแผนที่</button>'+
+        '<a class="btn ghost sm" style="text-decoration:none;text-align:center;line-height:1.6" target="_blank" href="'+gmap+'">Google Maps</a>'+
+        (route? '<a class="btn ghost sm" style="text-decoration:none;text-align:center;line-height:1.6" target="_blank" href="'+route+'">เส้นทางจากไซต์</a>':'')+
+      '</div>':'')+
+    '</div></div>';
+}
+
+function focusCheckin(id){
+  var a=S.asgs.filter(function(x){return x.id===id;})[0];
+  if(!a || a.checkin_lat==null) return toast('งานนี้ยังไม่มีพิกัดเช็คอิน');
+  if(typeof L==='undefined' || !S.map) return toast('แผนที่ยังไม่พร้อมใช้งาน');
+  closeDrawer();
+  document.querySelector('#mgr .tab[data-p="ov"]').click();
+  setTimeout(function(){
+    S.map.invalidateSize();
+    S.map.setView([a.checkin_lat, a.checkin_lng], 17, {animate:true});
+    L.popup().setLatLng([a.checkin_lat, a.checkin_lng])
+      .setContent('<b>จุดเช็คอินจริง</b><br>'+esc(teamOf(a.team_id).name||'')+'<br>'+
+        'ห่างจากไซต์ '+fmtDist(a.checkin_dist_m))
+      .openOn(S.map);
+  }, 260);
 }
 
 /* ───────── drawer: issue ───────── */
@@ -1211,7 +1270,7 @@ async function openIssue(id){
   };
 }
 
-/* ───────── ไซต์ & ทีม ───────── */
+/* ───────── Work & Team ───────── */
 function renderPlan(){
   $('siteList').innerHTML = S.sites.length? S.sites.map(function(s){
     var todayAsg=S.asgs.filter(function(a){return a.site_id===s.id;}).length;
@@ -1593,7 +1652,10 @@ $('btnRpRun').onclick=async function(){
     var s=siteOf(a.site_id), tm=teamOf(a.team_id);
     return {วันที่:a.work_date, รหัสงาน:s.code, ไซต์:s.name, ลูกค้า:s.customer, ทีม:tm.code+' '+tm.name,
       หัวหน้าทีม:tm.leader_name, สถานะ:(AST[a.status]||{}).l, คืบหน้า:a.progress,
-      เช็คอิน:a.checkin_at?fmtDT(a.checkin_at):'', ห่างจากไซต์เมตร:a.checkin_dist_m, ขอบเขต:a.scope};
+      เช็คอิน:a.checkin_at?fmtDT(a.checkin_at):'',
+      ห่างจากไซต์กม:a.checkin_dist_m!=null?(a.checkin_dist_m/1000).toFixed(2):'',
+      พิกัดเช็คอิน:a.checkin_lat!=null?(a.checkin_lat.toFixed(6)+', '+a.checkin_lng.toFixed(6)):'',
+      GPSแม่นยำเมตร:a.checkin_acc_m, ขอบเขต:a.scope};
   })); };
   $('exI').onclick=function(){ csv('issues_'+f+'_'+t, I.map(function(i){
     var s=siteOf(i.site_id), tm=teamOf(i.team_id);
@@ -1751,7 +1813,8 @@ function renderJob(){
     (s.contact?'<div style="color:var(--text2);margin-top:3px">ติดต่อ: '+esc(s.contact)+'</div>':'')+
     (a.scope?'<div style="margin-top:7px"><b>งานวันนี้:</b> '+esc(a.scope)+'</div>':'')+
     (a.checkin_at?'<div style="color:var(--text2);margin-top:7px">เช็คอิน '+fmtT(a.checkin_at)+
-      (a.checkin_dist_m!=null?' · ห่างจากพิกัดไซต์ '+a.checkin_dist_m+' ม.':'')+'</div>':'')+
+      (a.checkin_dist_m!=null?' · ห่างจากพิกัดไซต์ '+fmtDist(a.checkin_dist_m):'')+
+      (a.checkin_acc_m?' · GPS ±'+a.checkin_acc_m+' ม.':'')+'</div>':'')+
     (s.lat!=null?'<button class="btn ghost sm" style="margin-top:10px" onclick="window.open(\'https://www.google.com/maps/search/?api=1&query='+s.lat+','+s.lng+'\',\'_blank\')">เปิดแผนที่นำทาง</button>':'')+
   '</div></div>';
 
@@ -1813,7 +1876,7 @@ async function doCheckin(a){
   var upd={checkin_at:now, status:'working', checkin_lat:pos?pos.lat:null, checkin_lng:pos?pos.lng:null,
     checkin_dist_m:d, checkin_acc_m:pos?pos.acc:null};
   var rep={assignment_id:a.id, site_id:a.site_id, team_id:S.team.id, kind:'checkin',
-    note:'เช็คอินถึงหน้างาน'+(d!=null?' (ห่างไซต์ '+d+' ม.)':'')+(pos&&pos.acc?' · GPS ±'+pos.acc+' ม.':''),
+    note:'เช็คอินถึงหน้างาน'+(d!=null?' (ห่างไซต์ '+fmtDist(d)+')':'')+(pos&&pos.acc?' · GPS ±'+pos.acc+' ม.':''),
     lat:pos?pos.lat:null, lng:pos?pos.lng:null, acc_m:pos?pos.acc:null,
     created_by:meName(), staff_id:S.me.id};
   try{
@@ -2000,7 +2063,7 @@ function renderMe(){
     '<div class="mpad" style="margin-top:8px"><button class="bigbtn" style="background:var(--s3);color:var(--text);box-shadow:none" id="bOut">ออกจากระบบ</button></div>'+
     '<div style="display:flex;flex-direction:column;align-items:center;gap:6px;padding:18px 0 26px">'+
       '<div class="brandmark" style="width:120px;height:42px"></div>'+
-      '<p style="font-size:10.5px;color:var(--text3);letter-spacing:1px">INSTALL TRACKER v1.1</p></div>';
+      '<p style="font-size:10.5px;color:var(--text3);letter-spacing:1px">INSTALL-QA TRACKER v1.2</p></div>';
   $('bOut').onclick=function(){ if(confirm('ออกจากระบบ?')) logout(); };
 }
 
