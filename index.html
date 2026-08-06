@@ -306,6 +306,9 @@ button,input,select,textarea{font-family:inherit;color:inherit}
 .splash-dots span:nth-child(2){animation-delay:.2s}
 .splash-dots span:nth-child(3){animation-delay:.4s}
 @keyframes dotPulse{0%,100%{opacity:.25;transform:scale(1)}50%{opacity:1;transform:scale(1.4);background:#007AFF}}
+#splashErr{display:none;max-width:420px;margin-top:22px;padding:12px 15px;border-radius:11px;
+  background:rgba(255,59,48,.09);border:1px solid rgba(255,59,48,.28);color:#c9251c;
+  font-size:12.5px;line-height:1.6;text-align:center;font-family:-apple-system,'Sarabun',sans-serif}
 @media(prefers-reduced-motion:reduce){
   .splash-logo,.splash-sub,.splash-bar,.splash-dots,.splash-bar-fill{animation:none!important}
   .splash-bar-fill{width:100%}
@@ -318,7 +321,31 @@ button,input,select,textarea{font-family:inherit;color:inherit}
   <div class="splash-sub">Install Tracker &middot; เธ•เธดเธ”เธ•เธฒเธกเธ—เธตเธกเธ•เธดเธ”เธ•เธฑเนเธ</div>
   <div class="splash-bar"><div class="splash-bar-fill"></div></div>
   <div class="splash-dots"><span></span><span></span><span></span></div>
+  <div id="splashErr"></div>
 </div>
+
+<script>
+/* โ”€โ”€ เธขเธฒเธกเน€เธเนเธฒ splash: เธญเธขเธนเนเธเธญเธเธชเธเธฃเธดเธเธ•เนเธซเธฅเธฑเธ เธ–เนเธฒเธชเธเธฃเธดเธเธ•เนเธซเธฅเธฑเธเธเธฑเธ เธ•เธฑเธงเธเธตเนเธขเธฑเธเธ—เธณเธเธฒเธ โ”€โ”€ */
+(function(){
+  var sp=document.getElementById('splash'), t0=Date.now(), gone=false;
+  function kill(){
+    if(gone||!sp) return; gone=true;
+    sp.classList.add('hide');
+    setTimeout(function(){ if(sp.parentNode) sp.parentNode.removeChild(sp); }, 600);
+  }
+  window.__splashReady=function(){ setTimeout(kill, Math.max(0, 1400-(Date.now()-t0))); };
+  window.__splashFail=function(msg){
+    var b=document.getElementById('splashErr');
+    if(b){ b.style.display='block'; b.textContent=msg; }
+    gone=true;  /* เนเธซเนเธเนเธฒเธเนเธงเนเธเธฃเนเธญเธกเธเนเธญเธเธงเธฒเธก เธเธฐเนเธ”เนเธญเนเธฒเธเธญเธญเธเธงเนเธฒเธเธฑเธเน€เธเธฃเธฒเธฐเธญเธฐเนเธฃ */
+  };
+  setTimeout(kill, 5000);   /* เธเธฑเธเธเนเธฒเธเน€เธ”เนเธ”เธเธฒเธ” เนเธกเนเธงเนเธฒเน€เธเธดเธ”เธญเธฐเนเธฃเธเธถเนเธ */
+  window.addEventListener('error', function(e){
+    window.__splashFail('เน€เธเธดเธ”เนเธญเธเนเธกเนเธชเธณเน€เธฃเนเธ โ€” '+(e.message||'เนเธกเนเธ—เธฃเธฒเธเธชเธฒเน€เธซเธ•เธธ')+
+      (e.lineno?(' (เธเธฃเธฃเธ—เธฑเธ” '+e.lineno+')'):''));
+  });
+})();
+</script>
 
 
 <!-- โ•โ•โ•โ•โ•โ•โ•โ•โ•โ• LOGIN โ•โ•โ•โ•โ•โ•โ•โ•โ•โ• -->
@@ -473,6 +500,11 @@ var SB_URL = 'https://vyzsdfezmzawctfkehbk.supabase.co';
 var SB_KEY = 'sb_publishable__2Ci0D7Gf4dg__BdmHJz3A_KHnvQykx';
 var BUCKET = 'install-photos';
 var CHECKIN_RADIUS = 300;   // เน€เธกเธ•เธฃ โ€” เน€เธเธดเธเธเธตเนเน€เธ•เธทเธญเธเธงเนเธฒเธญเธขเธนเนเนเธเธฅเนเธเธ•เน
+if(typeof supabase==='undefined' || !supabase.createClient){
+  window.__splashFail('เนเธซเธฅเธ”เนเธฅเธเธฃเธฒเธฃเธต Supabase เนเธกเนเนเธ”เน (cdn.jsdelivr.net) โ€” '+
+    'เน€เธเนเธ•เธญเธฒเธเธ–เธนเธเธเธฅเนเธญเธ เธซเธฃเธทเธญเนเธเธฅเนเธ–เธนเธเน€เธเธดเธ”เนเธเธเนเธกเนเธกเธตเธญเธดเธเน€เธ—เธญเธฃเนเน€เธเนเธ•');
+  throw new Error('supabase-js not loaded');
+}
 var db = supabase.createClient(SB_URL, SB_KEY);
 
 /* โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€ เธชเธ–เธฒเธเธฐเธฃเธงเธก โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€ */
@@ -674,16 +706,7 @@ $('btnMgrIn').onclick=function(){
 };
 $('inMgrName').addEventListener('keydown', function(e){ if(e.key==='Enter') $('btnMgrIn').click(); });
 
-var _splashAt = Date.now();
-function hideSplash(){
-  var sp=document.getElementById('splash'); if(!sp || sp._going) return;
-  sp._going=true;
-  setTimeout(function(){
-    sp.classList.add('hide');
-    setTimeout(function(){ if(sp.parentNode) sp.parentNode.removeChild(sp); }, 560);
-  }, Math.max(0, 1600-(Date.now()-_splashAt)));
-}
-setTimeout(hideSplash, 6000);   // เธเธฑเธเธเนเธฒเธ เธ–เนเธฒเน€เธเนเธ•เธเนเธฒเธกเธฒเธเธเนเธขเธฑเธเน€เธเนเธฒเนเธญเธเนเธ”เน
+function hideSplash(){ if(window.__splashReady) window.__splashReady(); }
 
 async function boot(){
   qShow();
