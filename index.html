@@ -355,11 +355,6 @@ button,input,select,textarea{font-family:inherit;color:inherit}
     <h1>Install-QA Tracker</h1>
     <p class="sub">ติดตามทีมติดตั้งหน้างาน · รายงานความคืบหน้าและปัญหาแบบเรียลไทม์</p>
 
-    <div class="lg-tabs">
-      <button class="lg-tab on" data-r="team">พนักงานหน้างาน</button>
-      <button class="lg-tab" data-r="mgr">ผู้จัดการ</button>
-    </div>
-
     <div id="lgErr" class="lg-err hide"></div>
 
     <div id="lgTeam">
@@ -370,11 +365,6 @@ button,input,select,textarea{font-family:inherit;color:inherit}
       <p class="sub" id="lgHint" style="margin-top:11px;font-size:11.5px">ใช้รหัสพนักงานของคุณเป็นชื่อผู้ใช้ · เข้าครั้งแรกระบบจะให้ตั้งรหัส PIN เอง</p>
     </div>
 
-    <div id="lgMgr" class="hide">
-      <div class="fld"><label>ชื่อผู้ใช้ (ไว้แสดงในบันทึกการสั่งการ)</label><input id="inMgrName" placeholder="เช่น คุณเอ — ฝ่ายติดตั้ง"></div>
-      <button class="btn" id="btnMgrIn">เปิด Dashboard</button>
-      <p class="sub" style="margin-top:11px;font-size:11.5px">เปิดจากคอมพิวเตอร์จะเห็นแผนที่และตารางเต็มจอ</p>
-    </div>
   </div>
 </div>
 
@@ -387,13 +377,15 @@ button,input,select,textarea{font-family:inherit;color:inherit}
     <div class="tb-live"><span class="tb-dot" id="liveDot"></span><span id="liveTxt">กำลังเชื่อมต่อ…</span></div>
     <button class="tb-btn" id="btnReload">↻ โหลดใหม่</button>
     <button class="tb-btn" id="btnDiag">🩺 ตรวจระบบ</button>
+    <button class="tb-btn" id="btnMe">บัญชีของฉัน</button>
     <button class="tb-btn" id="btnOut">ออก</button>
   </div>
 
   <div class="tabs">
     <button class="tab on" data-p="ov">📍 ภาพรวมหน้างาน</button>
     <button class="tab" data-p="is">⚠️ ปัญหา <b id="tabIssueN" class="q">0</b></button>
-    <button class="tab" data-p="pl">🗂 Work &amp; Team <b id="tabStaffN" style="display:none">0</b></button>
+    <button class="tab" data-p="wk">🗂 Work</button>
+    <button class="tab" data-p="tm">👥 Team <b id="tabStaffN" style="display:none">0</b></button>
     <button class="tab" data-p="rp">📤 รายงาน / Export</button>
   </div>
 
@@ -427,23 +419,12 @@ button,input,select,textarea{font-family:inherit;color:inherit}
     <div style="padding:0 14px 16px"><div class="card"><div id="isTblWrap"></div></div></div>
   </div>
 
-  <!-- Work & Team -->
-  <div class="pane" id="pPl">
-    <div class="split" style="grid-template-columns:1fr 1fr;padding-top:12px">
+  <!-- Work -->
+  <div class="pane" id="pWk">
+    <div style="padding:12px 14px 14px">
       <div class="card">
         <div class="card-h"><span>ไซต์งาน</span><button class="tb-btn" id="btnAddSite">+ เพิ่มไซต์</button></div>
-        <div id="siteList" style="max-height:520px;overflow:auto"></div>
-      </div>
-      <div class="card">
-        <div class="card-h"><span>ทีมติดตั้ง</span><button class="tb-btn" id="btnAddTeam">+ เพิ่มทีม</button></div>
-        <div id="teamList" style="max-height:520px;overflow:auto"></div>
-      </div>
-    </div>
-    <div style="padding:0 14px 16px">
-      <div class="card">
-        <div class="card-h"><span>พนักงาน · จัดคนเข้าทีม</span>
-          <span id="staffNote" style="text-transform:none;letter-spacing:0;font-weight:500">—</span></div>
-        <div id="staffList" style="max-height:430px;overflow:auto"></div>
+        <div id="siteList" style="max-height:430px;overflow:auto"></div>
       </div>
     </div>
     <div style="padding:0 14px 16px">
@@ -456,6 +437,23 @@ button,input,select,textarea{font-family:inherit;color:inherit}
           <div style="flex:2;min-width:220px"><label style="font-size:11px;color:var(--text2);font-weight:600;display:block;margin-bottom:4px">ขอบเขตงาน — เข้าไปทำอะไรบ้าง</label><button id="asgScopeBtn" class="tin" style="width:100%;text-align:left;cursor:pointer;background:#fff;color:var(--text3)">เลือกงานที่จะเข้าไปทำ…</button></div>
           <button class="btn" id="btnAsg" style="width:auto;padding:8px 18px">มอบหมาย</button>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Team -->
+  <div class="pane" id="pTm">
+    <div style="padding:12px 14px 14px">
+      <div class="card">
+        <div class="card-h"><span>ทีมติดตั้ง</span><button class="tb-btn" id="btnAddTeam">+ เพิ่มทีม</button></div>
+        <div id="teamList" style="max-height:340px;overflow:auto"></div>
+      </div>
+    </div>
+    <div style="padding:0 14px 16px">
+      <div class="card">
+        <div class="card-h"><span>พนักงาน · จัดคนเข้าทีม · สิทธิ์การใช้งาน</span>
+          <span id="staffNote" style="text-transform:none;letter-spacing:0;font-weight:500">—</span></div>
+        <div id="staffList" style="max-height:460px;overflow:auto"></div>
       </div>
     </div>
   </div>
@@ -689,19 +687,13 @@ function getPos(){
   });
 }
 function meName(){ return (S.me && (S.me.name || S.me.emp_code)) || 'ทีม'; }
+var ROLES={staff:'พนักงานหน้างาน', manager:'ผู้จัดการ', admin:'แอดมิน'};
+function isMgr(u){ return !!(u && (u.role==='manager' || u.role==='admin')); }
+function isAdmin(u){ return !!(u && u.role==='admin'); }
 
 /* ═════════════════════════════════════════════════════════
    LOGIN
    ═════════════════════════════════════════════════════════ */
-Array.prototype.forEach.call(document.querySelectorAll('.lg-tab'), function(b){
-  b.onclick=function(){
-    document.querySelectorAll('.lg-tab').forEach(function(x){ x.classList.remove('on'); });
-    b.classList.add('on');
-    $('lgTeam').classList.toggle('hide', b.dataset.r!=='team');
-    $('lgMgr').classList.toggle('hide', b.dataset.r!=='mgr');
-    $('lgErr').classList.add('hide');
-  };
-});
 function lgErr(m){ $('lgErr').textContent=m; $('lgErr').classList.remove('hide'); }
 function lgOk(){ $('lgErr').classList.add('hide'); }
 
@@ -716,7 +708,8 @@ function lgRender(){
 
   if(LG.mode==='code'){
     d.innerHTML=''; b.textContent='ถัดไป'; $('inCode').disabled=false;
-    h.innerHTML='ใช้รหัสพนักงานของคุณเป็นชื่อผู้ใช้ · เข้าครั้งแรกระบบจะให้ตั้งรหัส PIN เอง';
+    h.innerHTML='ใช้รหัสพนักงานของคุณเป็นชื่อผู้ใช้ · เข้าครั้งแรกระบบจะให้ตั้งรหัส PIN เอง<br>'+
+      'ผู้จัดการใช้ช่องเดียวกันนี้ ระบบพาไปหน้า Dashboard ให้เองตามสิทธิ์';
     return;
   }
   $('inCode').disabled=true;
@@ -726,7 +719,8 @@ function lgRender(){
       'placeholder="••••" autocomplete="current-password"></div>'+backLink;
     b.textContent='เข้าใช้งาน';
     h.innerHTML='เข้าใช้ในชื่อ <b style="color:var(--text)">'+esc(LG.staff.name||LG.staff.emp_code)+'</b>'+
-      (LG.staff.team_id?'':' · ยังไม่ได้เข้าทีม');
+      (isMgr(LG.staff)? (' · <span style="color:var(--accent);font-weight:600">'+ROLES[LG.staff.role]+'</span>')
+                      : (LG.staff.team_id?'':' · ยังไม่ได้เข้าทีม'));
   }
   else if(LG.mode==='setpin'){
     d.innerHTML='<div class="fld"><label>ตั้ง PIN (4–6 หลัก)</label><input id="inPin" type="tel" inputmode="numeric" maxlength="6" placeholder="••••"></div>'+
@@ -806,16 +800,11 @@ $('btnNext').onclick=async function(){
 $('inCode').addEventListener('keydown', function(e){ if(e.key==='Enter') $('btnNext').click(); });
 
 function finishLogin(staff, pin){
-  S.me=staff; S.role='team';
-  saveSess({role:'staff', emp:staff.emp_code, pin:pin});
-  startTeam();
+  S.me=staff;
+  saveSess({role:'user', emp:staff.emp_code, pin:pin});
+  if(isMgr(staff)){ S.role='mgr'; S.mgrName=meName(); startMgr(); }
+  else{ S.role='team'; startTeam(); }
 }
-
-$('btnMgrIn').onclick=function(){
-  var n=$('inMgrName').value.trim(); if(!n) return lgErr('ใส่ชื่อผู้ใช้ก่อน จะได้รู้ว่าใครสั่งงาน');
-  S.mgrName=n; S.role='mgr'; saveSess({role:'mgr', name:n}); startMgr();
-};
-$('inMgrName').addEventListener('keydown', function(e){ if(e.key==='Enter') $('btnMgrIn').click(); });
 
 function hideSplash(){ if(window.__splashReady) window.__splashReady(); }
 
@@ -823,11 +812,12 @@ async function boot(){
   qShow(); lgRender();
   try{
     var ss=loadSess();
-    if(ss && ss.role==='mgr'){ S.mgrName=ss.name; S.role='mgr'; startMgr(); }
-    else if(ss && ss.role==='staff'){
+    if(ss && (ss.role==='user' || ss.role==='staff') && ss.emp){
       var r=await db.from('it_staff').select('*').eq('emp_code',ss.emp).limit(1);
       if(r.data && r.data.length && String(r.data[0].pin)===ss.pin && r.data[0].active){
-        S.me=r.data[0]; S.role='team'; startTeam();
+        var u=r.data[0]; S.me=u;
+        if(isMgr(u)){ S.role='mgr'; S.mgrName=meName(); startMgr(); }
+        else{ S.role='team'; startTeam(); }
       }
     }
   }catch(e){}
@@ -840,13 +830,16 @@ function logout(){ localStorage.removeItem('it_sess'); location.reload(); }
    ═════════════════════════════════════════════════════════ */
 function startMgr(){
   $('login').classList.add('hide'); $('mgr').classList.remove('hide'); $('team').classList.add('hide');
-  $('mgrWho').textContent=S.mgrName;
+  S.mgrName=meName();
+  $('mgrWho').innerHTML=esc(meName())+' · '+esc(ROLES[S.me.role]||'ผู้จัดการ');
+  $('mgrWho').title='รหัสพนักงาน '+(S.me.emp_code||'');
   $('dtPick').value=S.date; $('asgDate').value=S.date;
   $('rpFrom').value=S.date; $('rpTo').value=S.date;
   scopeBtnRefresh();
   loadMgr(); subscribe();
 }
 $('asgScopeBtn').onclick=function(){ scopePicker(); };
+$('btnMe').onclick=myAccount;
 $('btnOut').onclick=logout;
 $('btnReload').onclick=function(){ loadMgr(); };
 $('btnDiag').onclick=function(){ diag(); };
@@ -857,7 +850,7 @@ document.querySelectorAll('#mgr .tab').forEach(function(t){
     document.querySelectorAll('#mgr .tab').forEach(function(x){x.classList.remove('on');});
     document.querySelectorAll('#mgr .pane').forEach(function(x){x.classList.remove('on');});
     t.classList.add('on');
-    var id={ov:'pOv',is:'pIs',pl:'pPl',rp:'pRp'}[t.dataset.p];
+    var id={ov:'pOv',is:'pIs',wk:'pWk',tm:'pTm',rp:'pRp'}[t.dataset.p];
     $(id).classList.add('on');
     if(t.dataset.p==='ov' && S.map) setTimeout(function(){ S.map.invalidateSize(); },60);
   };
@@ -1251,7 +1244,7 @@ async function openIssue(id){
 
   $('dwFoot').innerHTML=
     '<textarea id="dwMsg" class="tin" style="width:100%;height:56px;resize:none;margin-bottom:8px" placeholder="พิมพ์คำสั่งการ / สิ่งที่จะทำให้ แล้วส่งกลับหน้างาน…"></textarea>'+
-    '<div class="row" style="margin-bottom:7px"><input id="dwAsgn" class="tin" placeholder="ผู้รับผิดชอบ" value="'+esc(i.assignee||S.mgrName)+'">'+
+    '<div class="row" style="margin-bottom:7px"><input id="dwAsgn" class="tin" placeholder="ผู้รับผิดชอบ" value="'+esc(i.assignee||meName())+'">'+
       '<select id="dwSt" class="tin">'+Object.keys(IST).map(function(k){ return '<option value="'+k+'"'+(k===i.status?' selected':'')+'>'+IST[k].l+'</option>'; }).join('')+'</select></div>'+
     '<button class="btn sm" id="dwSend">บันทึกและส่งกลับหน้างาน</button>';
   $('dwSend').onclick=async function(){
@@ -1263,10 +1256,52 @@ async function openIssue(id){
       if(st==='resolved') patch.resolved_at=new Date().toISOString();
       if(st==='closed') patch.closed_at=new Date().toISOString();
       await db.from('it_issues').update(patch).eq('id',id);
-      if(msg) await db.from('it_issue_comments').insert({issue_id:id, author:S.mgrName, role:'office', body:msg});
+      var log=[];
+      if(st!==i.status) log.push('เปลี่ยนสถานะเป็น "'+IST[st].l+'"');
+      if((asgn||null)!==(i.assignee||null)) log.push('มอบหมายให้ '+(asgn||'—'));
+      if(msg) log.push(msg);
+      if(log.length) await db.from('it_issue_comments').insert({issue_id:id, author:meName(), role:'office', body:log.join('\n')});
       toast('บันทึกแล้ว — หน้างานจะเห็นทันที');
       await loadMgr(); openIssue(id);
     }catch(e){ toast('บันทึกไม่สำเร็จ: '+(e.message||e),4000); this.disabled=false; this.textContent='บันทึกและส่งกลับหน้างาน'; }
+  };
+}
+
+/* ── บัญชีของฉัน: เปลี่ยนชื่อ เบอร์ และ PIN ที่เคยตั้งไว้ ── */
+function myAccount(){
+  var x=S.me||{};
+  sheet('บัญชีของฉัน',
+    '<div style="background:var(--s1);border:1px solid var(--border);border-radius:11px;padding:11px 13px;margin-bottom:14px;font-size:12.5px;line-height:1.7">'+
+      'รหัสพนักงาน <b style="font-family:var(--mono)">'+esc(x.emp_code||'')+'</b>'+
+      ' <span class="chip '+(isMgr(x)?'c-purple':'c-gray')+'">'+esc(ROLES[x.role]||'พนักงานหน้างาน')+'</span>'+
+      (x.last_login_at? '<div style="color:var(--text3);font-size:11.5px">เข้าใช้ล่าสุด '+fmtDT(x.last_login_at)+'</div>':'')+
+    '</div>'+
+    '<div class="fld"><label>ชื่อ–สกุล</label><input id="m_name" value="'+esc(x.name||'')+'"></div>'+
+    '<div class="fld"><label>เบอร์โทร</label><input id="m_ph" value="'+esc(x.phone||'')+'"></div>'+
+    '<div class="sec-h" style="margin-top:18px">เปลี่ยน PIN (เว้นว่างไว้ถ้าไม่เปลี่ยน)</div>'+
+    '<div class="fld"><label>PIN เดิม</label><input id="m_p0" type="tel" inputmode="numeric" maxlength="6" placeholder="••••"></div>'+
+    '<div class="row"><div class="fld"><label>PIN ใหม่</label><input id="m_p1" type="tel" inputmode="numeric" maxlength="6" placeholder="••••"></div>'+
+    '<div class="fld"><label>ยืนยัน PIN ใหม่</label><input id="m_p2" type="tel" inputmode="numeric" maxlength="6" placeholder="••••"></div></div>',
+    '<button class="btn sm" id="m_save">บันทึก</button>');
+
+  $('m_save').onclick=async function(){
+    var nm=$('m_name').value.trim(), ph=$('m_ph').value.trim();
+    var p0=$('m_p0').value.trim(), p1=$('m_p1').value.trim(), p2=$('m_p2').value.trim();
+    if(!nm) return toast('ใส่ชื่อ–สกุลก่อน');
+    var patch={name:nm, phone:ph||null};
+    if(p1 || p2 || p0){
+      if(String(S.me.pin)!==p0) return toast('PIN เดิมไม่ถูกต้อง');
+      var bad=pinOK(p1,p2); if(bad) return toast(bad);
+      patch.pin=p1;
+    }
+    this.disabled=true;
+    var r=await db.from('it_staff').update(patch).eq('id',S.me.id).select().single();
+    if(r.error){ toast('บันทึกไม่สำเร็จ: '+r.error.message,4000); this.disabled=false; return; }
+    S.me=r.data;
+    if(patch.pin){ var ss=loadSess()||{}; ss.pin=patch.pin; saveSess(ss); }
+    closeSheet(); toast('บันทึกแล้ว');
+    if(S.role==='mgr'){ S.mgrName=meName(); $('mgrWho').innerHTML=esc(meName())+' · '+esc(ROLES[S.me.role]||'ผู้จัดการ'); loadMgr(); }
+    else loadTeamData();
   };
 }
 
@@ -1302,9 +1337,11 @@ function teamStaff(tid){ return S.staff.filter(function(x){ return x.team_id===t
 function teamLeader(tid){ return teamStaff(tid).filter(function(x){return x.is_leader;})[0]||null; }
 
 function renderStaff(){
-  var un=S.staff.filter(function(x){ return !x.team_id && x.active; });
+  var un=S.staff.filter(function(x){ return !x.team_id && x.active && !isMgr(x); });
   var noPin=S.staff.filter(function(x){ return !x.pin; }).length;
-  $('staffNote').textContent = S.staff.length+' คน'+(un.length?(' · รอจัดทีม '+un.length):'')+(noPin?(' · ยังไม่ตั้ง PIN '+noPin):'');
+  var mgrs=S.staff.filter(isMgr).length;
+  $('staffNote').textContent = S.staff.length+' คน · ผู้จัดการ '+mgrs+
+    (un.length?(' · รอจัดทีม '+un.length):'')+(noPin?(' · ยังไม่ตั้ง PIN '+noPin):'');
   var tb=$('tabStaffN');
   if(tb){ tb.textContent=un.length; tb.style.display=un.length?'':'none'; }
 
@@ -1314,16 +1351,19 @@ function renderStaff(){
     return;
   }
   var order=S.staff.slice().sort(function(a,b){
+    if(isMgr(a)!==isMgr(b)) return isMgr(a)? -1 : 1;             /* ผู้จัดการ/แอดมินขึ้นบนสุด */
     if(!a.team_id !== !b.team_id) return a.team_id? 1 : -1;      /* รอจัดทีมขึ้นก่อน */
     return (a.team_id||'').localeCompare(b.team_id||'') || String(a.emp_code).localeCompare(String(b.emp_code));
   });
   $('staffList').innerHTML = order.map(function(x){
     var opts='<option value="">— ยังไม่เข้าทีม —</option>'+S.teams.map(function(t){
       return '<option value="'+t.id+'"'+(x.team_id===t.id?' selected':'')+'>'+esc(t.code+' · '+t.name)+'</option>'; }).join('');
-    return '<div class="brow" style="cursor:default'+(x.team_id||!x.active?'':';background:rgba(255,149,0,.08)')+'">'+
+    return '<div class="brow" style="cursor:default'+
+      (isMgr(x)?';background:rgba(0,122,255,.05)':(x.team_id||!x.active?'':';background:rgba(255,149,0,.08)'))+'">'+
       '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">'+
         '<div style="flex:1;min-width:170px">'+
           '<div class="brow-t"><span class="nm">'+esc(x.name||'(ยังไม่ใส่ชื่อ)')+'</span>'+
+            (isMgr(x)?'<span class="chip c-blue">'+esc(ROLES[x.role])+'</span>':'')+
             (x.is_leader?'<span class="chip c-purple">หัวหน้าทีม</span>':'')+
             (x.active?'':'<span class="chip c-gray">ปิดใช้งาน</span>')+
             (x.pin?'':'<span class="chip c-orange">ยังไม่ตั้ง PIN</span>')+'</div>'+
@@ -1370,6 +1410,10 @@ function staffForm(id){
     '<div class="row"><div class="fld"><label>รหัสพนักงาน</label><input id="p_code" value="'+esc(x.emp_code||'')+'"></div>'+
     '<div class="fld"><label>เบอร์โทร</label><input id="p_ph" value="'+esc(x.phone||'')+'"></div></div>'+
     '<div class="fld"><label>ชื่อ–สกุล</label><input id="p_name" value="'+esc(x.name||'')+'"></div>'+
+    '<div class="fld"><label>สิทธิ์การใช้งาน</label><select id="p_role">'+
+      Object.keys(ROLES).map(function(k){ return '<option value="'+k+'"'+((x.role||'staff')===k?' selected':'')+'>'+ROLES[k]+'</option>'; }).join('')+
+    '</select>'+
+    '<p style="font-size:11px;color:var(--text3);margin-top:5px">ผู้จัดการและแอดมินจะเข้าหน้า Dashboard แทนหน้างานเมื่อล็อกอิน</p></div>'+
     '<div class="fld"><label>ทีม</label><select id="p_team">'+
       '<option value="">— ยังไม่เข้าทีม —</option>'+
       S.teams.map(function(t){ return '<option value="'+t.id+'"'+(x.team_id===t.id?' selected':'')+'>'+esc(t.code+' · '+t.name)+'</option>'; }).join('')+
@@ -1391,7 +1435,8 @@ function staffForm(id){
     var tid=$('p_team').value||null;
     var p={emp_code:$('p_code').value.trim().toUpperCase(), name:$('p_name').value.trim()||null,
       phone:$('p_ph').value.trim()||null, team_id:tid, is_leader: tid? $('p_lead').checked : false,
-      active:$('p_act').checked};
+      role:$('p_role').value, active:$('p_act').checked};
+    if(S.me && id===S.me.id && p.role==='staff') return toast('เปลี่ยนสิทธิ์ตัวเองเป็นพนักงานไม่ได้ ให้แอดมินคนอื่นทำแทน');
     if(!p.emp_code) return toast('ต้องมีรหัสพนักงาน');
     this.disabled=true;
     if(p.is_leader && tid){
@@ -1754,9 +1799,12 @@ function renderNoTeam(){
       'แจ้งผู้จัดการว่ารหัสพนักงาน <b>'+esc(S.me.emp_code)+'</b> ลงทะเบียนแล้ว '+
       'พอจัดเข้าทีมเมื่อไหร่ งานจะขึ้นที่หน้านี้ทันที</div></div>'+
     '<div class="mpad"><button class="bigbtn" id="ntRe">🔄 ตรวจสอบอีกครั้ง</button></div>'+
+    '<div class="mpad" style="margin-top:-4px"><button class="bigbtn" id="ntEdit" '+
+      'style="background:var(--s3);color:var(--text);box-shadow:none">✏️ แก้ไขชื่อ / เบอร์ / PIN</button></div>'+
     '<div class="mpad" style="margin-top:-4px"><button class="bigbtn" id="ntOut" '+
       'style="background:var(--s3);color:var(--text);box-shadow:none">ออกจากระบบ</button></div>';
   $('ntRe').onclick=function(){ loadTeamData(); toast('ตรวจสอบแล้ว'); };
+  $('ntEdit').onclick=myAccount;
   $('ntOut').onclick=function(){ if(confirm('ออกจากระบบ?')) logout(); };
 }
 
@@ -2060,10 +2108,12 @@ function renderMe(){
       '<div>งานที่ได้รับ: <b>'+wk.length+'</b> งาน</div>'+
       '<div>ปิดงานสำเร็จ: <b>'+done+'</b> งาน</div>'+
       '<div>ปัญหาที่แจ้ง: <b>'+S.issues.length+'</b> เรื่อง</div></div></div>'+
-    '<div class="mpad" style="margin-top:8px"><button class="bigbtn" style="background:var(--s3);color:var(--text);box-shadow:none" id="bOut">ออกจากระบบ</button></div>'+
+    '<div class="mpad" style="margin-top:8px"><button class="bigbtn" id="bEdit">✏️ แก้ไขชื่อ / เบอร์ / PIN</button></div>'+
+    '<div class="mpad" style="margin-top:-4px"><button class="bigbtn" style="background:var(--s3);color:var(--text);box-shadow:none" id="bOut">ออกจากระบบ</button></div>'+
     '<div style="display:flex;flex-direction:column;align-items:center;gap:6px;padding:18px 0 26px">'+
       '<div class="brandmark" style="width:120px;height:42px"></div>'+
       '<p style="font-size:10.5px;color:var(--text3);letter-spacing:1px">INSTALL-QA TRACKER v1.2</p></div>';
+  $('bEdit').onclick=myAccount;
   $('bOut').onclick=function(){ if(confirm('ออกจากระบบ?')) logout(); };
 }
 
