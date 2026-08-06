@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
 <title>Install Tracker — ติดตามทีมติดตั้ง</title>
 <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css">
 <style>
 :root{
   --bg:#f0f0f5; --s1:rgba(255,255,255,.82); --s2:rgba(246,246,250,.9); --s3:rgba(236,236,242,.95);
@@ -356,16 +356,18 @@ button,input,select,textarea{font-family:inherit;color:inherit}
     <p class="sub">ติดตามทีมติดตั้งหน้างาน · รายงานความคืบหน้าและปัญหาแบบเรียลไทม์</p>
 
     <div class="lg-tabs">
-      <button class="lg-tab on" data-r="team">หัวหน้าทีม</button>
+      <button class="lg-tab on" data-r="team">พนักงานหน้างาน</button>
       <button class="lg-tab" data-r="mgr">ผู้จัดการ</button>
     </div>
 
     <div id="lgErr" class="lg-err hide"></div>
 
     <div id="lgTeam">
-      <div class="fld"><label>รหัสทีม</label><input id="inCode" placeholder="เช่น T01" autocapitalize="characters"></div>
-      <div class="fld"><label>PIN</label><input id="inPin" type="tel" inputmode="numeric" maxlength="6" placeholder="••••"></div>
-      <button class="btn" id="btnTeamIn">เข้าใช้งาน</button>
+      <div class="fld"><label>รหัสพนักงาน</label>
+        <input id="inCode" placeholder="เช่น 1009477" autocapitalize="characters" autocomplete="username"></div>
+      <div id="lgDyn"></div>
+      <button class="btn" id="btnNext">ถัดไป</button>
+      <p class="sub" id="lgHint" style="margin-top:11px;font-size:11.5px">ใช้รหัสพนักงานของคุณเป็นชื่อผู้ใช้ · เข้าครั้งแรกระบบจะให้ตั้งรหัส PIN เอง</p>
     </div>
 
     <div id="lgMgr" class="hide">
@@ -391,7 +393,7 @@ button,input,select,textarea{font-family:inherit;color:inherit}
   <div class="tabs">
     <button class="tab on" data-p="ov">📍 ภาพรวมหน้างาน</button>
     <button class="tab" data-p="is">⚠️ ปัญหา <b id="tabIssueN" class="q">0</b></button>
-    <button class="tab" data-p="pl">🗂 ไซต์ & ทีม</button>
+    <button class="tab" data-p="pl">🗂 ไซต์ & ทีม <b id="tabStaffN" style="display:none">0</b></button>
     <button class="tab" data-p="rp">📤 รายงาน / Export</button>
   </div>
 
@@ -435,6 +437,13 @@ button,input,select,textarea{font-family:inherit;color:inherit}
       <div class="card">
         <div class="card-h"><span>ทีมติดตั้ง</span><button class="tb-btn" id="btnAddTeam">+ เพิ่มทีม</button></div>
         <div id="teamList" style="max-height:520px;overflow:auto"></div>
+      </div>
+    </div>
+    <div style="padding:0 14px 16px">
+      <div class="card">
+        <div class="card-h"><span>พนักงาน · จัดคนเข้าทีม</span>
+          <span id="staffNote" style="text-transform:none;letter-spacing:0;font-weight:500">—</span></div>
+        <div id="staffList" style="max-height:430px;overflow:auto"></div>
       </div>
     </div>
     <div style="padding:0 14px 16px">
@@ -489,7 +498,7 @@ button,input,select,textarea{font-family:inherit;color:inherit}
 <div id="lightbox"><img id="lbImg" alt=""></div>
 <div id="toast"></div>
 
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
 /* =====================================================================
@@ -509,7 +518,7 @@ var db = supabase.createClient(SB_URL, SB_KEY);
 
 /* ───────── สถานะรวม ───────── */
 var S = {
-  role:'team', mgrName:'', team:null,
+  role:'team', mgrName:'', team:null, me:null, staff:[],
   date: todayISO(),
   sites:[], teams:[], asgs:[], issues:[],
   ovFilter:'all', ovQ:'', isFilter:'open', isQ:'', isAllDates:true,
@@ -645,7 +654,7 @@ function photoPicker(hostId, store){
       if(!f.files.length) return;
       toast('กำลังอัปโหลดรูป…', 8000);
       try{
-        var urls=await uploadPhotos(Array.prototype.slice.call(f.files,0,6),'p'+(S.team?S.team.code:'mgr'));
+        var urls=await uploadPhotos(Array.prototype.slice.call(f.files,0,6),'p'+(S.me?S.me.emp_code:'mgr'));
         urls.forEach(function(u){ store.push(u); });
         photoPicker(hostId, store); toast('อัปโหลดรูปแล้ว '+urls.length+' รูป');
       }catch(e){ toast('อัปโหลดรูปไม่สำเร็จ — ลองใหม่เมื่อสัญญาณดีขึ้น', 3600); }
@@ -662,14 +671,17 @@ function photoStrip(arr){
 }
 
 /* ───────── GPS ───────── */
+var TILE='https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png';
 function getPos(){
   return new Promise(function(res){
     if(!navigator.geolocation) return res(null);
     navigator.geolocation.getCurrentPosition(
-      function(p){ res({lat:p.coords.latitude, lng:p.coords.longitude}); },
-      function(){ res(null); }, {enableHighAccuracy:true, timeout:9000, maximumAge:30000});
+      function(p){ res({lat:p.coords.latitude, lng:p.coords.longitude,
+                        acc: p.coords.accuracy!=null? Math.round(p.coords.accuracy) : null}); },
+      function(){ res(null); }, {enableHighAccuracy:true, timeout:12000, maximumAge:0});
   });
 }
+function meName(){ return (S.me && (S.me.name || S.me.emp_code)) || 'ทีม'; }
 
 /* ═════════════════════════════════════════════════════════
    LOGIN
@@ -684,21 +696,113 @@ Array.prototype.forEach.call(document.querySelectorAll('.lg-tab'), function(b){
   };
 });
 function lgErr(m){ $('lgErr').textContent=m; $('lgErr').classList.remove('hide'); }
+function lgOk(){ $('lgErr').classList.add('hide'); }
 
-$('btnTeamIn').onclick=async function(){
-  var code=$('inCode').value.trim().toUpperCase(), pin=$('inPin').value.trim();
-  if(!code||!pin) return lgErr('กรอกรหัสทีมและ PIN ให้ครบ');
-  this.disabled=true; this.textContent='กำลังตรวจสอบ…';
-  var r=await db.from('it_teams').select('*').eq('code',code).eq('active',true).limit(1);
-  this.disabled=false; this.textContent='เข้าใช้งาน';
-  if(r.error) return lgErr('เชื่อมต่อฐานข้อมูลไม่ได้ — ตรวจอินเทอร์เน็ตแล้วลองใหม่');
-  if(!r.data||!r.data.length) return lgErr('ไม่พบรหัสทีมนี้ หรือทีมถูกปิดใช้งาน');
-  if(String(r.data[0].pin)!==pin) return lgErr('PIN ไม่ถูกต้อง');
-  S.team=r.data[0]; S.role='team';
-  saveSess({role:'team', code:code, pin:pin});
-  startTeam();
+/* ── ล็อกอินด้วยรหัสพนักงาน: ยังไม่มีในระบบ = ลงทะเบียน · มีแล้วแต่ยังไม่ตั้ง PIN = ตั้งรหัส ── */
+var LG={mode:'code', staff:null};
+function lgBack(){ LG.mode='code'; LG.staff=null; $('inCode').disabled=false; lgOk(); lgRender(); $('inCode').focus(); }
+
+function lgRender(){
+  var d=$('lgDyn'), b=$('btnNext'), h=$('lgHint');
+  var backLink='<button type="button" onclick="lgBack()" style="background:none;border:none;color:var(--accent);'+
+    'font-size:12px;cursor:pointer;padding:2px 0;font-weight:600">‹ ใช้รหัสพนักงานอื่น</button>';
+
+  if(LG.mode==='code'){
+    d.innerHTML=''; b.textContent='ถัดไป'; $('inCode').disabled=false;
+    h.innerHTML='ใช้รหัสพนักงานของคุณเป็นชื่อผู้ใช้ · เข้าครั้งแรกระบบจะให้ตั้งรหัส PIN เอง';
+    return;
+  }
+  $('inCode').disabled=true;
+
+  if(LG.mode==='login'){
+    d.innerHTML='<div class="fld"><label>PIN</label><input id="inPin" type="tel" inputmode="numeric" maxlength="6" '+
+      'placeholder="••••" autocomplete="current-password"></div>'+backLink;
+    b.textContent='เข้าใช้งาน';
+    h.innerHTML='เข้าใช้ในชื่อ <b style="color:var(--text)">'+esc(LG.staff.name||LG.staff.emp_code)+'</b>'+
+      (LG.staff.team_id?'':' · ยังไม่ได้เข้าทีม');
+  }
+  else if(LG.mode==='setpin'){
+    d.innerHTML='<div class="fld"><label>ตั้ง PIN (4–6 หลัก)</label><input id="inPin" type="tel" inputmode="numeric" maxlength="6" placeholder="••••"></div>'+
+      '<div class="fld"><label>ยืนยัน PIN อีกครั้ง</label><input id="inPin2" type="tel" inputmode="numeric" maxlength="6" placeholder="••••"></div>'+backLink;
+    b.textContent='ตั้งรหัสและเข้าใช้งาน';
+    h.innerHTML='ครั้งแรกของ <b style="color:var(--text)">'+esc(LG.staff.name||LG.staff.emp_code)+'</b> — ตั้ง PIN ไว้ใช้ครั้งต่อไป อย่าบอกคนอื่น';
+  }
+  else if(LG.mode==='register'){
+    d.innerHTML='<div class="fld"><label>ชื่อ–สกุล</label><input id="inName" placeholder="เช่น สมชาย ก."></div>'+
+      '<div class="fld"><label>เบอร์โทร</label><input id="inPhone" type="tel" inputmode="tel" placeholder="08x-xxx-xxxx"></div>'+
+      '<div class="fld"><label>ตั้ง PIN (4–6 หลัก)</label><input id="inPin" type="tel" inputmode="numeric" maxlength="6" placeholder="••••"></div>'+
+      '<div class="fld"><label>ยืนยัน PIN อีกครั้ง</label><input id="inPin2" type="tel" inputmode="numeric" maxlength="6" placeholder="••••"></div>'+backLink;
+    b.textContent='ลงทะเบียนและเข้าใช้งาน';
+    h.innerHTML='ยังไม่มีรหัส <b style="color:var(--text)">'+esc($('inCode').value.trim())+'</b> ในระบบ — ลงทะเบียนได้เลย '+
+      'แล้วผู้จัดการจะจัดคุณเข้าทีมให้';
+  }
+  var f=$('inPin'); if(f) f.focus();
+  ['inPin','inPin2','inName','inPhone'].forEach(function(id){
+    var el=$(id); if(el) el.addEventListener('keydown', function(e){ if(e.key==='Enter') $('btnNext').click(); });
+  });
+}
+
+function pinOK(a,b2){
+  if(!/^[0-9]{4,6}$/.test(a)) return 'PIN ต้องเป็นตัวเลข 4–6 หลัก';
+  if(a!==b2) return 'PIN สองช่องไม่ตรงกัน';
+  if(/^(\d)\1+$/.test(a)) return 'PIN เลขซ้ำกันทั้งหมดเดาง่ายเกินไป ลองใหม่';
+  return null;
+}
+
+$('btnNext').onclick=async function(){
+  var btn=this, code=$('inCode').value.trim().toUpperCase();
+  if(!code) return lgErr('ใส่รหัสพนักงานก่อน');
+  btn.disabled=true; var lbl=btn.textContent; btn.textContent='กำลังตรวจสอบ…';
+  try{
+    if(LG.mode==='code'){
+      var r=await db.from('it_staff').select('*').eq('emp_code',code).limit(1);
+      if(r.error) throw r.error;
+      if(r.data && r.data.length){
+        LG.staff=r.data[0];
+        if(!LG.staff.active) throw new Error('บัญชีนี้ถูกปิดใช้งาน ติดต่อผู้จัดการ');
+        LG.mode = LG.staff.pin ? 'login' : 'setpin';
+      }else{
+        LG.staff=null; LG.mode='register';
+      }
+      lgOk(); lgRender();
+    }
+    else if(LG.mode==='login'){
+      var pin=$('inPin').value.trim();
+      if(String(LG.staff.pin)!==pin) throw new Error('PIN ไม่ถูกต้อง');
+      await db.from('it_staff').update({last_login_at:new Date().toISOString()}).eq('id',LG.staff.id);
+      finishLogin(LG.staff, pin);
+    }
+    else if(LG.mode==='setpin'){
+      var p1=$('inPin').value.trim(), p2=$('inPin2').value.trim();
+      var bad=pinOK(p1,p2); if(bad) throw new Error(bad);
+      var now=new Date().toISOString();
+      var u=await db.from('it_staff').update({pin:p1, first_login_at:now, last_login_at:now}).eq('id',LG.staff.id).select().single();
+      if(u.error) throw u.error;
+      finishLogin(u.data, p1);
+    }
+    else if(LG.mode==='register'){
+      var nm=$('inName').value.trim(), ph=$('inPhone').value.trim();
+      var q1=$('inPin').value.trim(), q2=$('inPin2').value.trim();
+      if(!nm) throw new Error('ใส่ชื่อ–สกุลก่อน');
+      var bad2=pinOK(q1,q2); if(bad2) throw new Error(bad2);
+      var now2=new Date().toISOString();
+      var ins=await db.from('it_staff').insert({emp_code:code, name:nm, phone:ph||null, pin:q1,
+        active:true, first_login_at:now2, last_login_at:now2}).select().single();
+      if(ins.error) throw ins.error;
+      finishLogin(ins.data, q1);
+    }
+  }catch(e){
+    lgErr(e.message||'ทำรายการไม่สำเร็จ — ตรวจอินเทอร์เน็ตแล้วลองใหม่');
+  }
+  btn.disabled=false; btn.textContent=lbl;
 };
-$('inPin').addEventListener('keydown', function(e){ if(e.key==='Enter') $('btnTeamIn').click(); });
+$('inCode').addEventListener('keydown', function(e){ if(e.key==='Enter') $('btnNext').click(); });
+
+function finishLogin(staff, pin){
+  S.me=staff; S.role='team';
+  saveSess({role:'staff', emp:staff.emp_code, pin:pin});
+  startTeam();
+}
 
 $('btnMgrIn').onclick=function(){
   var n=$('inMgrName').value.trim(); if(!n) return lgErr('ใส่ชื่อผู้ใช้ก่อน จะได้รู้ว่าใครสั่งงาน');
@@ -709,15 +813,17 @@ $('inMgrName').addEventListener('keydown', function(e){ if(e.key==='Enter') $('b
 function hideSplash(){ if(window.__splashReady) window.__splashReady(); }
 
 async function boot(){
-  qShow();
+  qShow(); lgRender();
   try{
-    var s=loadSess();
-    if(s && s.role==='mgr'){ S.mgrName=s.name; S.role='mgr'; startMgr(); }
-    else if(s && s.role==='team'){
-      var r=await db.from('it_teams').select('*').eq('code',s.code).limit(1);
-      if(r.data && r.data.length && String(r.data[0].pin)===s.pin){ S.team=r.data[0]; S.role='team'; startTeam(); }
+    var ss=loadSess();
+    if(ss && ss.role==='mgr'){ S.mgrName=ss.name; S.role='mgr'; startMgr(); }
+    else if(ss && ss.role==='staff'){
+      var r=await db.from('it_staff').select('*').eq('emp_code',ss.emp).limit(1);
+      if(r.data && r.data.length && String(r.data[0].pin)===ss.pin && r.data[0].active){
+        S.me=r.data[0]; S.role='team'; startTeam();
+      }
     }
-  }catch(e){ /* ล็อกอินใหม่ได้ ไม่ต้องขวางหน้าจอ */ }
+  }catch(e){}
   hideSplash();
 }
 function logout(){ localStorage.removeItem('it_sess'); location.reload(); }
@@ -761,6 +867,7 @@ async function loadMgr(){
     ['ไซต์งาน (it_sites)', db.from('it_sites').select('*').order('code')],
     ['ทีม (it_teams)',     db.from('it_teams').select('*').order('code')],
     ['งานที่มอบหมาย (it_assignments)', db.from('it_assignments').select('*').eq('work_date',S.date)],
+    ['พนักงาน (it_staff)', db.from('it_staff').select('*').order('emp_code')],
     ['ปัญหา (it_issues)', S.isAllDates
         ? db.from('it_issues').select('*').neq('status','closed').order('opened_at',{ascending:false}).limit(400)
         : db.from('it_issues').select('*').gte('opened_at',S.date+'T00:00:00').lte('opened_at',S.date+'T23:59:59').order('opened_at',{ascending:false})]
@@ -771,7 +878,7 @@ async function loadMgr(){
          else res.push(r.data||[]); }
     catch(e){ errs.push(jobs[i][0]+' → '+(e.message||e)); res.push([]); }
   }
-  S.sites=res[0]; S.teams=res[1]; S.asgs=res[2]; S.issues=res[3];
+  S.sites=res[0]; S.teams=res[1]; S.asgs=res[2]; S.staff=res[3]; S.issues=res[4];
 
   try{ renderAll(); }
   catch(e){ errs.push('แสดงผลหน้าจอ → '+(e.message||e)); }
@@ -790,7 +897,7 @@ async function loadMgr(){
 /* ───────── ตรวจระบบ: บอกให้ชัดว่าติดตรงไหน ───────── */
 async function diag(){
   sheet('ตรวจระบบ','<div class="empty"><span class="spin"></span> กำลังตรวจ…','');
-  var tabs=['it_teams','it_sites','it_assignments','it_reports','it_issues','it_issue_comments'];
+  var tabs=['it_staff','it_teams','it_sites','it_assignments','it_reports','it_issues','it_issue_comments'];
   var out=[];
   for(var i=0;i<tabs.length;i++){
     var r;
@@ -810,7 +917,7 @@ async function diag(){
     '<table class="itbl"><tbody>'+
       out.map(function(x){ return row(x.n,x.ok,x.v); }).join('')+
       row('Storage · '+BUCKET, stor.ok, stor.v)+
-      row('แผนที่ (Leaflet CDN)', typeof L!=='undefined', typeof L!=='undefined'?'โหลดแล้ว':'โหลดไม่ได้ — เน็ตองค์กรอาจบล็อก unpkg.com')+
+      row('แผนที่ (Leaflet CDN)', typeof L!=='undefined', typeof L!=='undefined'?'โหลดแล้ว':'โหลดไม่ได้ — เน็ตองค์กรอาจบล็อก cdn.jsdelivr.net')+
       row('อินเทอร์เน็ต', navigator.onLine, navigator.onLine?'ออนไลน์':'ออฟไลน์')+
     '</tbody></table>'+
     '<div style="font-size:11.5px;color:var(--text3);line-height:1.7;margin-top:12px">'+
@@ -823,7 +930,7 @@ async function diag(){
 function siteOf(id){ return S.sites.filter(function(s){return s.id===id;})[0]||{}; }
 function teamOf(id){ return S.teams.filter(function(t){return t.id===id;})[0]||{}; }
 
-function renderAll(){ renderKPI(); renderChips(); renderBoard(); renderMap(); renderIssues(); renderPlan(); }
+function renderAll(){ renderKPI(); renderChips(); renderBoard(); renderMap(); renderIssues(); renderPlan(); renderStaff(); }
 
 function renderKPI(){
   var a=S.asgs, tot=a.length;
@@ -909,33 +1016,58 @@ function renderBoard(){
 function renderMap(){
   if(typeof L==='undefined'){
     $('map').innerHTML='<div class="empty" style="padding:70px 20px"><b>โหลดแผนที่ไม่ได้</b>'+
-      'เน็ตองค์กรอาจบล็อก unpkg.com — ส่วนอื่นของ Dashboard ยังใช้ได้ตามปกติ</div>';
+      'เน็ตองค์กรอาจบล็อก cdn.jsdelivr.net — ส่วนอื่นของ Dashboard ยังใช้ได้ตามปกติ</div>';
     $('mapNote').textContent='แผนที่ไม่พร้อมใช้งาน';
     return;
   }
   if(!S.map){
     S.map=L.map('map',{zoomControl:true, attributionControl:false}).setView([13.7563,100.5018],11);
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',{maxZoom:19}).addTo(S.map);
+    L.tileLayer(TILE,{maxZoom:19}).addTo(S.map);
     S.mapLayer=L.layerGroup().addTo(S.map);
     setTimeout(function(){ S.map.invalidateSize(); }, 200);
   }
   S.mapLayer.clearLayers();
-  var list=asgFiltered(), pts=[];
+  var list=asgFiltered(), pts=[], nGps=0;
   list.forEach(function(a){
-    var s=siteOf(a.site_id); if(s.lat==null||s.lng==null) return;
-    var t=teamOf(a.team_id), st=AST[a.status]||AST.assigned;
+    var s=siteOf(a.site_id), t=teamOf(a.team_id), st=AST[a.status]||AST.assigned;
     var iss=S.issues.filter(function(i){ return i.site_id===a.site_id&&i.status!=='closed'&&i.status!=='resolved'; }).length;
+    var hasCk = a.checkin_lat!=null && a.checkin_lng!=null;
+    var hasSite= s.lat!=null && s.lng!=null;
+    if(!hasCk && !hasSite) return;
+
+    /* จุดที่ทีมอยู่จริง = พิกัดตอนเช็คอิน ถ้ายังไม่เช็คอินค่อยใช้พิกัดไซต์ */
+    var at = hasCk ? [a.checkin_lat, a.checkin_lng] : [s.lat, s.lng];
+    if(hasCk) nGps++;
+
+    /* หมุดไซต์ตามทะเบียน — วงกลมโปร่ง ให้เทียบกับตำแหน่งจริงได้ */
+    if(hasCk && hasSite){
+      L.circleMarker([s.lat,s.lng],{radius:6,color:'#8e8e93',weight:2,fillOpacity:.15,dashArray:'3,3'})
+        .addTo(S.mapLayer).bindPopup('พิกัดไซต์ตามทะเบียน<br><b>'+esc(s.name||'')+'</b>');
+      if(a.checkin_dist_m==null || a.checkin_dist_m>25){
+        L.polyline([[s.lat,s.lng], at],{color:'#8e8e93',weight:1.5,dashArray:'4,5',opacity:.7}).addTo(S.mapLayer);
+      }
+    }
+    /* วงความคลาดเคลื่อนของ GPS มือถือ */
+    if(hasCk && a.checkin_acc_m){
+      L.circle(at,{radius:a.checkin_acc_m, color:st.x, weight:1, opacity:.35, fillOpacity:.07}).addTo(S.mapLayer);
+    }
+
     var ic=L.divIcon({html:'<div class="mk" style="background:'+st.x+'">'+(iss?'!':pct(a.progress))+'</div>',
       className:'', iconSize:[26,26], iconAnchor:[13,13]});
-    var m=L.marker([s.lat,s.lng],{icon:ic}).addTo(S.mapLayer);
+    var m=L.marker(at,{icon:ic}).addTo(S.mapLayer);
     m.bindPopup('<b>'+esc(s.name||'')+'</b><br>'+esc(t.name||'')+' · '+st.l+'<br>คืบหน้า '+pct(a.progress)+'%'+
+      (hasCk? ('<br>เช็คอิน '+fmtT(a.checkin_at)+
+               (a.checkin_dist_m!=null? ' · ห่างพิกัดไซต์ '+a.checkin_dist_m+' ม.':'')+
+               (a.checkin_acc_m? '<br><span style="color:#8e8e93">GPS แม่นยำ ±'+a.checkin_acc_m+' ม.</span>':''))
+            : '<br><span style="color:#8e8e93">ยังไม่เช็คอิน — แสดงพิกัดไซต์</span>')+
       (iss?'<br><b style="color:#ff3b30">ปัญหาค้าง '+iss+' เรื่อง</b>':''));
     m.on('click', function(){ setTimeout(function(){ openAsg(a.id); }, 250); });
-    pts.push([s.lat,s.lng]);
+    pts.push(at);
   });
-  var noGeo=list.filter(function(a){ var s=siteOf(a.site_id); return s.lat==null; }).length;
-  $('mapNote').textContent = pts.length+' จุด'+(noGeo?' · '+noGeo+' ไซต์ยังไม่ได้ใส่พิกัด':'');
-  if(pts.length) S.map.fitBounds(pts, {padding:[40,40], maxZoom:14});
+  var noGeo=list.filter(function(a){ var s=siteOf(a.site_id); return s.lat==null && a.checkin_lat==null; }).length;
+  $('mapNote').textContent = pts.length+' จุด · เช็คอินจริง '+nGps+
+    (noGeo?(' · '+noGeo+' ไซต์ยังไม่มีพิกัด'):'');
+  if(pts.length) S.map.fitBounds(pts, {padding:[40,40], maxZoom:16});
 }
 
 function renderIssues(){
@@ -996,7 +1128,11 @@ async function openAsg(id){
       '<dt>ผู้ติดต่อ</dt><dd>'+esc(s.contact||'—')+'</dd>'+
       '<dt>หัวหน้าทีม</dt><dd>'+esc(t.leader_name||'—')+(t.phone?' · <a href="tel:'+esc(t.phone)+'">'+esc(t.phone)+'</a>':'')+'</dd>'+
       '<dt>ขอบเขต</dt><dd>'+esc(a.scope||'—')+'</dd>'+
-      '<dt>เช็คอิน</dt><dd>'+(a.checkin_at? fmtDT(a.checkin_at)+(a.checkin_dist_m!=null?' · ห่างไซต์ '+a.checkin_dist_m+' ม.':'') :'ยังไม่เช็คอิน')+'</dd>'+
+      '<dt>เช็คอิน</dt><dd>'+(a.checkin_at
+        ? fmtDT(a.checkin_at)+(a.checkin_dist_m!=null?' · ห่างพิกัดไซต์ '+a.checkin_dist_m+' ม.':'')+
+          (a.checkin_acc_m?' <span style="color:var(--text3)">(GPS ±'+a.checkin_acc_m+' ม.)</span>':'')+
+          (a.checkin_lat!=null?' · <a href="https://www.google.com/maps/search/?api=1&query='+a.checkin_lat+','+a.checkin_lng+'" target="_blank">ดูจุดที่เช็คอิน</a>':'')
+        :'ยังไม่เช็คอิน')+'</dd>'+
       '<dt>คืบหน้า</dt><dd>'+pct(a.progress)+'% · เช็กลิสต์ '+ckDone+'/'+ck.length+'</dd>'+
     '</dl></div>'+
     (ck.length?('<div class="sec"><div class="sec-h">เช็กลิสต์</div>'+
@@ -1090,13 +1226,134 @@ function renderPlan(){
   $('teamList').innerHTML = S.teams.length? S.teams.map(function(t){
     return '<div class="brow" data-tid="'+t.id+'"><div class="brow-t"><span class="nm">'+esc(t.name)+'</span>'+
       '<span class="chip '+(t.active?'c-green':'c-gray')+'">'+(t.active?'ใช้งาน':'ปิด')+'</span></div>'+
-      '<div class="brow-s"><span class="tm">'+esc(t.code)+'</span><span>'+esc(t.leader_name||'')+'</span><span>'+esc(t.phone||'')+'</span></div></div>';
+      '<div class="brow-s"><span class="tm">'+esc(t.code)+'</span>'+
+      (function(){ var mem=teamStaff(t.id), ld=teamLeader(t.id);
+        return '<span>'+(ld? ('หัวหน้า: '+esc(ld.name||ld.emp_code)) : '<span style="color:var(--orange)">ยังไม่มีหัวหน้าทีม</span>')+'</span>'+
+               '<span class="chip c-gray">'+mem.length+' คน</span>'; })()+
+      '</div></div>';
   }).join('') : '<div class="empty"><b>ยังไม่มีทีม</b>กด “เพิ่มทีม” เพื่อเริ่ม</div>';
   $('teamList').querySelectorAll('[data-tid]').forEach(function(r){ r.onclick=function(){ teamForm(r.dataset.tid); }; });
 
   $('asgSite').innerHTML=S.sites.map(function(s){ return '<option value="'+s.id+'">'+esc(s.code+' — '+s.name)+'</option>'; }).join('');
   $('asgTeam').innerHTML=S.teams.filter(function(t){return t.active;}).map(function(t){ return '<option value="'+t.id+'">'+esc(t.code+' — '+t.name)+'</option>'; }).join('');
 }
+/* ── พนักงาน: จัดคนเข้าทีม ── */
+function staffOf(id){ return S.staff.filter(function(x){return x.id===id;})[0]||{}; }
+function teamStaff(tid){ return S.staff.filter(function(x){ return x.team_id===tid && x.active; }); }
+function teamLeader(tid){ return teamStaff(tid).filter(function(x){return x.is_leader;})[0]||null; }
+
+function renderStaff(){
+  var un=S.staff.filter(function(x){ return !x.team_id && x.active; });
+  var noPin=S.staff.filter(function(x){ return !x.pin; }).length;
+  $('staffNote').textContent = S.staff.length+' คน'+(un.length?(' · รอจัดทีม '+un.length):'')+(noPin?(' · ยังไม่ตั้ง PIN '+noPin):'');
+  var tb=$('tabStaffN');
+  if(tb){ tb.textContent=un.length; tb.style.display=un.length?'':'none'; }
+
+  if(!S.staff.length){
+    $('staffList').innerHTML='<div class="empty"><b>ยังไม่มีพนักงานในระบบ</b>'+
+      'ส่งลิงก์แอปให้พนักงานเปิดแล้วลงทะเบียนด้วยรหัสพนักงานของตัวเอง<br>ชื่อจะขึ้นที่นี่ให้จัดเข้าทีมทันที</div>';
+    return;
+  }
+  var order=S.staff.slice().sort(function(a,b){
+    if(!a.team_id !== !b.team_id) return a.team_id? 1 : -1;      /* รอจัดทีมขึ้นก่อน */
+    return (a.team_id||'').localeCompare(b.team_id||'') || String(a.emp_code).localeCompare(String(b.emp_code));
+  });
+  $('staffList').innerHTML = order.map(function(x){
+    var opts='<option value="">— ยังไม่เข้าทีม —</option>'+S.teams.map(function(t){
+      return '<option value="'+t.id+'"'+(x.team_id===t.id?' selected':'')+'>'+esc(t.code+' · '+t.name)+'</option>'; }).join('');
+    return '<div class="brow" style="cursor:default'+(x.team_id||!x.active?'':';background:rgba(255,149,0,.08)')+'">'+
+      '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">'+
+        '<div style="flex:1;min-width:170px">'+
+          '<div class="brow-t"><span class="nm">'+esc(x.name||'(ยังไม่ใส่ชื่อ)')+'</span>'+
+            (x.is_leader?'<span class="chip c-purple">หัวหน้าทีม</span>':'')+
+            (x.active?'':'<span class="chip c-gray">ปิดใช้งาน</span>')+
+            (x.pin?'':'<span class="chip c-orange">ยังไม่ตั้ง PIN</span>')+'</div>'+
+          '<div class="brow-s"><span class="tm">'+esc(x.emp_code)+'</span>'+
+            (x.phone?'<span>'+esc(x.phone)+'</span>':'')+
+            (x.last_login_at?'<span class="tm">เข้าล่าสุด '+fmtDT(x.last_login_at)+'</span>':'<span>ยังไม่เคยเข้าใช้</span>')+'</div>'+
+        '</div>'+
+        '<select class="tin" data-team="'+x.id+'" style="min-width:180px">'+opts+'</select>'+
+        '<button class="tb-btn" data-lead="'+x.id+'"'+(x.team_id?'':' disabled style="opacity:.4"')+'>'+
+          (x.is_leader?'★ หัวหน้า':'☆ ตั้งหัวหน้า')+'</button>'+
+        '<button class="tb-btn" data-sedit="'+x.id+'">แก้ไข</button>'+
+      '</div></div>';
+  }).join('');
+
+  $('staffList').querySelectorAll('[data-team]').forEach(function(el){
+    el.onchange=async function(){ await staffPatch(el.dataset.team, {team_id: el.value||null,
+      is_leader: el.value? staffOf(el.dataset.team).is_leader : false}); };
+  });
+  $('staffList').querySelectorAll('[data-lead]').forEach(function(b){
+    b.onclick=async function(){
+      var x=staffOf(b.dataset.lead); if(!x.team_id) return;
+      if(!x.is_leader){
+        /* ทีมหนึ่งมีหัวหน้าคนเดียว — ปลดคนเดิมก่อน */
+        var old=teamLeader(x.team_id);
+        if(old && old.id!==x.id) await db.from('it_staff').update({is_leader:false}).eq('id',old.id);
+      }
+      await staffPatch(x.id, {is_leader: !x.is_leader});
+    };
+  });
+  $('staffList').querySelectorAll('[data-sedit]').forEach(function(b){
+    b.onclick=function(){ staffForm(b.dataset.sedit); };
+  });
+}
+
+async function staffPatch(id, patch){
+  var r=await db.from('it_staff').update(patch).eq('id',id);
+  if(r.error) return toast('บันทึกไม่สำเร็จ: '+r.error.message, 4000);
+  toast('บันทึกแล้ว'); loadMgr();
+}
+
+function staffForm(id){
+  var x=staffOf(id);
+  sheet('แก้ไขพนักงาน',
+    '<div class="row"><div class="fld"><label>รหัสพนักงาน</label><input id="p_code" value="'+esc(x.emp_code||'')+'"></div>'+
+    '<div class="fld"><label>เบอร์โทร</label><input id="p_ph" value="'+esc(x.phone||'')+'"></div></div>'+
+    '<div class="fld"><label>ชื่อ–สกุล</label><input id="p_name" value="'+esc(x.name||'')+'"></div>'+
+    '<div class="fld"><label>ทีม</label><select id="p_team">'+
+      '<option value="">— ยังไม่เข้าทีม —</option>'+
+      S.teams.map(function(t){ return '<option value="'+t.id+'"'+(x.team_id===t.id?' selected':'')+'>'+esc(t.code+' · '+t.name)+'</option>'; }).join('')+
+    '</select></div>'+
+    '<label style="font-size:13.5px;display:flex;align-items:center;gap:9px;margin-bottom:8px">'+
+      '<input type="checkbox" id="p_lead"'+(x.is_leader?' checked':'')+'> เป็นหัวหน้าทีม</label>'+
+    '<label style="font-size:13.5px;display:flex;align-items:center;gap:9px">'+
+      '<input type="checkbox" id="p_act"'+(x.active!==false?' checked':'')+'> เปิดใช้งานบัญชีนี้</label>'+
+    '<div style="margin-top:16px;padding:11px 13px;background:var(--s1);border:1px solid var(--border);border-radius:11px">'+
+      '<div style="font-size:12px;color:var(--text2);line-height:1.6">'+
+        (x.pin? 'ตั้ง PIN แล้ว · เข้าล่าสุด '+ (x.last_login_at?fmtDT(x.last_login_at):'—')
+              : 'ยังไม่เคยตั้ง PIN — ครั้งแรกที่เข้าระบบจะให้ตั้งเอง')+'</div>'+
+      (x.pin?'<button class="btn ghost sm" id="p_reset" style="margin-top:9px">ล้าง PIN (ให้ตั้งใหม่ตอนเข้าครั้งหน้า)</button>':'')+
+    '</div>',
+    '<div class="row"><button class="btn ghost sm" id="p_del" style="flex:0 0 90px">ลบ</button>'+
+    '<button class="btn sm" id="p_save">บันทึก</button></div>');
+
+  $('p_save').onclick=async function(){
+    var tid=$('p_team').value||null;
+    var p={emp_code:$('p_code').value.trim().toUpperCase(), name:$('p_name').value.trim()||null,
+      phone:$('p_ph').value.trim()||null, team_id:tid, is_leader: tid? $('p_lead').checked : false,
+      active:$('p_act').checked};
+    if(!p.emp_code) return toast('ต้องมีรหัสพนักงาน');
+    this.disabled=true;
+    if(p.is_leader && tid){
+      var old=teamLeader(tid);
+      if(old && old.id!==id) await db.from('it_staff').update({is_leader:false}).eq('id',old.id);
+    }
+    var r=await db.from('it_staff').update(p).eq('id',id);
+    if(r.error){ toast('บันทึกไม่สำเร็จ: '+r.error.message,4000); this.disabled=false; return; }
+    closeSheet(); toast('บันทึกแล้ว'); loadMgr();
+  };
+  if($('p_reset')) $('p_reset').onclick=async function(){
+    if(!confirm('ล้าง PIN ของ '+(x.name||x.emp_code)+' ?\nครั้งหน้าที่เข้าระบบเขาจะตั้ง PIN ใหม่เอง')) return;
+    await db.from('it_staff').update({pin:null}).eq('id',id);
+    closeSheet(); toast('ล้าง PIN แล้ว'); loadMgr();
+  };
+  $('p_del').onclick=async function(){
+    if(!confirm('ลบพนักงานคนนี้?')) return;
+    await db.from('it_staff').delete().eq('id',id); closeSheet(); toast('ลบแล้ว'); loadMgr();
+  };
+}
+
 $('btnAddSite').onclick=function(){ siteForm(null); };
 $('btnAddTeam').onclick=function(){ teamForm(null); };
 
@@ -1107,6 +1364,46 @@ function sheet(title, bodyHTML, footHTML){
 function closeSheet(){ $('sheet').classList.remove('open'); }
 $('shX').onclick=closeSheet; $('shBd').onclick=closeSheet;
 
+/* ── แผนที่เลือกพิกัดในฟอร์มไซต์ ── */
+function initPickMap(lat,lng){
+  var host=$('pickMap'); if(!host) return;
+  var setXY=function(la,ln){ $('f_lat').value=(+la).toFixed(6); $('f_lng').value=(+ln).toFixed(6); };
+
+  if(typeof L==='undefined'){
+    host.innerHTML='<div class="empty" style="padding:34px 16px"><b>แผนที่โหลดไม่ได้</b>'+
+      'พิมพ์พิกัดเองในช่องด้านล่าง หรือกดปุ่มวางพิกัดจาก Google Maps</div>';
+  }else{
+    var has = lat!=null && lng!=null;
+    var start=[has?lat:13.7563, has?lng:100.5018];
+    var m=L.map('pickMap',{attributionControl:false}).setView(start, has?16:11);
+    L.tileLayer(TILE,{maxZoom:19}).addTo(m);
+    var mk=L.marker(start,{draggable:true}).addTo(m);
+    if(!has) mk.setOpacity(.35);
+    var put=function(ll){ mk.setLatLng(ll); mk.setOpacity(1); setXY(ll.lat, ll.lng); };
+    m.on('click', function(e){ put(e.latlng); });
+    mk.on('dragend', function(){ put(mk.getLatLng()); });
+    setTimeout(function(){ m.invalidateSize(); }, 150);
+    initPickMap._go=function(la,ln){ put({lat:+la, lng:+ln}); m.setView([+la,+ln], 17); };
+  }
+  var go=function(la,ln){ if(initPickMap._go) initPickMap._go(la,ln); else setXY(la,ln); };
+
+  $('f_here').onclick=async function(){
+    this.disabled=true; this.textContent='กำลังหาตำแหน่ง…';
+    var pos=await getPos();
+    this.disabled=false; this.textContent='📍 ตำแหน่งฉันตอนนี้';
+    if(!pos) return toast('หาตำแหน่งไม่ได้ — เปิดสิทธิ์ตำแหน่งในเบราว์เซอร์ก่อน', 3600);
+    go(pos.lat, pos.lng);
+    toast('ปักหมุดที่ตำแหน่งคุณแล้ว'+(pos.acc?(' (±'+pos.acc+' ม.)'):''));
+  };
+  $('f_paste').onclick=function(){
+    var t=prompt('วางพิกัดจาก Google Maps\n(กดค้างบนแผนที่ใน Google Maps แล้วก็อปตัวเลขที่ขึ้นมา)\n\nรูปแบบ: 13.724500, 100.534000');
+    if(!t) return;
+    var mm=String(t).match(/(-?\d+\.\d+)\s*[,\s]\s*(-?\d+\.\d+)/);
+    if(!mm) return toast('อ่านพิกัดไม่ออก — ต้องเป็นตัวเลขสองชุดคั่นด้วยจุลภาค', 3600);
+    go(mm[1], mm[2]);
+  };
+}
+
 function siteForm(id){
   var s=id? siteOf(id) : {status:'planned'};
   sheet(id?'แก้ไขไซต์งาน':'เพิ่มไซต์งาน',
@@ -1114,15 +1411,20 @@ function siteForm(id){
     '<div class="fld"><label>ชื่องาน</label><input id="f_name" value="'+esc(s.name||'')+'"></div>'+
     '<div class="fld"><label>ลูกค้า</label><input id="f_cus" value="'+esc(s.customer||'')+'"></div>'+
     '<div class="fld"><label>ที่อยู่</label><input id="f_addr" value="'+esc(s.address||'')+'"></div>'+
-    '<div class="row"><div class="fld"><label>Latitude</label><input id="f_lat" value="'+(s.lat==null?'':s.lat)+'" placeholder="13.7563"></div>'+
-    '<div class="fld"><label>Longitude</label><input id="f_lng" value="'+(s.lng==null?'':s.lng)+'" placeholder="100.5018"></div></div>'+
-    '<p style="font-size:11px;color:var(--text3);margin:-4px 0 12px">พิกัดใช้แสดงบนแผนที่และตรวจว่าทีมเช็คอินตรงหน้างานจริง — คัดลอกจาก Google Maps ได้เลย</p>'+
+    '<div class="fld"><label>พิกัดหน้างาน — แตะบนแผนที่เพื่อปักหมุด</label>'+
+      '<div id="pickMap" style="height:240px;border-radius:11px;overflow:hidden;border:1px solid var(--border2);background:var(--s3)"></div>'+
+      '<div class="row" style="margin-top:8px"><input id="f_lat" value="'+(s.lat==null?'':s.lat)+'" placeholder="Latitude">'+
+      '<input id="f_lng" value="'+(s.lng==null?'':s.lng)+'" placeholder="Longitude"></div>'+
+      '<div class="row" style="margin-top:7px"><button class="btn ghost sm" id="f_here">📍 ตำแหน่งฉันตอนนี้</button>'+
+      '<button class="btn ghost sm" id="f_paste">วางพิกัดจาก Google Maps</button></div>'+
+      '<p style="font-size:11px;color:var(--text3);margin-top:7px">ลากหมุดปรับละเอียดได้ · พิกัดนี้ใช้เทียบว่าทีมเช็คอินตรงหน้างานจริงหรือไม่</p></div>'+
     '<div class="fld"><label>ผู้ติดต่อหน้างาน</label><input id="f_ct" value="'+esc(s.contact||'')+'"></div>'+
     '<div class="row"><div class="fld"><label>เริ่ม</label><input type="date" id="f_sd" value="'+(s.start_date||'')+'"></div>'+
     '<div class="fld"><label>กำหนดเสร็จ</label><input type="date" id="f_dd" value="'+(s.due_date||'')+'"></div></div>'+
     '<div class="fld"><label>สถานะ</label><select id="f_st">'+
       ['planned','active','done','hold'].map(function(k){ return '<option value="'+k+'"'+(s.status===k?' selected':'')+'>'+k+'</option>'; }).join('')+'</select></div>',
     '<div class="row">'+(id?'<button class="btn ghost sm" id="f_del" style="flex:0 0 90px">ลบ</button>':'')+'<button class="btn sm" id="f_save">บันทึก</button></div>');
+  initPickMap(s.lat, s.lng);
   $('f_save').onclick=async function(){
     var p={code:$('f_code').value.trim(), name:$('f_name').value.trim(), customer:$('f_cus').value.trim()||null,
       address:$('f_addr').value.trim()||null, lat:parseFloat($('f_lat').value)||null, lng:parseFloat($('f_lng').value)||null,
@@ -1143,19 +1445,26 @@ function teamForm(id){
   var t=id? teamOf(id) : {active:true, pin:''};
   sheet(id?'แก้ไขทีม':'เพิ่มทีม',
     '<div class="row"><div class="fld"><label>รหัสทีม (ใช้ล็อกอิน)</label><input id="g_code" value="'+esc(t.code||'')+'" placeholder="T04"></div>'+
-    '<div class="fld"><label>PIN</label><input id="g_pin" value="'+esc(t.pin||'')+'" placeholder="4 หลัก"></div></div>'+
+    '<div class="fld"><label>รหัสเดิม (ไม่ใช้ล็อกอินแล้ว)</label><input id="g_pin" value="'+esc(t.pin||'')+'" placeholder="—"></div></div>'+
     '<div class="fld"><label>ชื่อทีม</label><input id="g_name" value="'+esc(t.name||'')+'"></div>'+
-    '<div class="fld"><label>หัวหน้าทีม</label><input id="g_lead" value="'+esc(t.leader_name||'')+'"></div>'+
+    '<div class="fld"><label>หัวหน้าทีม (ข้อมูลสำรอง — ตัวจริงตั้งจากรายชื่อพนักงาน)</label>'+
+      '<input id="g_lead" value="'+esc(t.leader_name||'')+'"></div>'+
     '<div class="fld"><label>เบอร์โทร</label><input id="g_ph" value="'+esc(t.phone||'')+'"></div>'+
     '<label style="font-size:13px;display:flex;align-items:center;gap:8px;margin-top:6px">'+
       '<input type="checkbox" id="g_act"'+(t.active!==false?' checked':'')+'> เปิดใช้งานทีมนี้</label>'+
-    (id?'<p style="font-size:11.5px;color:var(--text2);margin-top:14px;line-height:1.6">ส่งลิงก์นี้ให้หัวหน้าทีมบันทึกไว้หน้าจอมือถือ:<br>'+
-      '<code style="font-size:11px;color:var(--accent);word-break:break-all">'+esc(location.href.split('?')[0])+'</code><br>แล้วล็อกอินด้วยรหัสทีม + PIN</p>':''),
+    (id?('<p style="font-size:11.5px;color:var(--text2);margin-top:14px;line-height:1.65">'+
+      'สมาชิกทีมนี้: <b style="color:var(--text)">'+teamStaff(id).length+' คน</b>'+
+      (teamLeader(id)?(' · หัวหน้า '+esc(teamLeader(id).name||teamLeader(id).emp_code)):' · <span style="color:var(--orange)">ยังไม่มีหัวหน้าทีม</span>')+
+      '<br>จัดคนเข้าทีมได้ที่การ์ด “พนักงาน · จัดคนเข้าทีม” ด้านล่าง<br><br>'+
+      'ส่งลิงก์นี้ให้พนักงานบันทึกไว้หน้าจอมือถือ:<br>'+
+      '<code style="font-size:11px;color:var(--accent);word-break:break-all">'+esc(location.href.split('?')[0])+'</code><br>'+
+      'เข้าครั้งแรกให้ใส่รหัสพนักงานแล้วตั้ง PIN เอง</p>'):''),
     '<div class="row">'+(id?'<button class="btn ghost sm" id="g_del" style="flex:0 0 90px">ลบ</button>':'')+'<button class="btn sm" id="g_save">บันทึก</button></div>');
   $('g_save').onclick=async function(){
     var p={code:$('g_code').value.trim().toUpperCase(), pin:$('g_pin').value.trim(), name:$('g_name').value.trim(),
       leader_name:$('g_lead').value.trim()||null, phone:$('g_ph').value.trim()||null, active:$('g_act').checked};
-    if(!p.code||!p.name||!p.pin) return toast('ต้องมีรหัสทีม ชื่อทีม และ PIN');
+    if(!p.code||!p.name) return toast('ต้องมีรหัสทีมและชื่อทีม');
+    if(!p.pin) p.pin='-';
     this.disabled=true;
     var r = id? await db.from('it_teams').update(p).eq('id',id) : await db.from('it_teams').insert(p);
     if(r.error){ toast('บันทึกไม่สำเร็จ: '+r.error.message,4000); this.disabled=false; return; }
@@ -1317,6 +1626,7 @@ function subscribe(){
       bump(); if(p.eventType==='INSERT') toast('⚠️ ปัญหาใหม่จากหน้างาน: '+(p.new.title||''), 4200);
     })
     .on('postgres_changes',{event:'*',schema:'public',table:'it_assignments'}, bump)
+    .on('postgres_changes',{event:'*',schema:'public',table:'it_staff'}, bump)
     .on('postgres_changes',{event:'*',schema:'public',table:'it_issue_comments'}, function(){ if(S.role==='team') loadTeamData(); })
     .subscribe();
 }
@@ -1340,13 +1650,23 @@ document.querySelectorAll('#tNav button').forEach(function(b){
 });
 
 async function loadTeamData(){
-  if(!S.team) return;
+  if(!S.me) return;
+  /* ดึงข้อมูลตัวเองใหม่ทุกครั้ง เผื่อผู้จัดการเพิ่งจัดเข้าทีม */
+  try{
+    var me=await db.from('it_staff').select('*').eq('id',S.me.id).single();
+    if(me.data) S.me=me.data;
+  }catch(e){}
+  if(!S.me.team_id){ S.team=null; renderTeam(); return; }
+
   var r=await Promise.all([
-    db.from('it_assignments').select('*').eq('team_id',S.team.id).gte('work_date', addDays(todayISO(),-6)).order('work_date',{ascending:false}),
+    db.from('it_assignments').select('*').eq('team_id',S.me.team_id).gte('work_date', addDays(todayISO(),-6)).order('work_date',{ascending:false}),
     db.from('it_sites').select('*'),
-    db.from('it_issues').select('*').eq('team_id',S.team.id).order('opened_at',{ascending:false}).limit(80)
+    db.from('it_issues').select('*').eq('team_id',S.me.team_id).order('opened_at',{ascending:false}).limit(80),
+    db.from('it_teams').select('*').eq('id',S.me.team_id).single(),
+    db.from('it_staff').select('*').eq('team_id',S.me.team_id)
   ]);
   S.asgs=r[0].data||[]; S.sites=r[1].data||[]; S.issues=r[2].data||[];
+  S.team=r[3].data||null; S.staff=r[4].data||[];
   var openN=S.issues.filter(function(i){ return i.status!=='closed'&&i.status!=='resolved'; }).length;
   var e=$('tIssN'); e.textContent=openN; e.classList.toggle('hide', !openN);
   renderTeam();
@@ -1355,15 +1675,32 @@ function addDays(d,n){ var x=new Date(d); x.setDate(x.getDate()+n); return x.toI
 
 function renderTeam(){
   $('tBack').classList.toggle('hide', !S.tJob);
+  if(!S.team) return renderNoTeam();
   if(S.tJob) return renderJob();
   if(S.tView==='jobs') return renderJobs();
   if(S.tView==='issues') return renderTeamIssues();
   return renderMe();
 }
 
+function renderNoTeam(){
+  $('tTitle').textContent='รอจัดเข้าทีม';
+  $('tSub').textContent=(S.me.name||'')+' · '+S.me.emp_code;
+  $('tBody').innerHTML=
+    '<div class="blk" style="margin-top:22px"><div class="blk-h">ลงทะเบียนเรียบร้อยแล้ว</div>'+
+    '<div class="blk-c" style="font-size:14px;line-height:1.75">'+
+      'บัญชีของคุณพร้อมใช้งานแล้ว แต่ยังไม่ได้ถูกจัดเข้าทีม<br>'+
+      'แจ้งผู้จัดการว่ารหัสพนักงาน <b>'+esc(S.me.emp_code)+'</b> ลงทะเบียนแล้ว '+
+      'พอจัดเข้าทีมเมื่อไหร่ งานจะขึ้นที่หน้านี้ทันที</div></div>'+
+    '<div class="mpad"><button class="bigbtn" id="ntRe">🔄 ตรวจสอบอีกครั้ง</button></div>'+
+    '<div class="mpad" style="margin-top:-4px"><button class="bigbtn" id="ntOut" '+
+      'style="background:var(--s3);color:var(--text);box-shadow:none">ออกจากระบบ</button></div>';
+  $('ntRe').onclick=function(){ loadTeamData(); toast('ตรวจสอบแล้ว'); };
+  $('ntOut').onclick=function(){ if(confirm('ออกจากระบบ?')) logout(); };
+}
+
 function renderJobs(){
   $('tTitle').textContent='งานของฉัน';
-  $('tSub').textContent=S.team.code+' · '+S.team.name+' · '+S.team.leader_name;
+  $('tSub').textContent=meName()+' · '+S.team.name+(S.me.is_leader?' · หัวหน้าทีม':'');
   var today=todayISO();
   var t=S.asgs.filter(function(a){return a.work_date===today;});
   var past=S.asgs.filter(function(a){return a.work_date<today;}).slice(0,8);
@@ -1473,10 +1810,12 @@ async function doCheckin(a){
     btn.disabled=false; btn.textContent='📍 เช็คอินถึงหน้างาน'; return;
   }
   var now=new Date().toISOString();
-  var upd={checkin_at:now, status:'working', checkin_lat:pos?pos.lat:null, checkin_lng:pos?pos.lng:null, checkin_dist_m:d};
+  var upd={checkin_at:now, status:'working', checkin_lat:pos?pos.lat:null, checkin_lng:pos?pos.lng:null,
+    checkin_dist_m:d, checkin_acc_m:pos?pos.acc:null};
   var rep={assignment_id:a.id, site_id:a.site_id, team_id:S.team.id, kind:'checkin',
-    note:'เช็คอินถึงหน้างาน'+(d!=null?' (ห่างไซต์ '+d+' ม.)':''), lat:pos?pos.lat:null, lng:pos?pos.lng:null,
-    created_by:S.team.leader_name||S.team.name};
+    note:'เช็คอินถึงหน้างาน'+(d!=null?' (ห่างไซต์ '+d+' ม.)':'')+(pos&&pos.acc?' · GPS ±'+pos.acc+' ม.':''),
+    lat:pos?pos.lat:null, lng:pos?pos.lng:null, acc_m:pos?pos.acc:null,
+    created_by:meName(), staff_id:S.me.id};
   try{
     await db.from('it_assignments').update(upd).eq('id',a.id);
     await db.from('it_reports').insert(rep);
@@ -1516,7 +1855,8 @@ function reportSheet(a){
     this.disabled=true; this.textContent='กำลังส่ง…';
     var pos=await getPos();
     var rep={assignment_id:a.id, site_id:a.site_id, team_id:S.team.id, kind:'progress', progress:p, note:note||null,
-      photos:photos, lat:pos?pos.lat:null, lng:pos?pos.lng:null, created_by:S.team.leader_name||S.team.name};
+      photos:photos, lat:pos?pos.lat:null, lng:pos?pos.lng:null, acc_m:pos?pos.acc:null,
+      created_by:meName(), staff_id:S.me.id};
     var upd={progress:p, status: a.status==='assigned'?'working':a.status};
     try{
       await db.from('it_reports').insert(rep);
@@ -1555,7 +1895,7 @@ function issueSheet(a){
     if(!title) return toast('ใส่หัวข้อปัญหาก่อน');
     this.disabled=true; this.textContent='กำลังส่ง…';
     var p={site_id:a.site_id, team_id:S.team.id, assignment_id:a.id, category:cat, severity:sev,
-      title:title, detail:$('dt').value.trim()||null, photos:photos, opened_by:S.team.leader_name||S.team.name};
+      title:title, detail:$('dt').value.trim()||null, photos:photos, opened_by:meName(), staff_id:S.me.id};
     var blocked=$('blk').checked;
     try{
       await db.from('it_issues').insert(p);
@@ -1573,14 +1913,14 @@ async function finishJob(a){
   var now=new Date().toISOString();
   var upd={status:'done', progress:100, checkout_at:now};
   var rep={assignment_id:a.id, site_id:a.site_id, team_id:S.team.id, kind:'checkout', progress:100,
-    note:'ปิดงานวันนี้', created_by:S.team.leader_name||S.team.name};
+    note:'ปิดงานวันนี้', created_by:meName(), staff_id:S.me.id};
   try{ await db.from('it_assignments').update(upd).eq('id',a.id); await db.from('it_reports').insert(rep); toast('ปิดงานแล้ว'); }
   catch(e){ qPush({t:'report', p:rep, asg:{id:a.id, v:upd}}); toast('ยังไม่มีเน็ต — บันทึกไว้ในเครื่องแล้ว',3600); }
   Object.assign(a, upd); renderTeam(); loadTeamData();
 }
 
 function renderTeamIssues(){
-  $('tTitle').textContent='ปัญหาที่แจ้งไว้'; $('tSub').textContent=S.team.name;
+  $('tTitle').textContent='ปัญหาที่แจ้งไว้'; $('tSub').textContent=S.team.name+' · '+meName();
   var open=S.issues.filter(function(i){return i.status!=='closed'&&i.status!=='resolved';});
   var done=S.issues.filter(function(i){return i.status==='closed'||i.status==='resolved';});
   var card=function(i){
@@ -1625,7 +1965,7 @@ async function teamIssueSheet(id){
   $('tcs').onclick=async function(){
     var b=$('tcm').value.trim(); if(!b) return;
     this.disabled=true;
-    var p={issue_id:id, author:S.team.leader_name||S.team.name, role:'team', body:b};
+    var p={issue_id:id, author:meName(), role:'team', body:b};
     try{ await db.from('it_issue_comments').insert(p); toast('ส่งแล้ว'); }
     catch(e){ qPush({t:'comment', p:p}); toast('ยังไม่มีเน็ต — บันทึกไว้ในเครื่องแล้ว',3600); }
     closeSheet();
@@ -1633,22 +1973,34 @@ async function teamIssueSheet(id){
 }
 
 function renderMe(){
-  $('tTitle').textContent='ทีมของฉัน'; $('tSub').textContent=S.team.code;
+  $('tTitle').textContent='ทีมของฉัน'; $('tSub').textContent=S.me.emp_code;
   var wk=S.asgs, done=wk.filter(function(a){return a.status==='done';}).length;
-  var iss=S.issues.length;
+  var mates=S.staff.filter(function(x){return x.active;});
   $('tBody').innerHTML=
-    '<div class="blk"><div class="blk-h">ข้อมูลทีม</div><div class="blk-c" style="font-size:14px;line-height:1.9">'+
-      '<div><b>'+esc(S.team.name)+'</b> <span style="color:var(--text3)">('+esc(S.team.code)+')</span></div>'+
-      '<div>หัวหน้าทีม: '+esc(S.team.leader_name||'—')+'</div>'+
-      '<div>โทร: '+esc(S.team.phone||'—')+'</div></div></div>'+
-    '<div class="blk"><div class="blk-h">7 วันที่ผ่านมา</div><div class="blk-c" style="font-size:14px;line-height:1.9">'+
+    '<div class="blk"><div class="blk-h">ข้อมูลของฉัน</div><div class="blk-c" style="font-size:14px;line-height:1.9">'+
+      '<div><b>'+esc(S.me.name||'—')+'</b> <span style="color:var(--text3)">('+esc(S.me.emp_code)+')</span>'+
+        (S.me.is_leader?' <span class="chip c-purple">หัวหน้าทีม</span>':'')+'</div>'+
+      '<div>โทร: '+esc(S.me.phone||'—')+'</div>'+
+      '<div>ทีม: <b>'+esc(S.team.name)+'</b> <span style="color:var(--text3)">('+esc(S.team.code)+')</span></div>'+
+    '</div></div>'+
+    '<div class="blk"><div class="blk-h">สมาชิกในทีม ('+mates.length+')</div>'+
+      mates.map(function(x){
+        return '<div class="tl"><div class="tl-d" style="background:'+(x.is_leader?'#5856d6':'#c7c7cc')+'"></div>'+
+          '<div class="tl-c"><div class="tl-b" style="font-weight:600">'+esc(x.name||x.emp_code)+
+            (x.is_leader?' <span class="chip c-purple">หัวหน้า</span>':'')+
+            (x.id===S.me.id?' <span class="chip c-blue">ฉัน</span>':'')+'</div>'+
+          '<div class="tl-m">'+esc(x.emp_code)+(x.phone?' · '+esc(x.phone):'')+'</div></div>'+
+          (x.phone&&x.id!==S.me.id?'<a href="tel:'+esc(x.phone)+'" class="tb-btn" style="align-self:center;text-decoration:none">โทร</a>':'')+
+          '</div>'; }).join('')+
+    '</div>'+
+    '<div class="blk"><div class="blk-h">7 วันที่ผ่านมา (ทั้งทีม)</div><div class="blk-c" style="font-size:14px;line-height:1.9">'+
       '<div>งานที่ได้รับ: <b>'+wk.length+'</b> งาน</div>'+
       '<div>ปิดงานสำเร็จ: <b>'+done+'</b> งาน</div>'+
-      '<div>ปัญหาที่แจ้ง: <b>'+iss+'</b> เรื่อง</div></div></div>'+
+      '<div>ปัญหาที่แจ้ง: <b>'+S.issues.length+'</b> เรื่อง</div></div></div>'+
     '<div class="mpad" style="margin-top:8px"><button class="bigbtn" style="background:var(--s3);color:var(--text);box-shadow:none" id="bOut">ออกจากระบบ</button></div>'+
     '<div style="display:flex;flex-direction:column;align-items:center;gap:6px;padding:18px 0 26px">'+
       '<div class="brandmark" style="width:120px;height:42px"></div>'+
-      '<p style="font-size:10.5px;color:var(--text3);letter-spacing:1px">INSTALL TRACKER v1.0</p></div>';
+      '<p style="font-size:10.5px;color:var(--text3);letter-spacing:1px">INSTALL TRACKER v1.1</p></div>';
   $('bOut').onclick=function(){ if(confirm('ออกจากระบบ?')) logout(); };
 }
 
