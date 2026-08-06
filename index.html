@@ -417,7 +417,7 @@ button,input,select,textarea{font-family:inherit;color:inherit}
           <div style="flex:1;min-width:190px"><label style="font-size:11px;color:var(--text2);font-weight:600;display:block;margin-bottom:4px">เนเธเธ•เน</label><select id="asgSite" class="tin" style="width:100%"></select></div>
           <div style="flex:1;min-width:150px"><label style="font-size:11px;color:var(--text2);font-weight:600;display:block;margin-bottom:4px">เธ—เธตเธก</label><select id="asgTeam" class="tin" style="width:100%"></select></div>
           <div><label style="font-size:11px;color:var(--text2);font-weight:600;display:block;margin-bottom:4px">เธงเธฑเธเธ—เธตเน</label><input type="date" id="asgDate" class="tin"></div>
-          <div style="flex:2;min-width:200px"><label style="font-size:11px;color:var(--text2);font-weight:600;display:block;margin-bottom:4px">เธเธญเธเน€เธเธ•เธเธฒเธ</label><input id="asgScope" class="tin" style="width:100%" placeholder="เน€เธเนเธ เธ•เธดเธ”เธ•เธฑเนเธเธ•เธนเนเธฅเนเธฒเธ + เธ—เนเธญเธ"></div>
+          <div style="flex:2;min-width:220px"><label style="font-size:11px;color:var(--text2);font-weight:600;display:block;margin-bottom:4px">เธเธญเธเน€เธเธ•เธเธฒเธ โ€” เน€เธเนเธฒเนเธเธ—เธณเธญเธฐเนเธฃเธเนเธฒเธ</label><button id="asgScopeBtn" class="tin" style="width:100%;text-align:left;cursor:pointer;background:#fff;color:var(--text3)">เน€เธฅเธทเธญเธเธเธฒเธเธ—เธตเนเธเธฐเน€เธเนเธฒเนเธเธ—เธณโ€ฆ</button></div>
           <button class="btn" id="btnAsg" style="width:auto;padding:8px 18px">เธกเธญเธเธซเธกเธฒเธข</button>
         </div>
       </div>
@@ -494,6 +494,38 @@ var CAT = {
   manpower:{l:'เธเธเนเธกเนเธเธญ / เน€เธเธฃเธทเนเธญเธเธกเธทเธญ', i:'๐‘ท'},
   other:{l:'เธญเธทเนเธ เน', i:'โ“'}
 };
+
+/* เธเธฅเธฑเธเธเธญเธเน€เธเธ•เธเธฒเธ โ€” เน€เธฅเธทเธญเธเนเธ”เนเธซเธฅเธฒเธขเธญเธขเนเธฒเธ เนเธฅเนเธงเน€เธเนเธเธฅเธดเธชเธ•เนเธชเธฃเนเธฒเธเธ•เธฒเธกเธ—เธตเนเน€เธฅเธทเธญเธ
+   เนเธเน/เน€เธเธดเนเธกเธฃเธฒเธขเธเธฒเธฃเนเธ”เนเธ—เธตเนเธเธตเนเธเธธเธ”เน€เธ”เธตเธขเธง เธ—เธฑเนเธเธเธฑเนเธเธกเธญเธเธซเธกเธฒเธขเนเธฅเธฐเธเธฑเนเธเธซเธเนเธฒเธเธฒเธเนเธเนเธเธธเธ”เน€เธ”เธตเธขเธงเธเธฑเธ */
+var SCOPE_LIB=[
+  {k:'recv',  l:'เธ•เธฃเธงเธเธฃเธฑเธเธเธญเธเธซเธเนเธฒเธเธฒเธ', i:'๐“ฆ', tasks:['เธเธฑเธเธเธญเธเธ•เธฒเธกเนเธเธชเนเธ','เธ•เธฃเธงเธเธชเธ เธฒเธ / เธฃเธญเธขเธเธณเธฃเธธเธ”','เนเธเนเธเธเธญเธเธเธฒเธ”เธซเธฃเธทเธญเธเธดเธ”เธชเน€เธเธ']},
+  {k:'prep',  l:'เน€เธ•เธฃเธตเธขเธกเธเธทเนเธเธ—เธตเน / เธงเธฑเธ”เธฃเธฐเธ”เธฑเธ', i:'๐“', tasks:['เธงเธฑเธ”เธเธทเนเธเธ—เธตเนเธเธฃเธดเธเน€เธ—เธตเธขเธเนเธเธ','เน€เธเนเธเธฃเธฐเธ”เธฑเธเธเธทเนเธเนเธฅเธฐเธเธเธฑเธ','เธเธนเธเนเธฒเธเธฅเธธเธกเธเธฑเธเน€เธเธทเนเธญเธ']},
+  {k:'base',  l:'เธ•เธนเนเธเธฃเธฑเธงเธเธธเธ”เธฅเนเธฒเธ', i:'๐ชต', tasks:['เธเธฃเธฐเธเธญเธเธ•เธนเนเธฅเนเธฒเธ','เธงเธฒเธเธ•เธนเน / เธเธฃเธฑเธเธเธฒเธเธฃเธฑเธเธฃเธฐเธ”เธฑเธ','เธขเธถเธ”เธ•เธนเนเน€เธเนเธฒเธเธเธฑเธ','เธเธฃเธฑเธเธซเธเนเธฒเธเธฒเธเนเธฅเธฐเธฃเธฐเธขเธฐเธฃเนเธญเธ']},
+  {k:'wall',  l:'เธ•เธนเนเธเธฃเธฑเธงเธเธธเธ”เธเธ', i:'๐งฑ', tasks:['เธ•เธตเธฃเธฐเธ”เธฑเธเนเธเธงเนเธเธงเธ','เธขเธถเธ”เธฃเธฒเธเนเธเธงเธ / เธเธธเธเธเธเธฑเธ','เนเธเธงเธเธ•เธนเนเธเธ','เธเธฃเธฑเธเธเธฒเธเธเธฑเธเนเธซเนเนเธ”เนเธฃเธฐเธขเธฐ']},
+  {k:'tall',  l:'เธ•เธนเนเธชเธนเธ / เธ•เธนเนเธญเธ-เนเธกเนเธเธฃเน€เธงเธ', i:'๐—', tasks:['เธเธฃเธฐเธเธญเธเธ•เธนเนเธชเธนเธ','เน€เธเธฒเธฐเธเนเธญเธเน€เธเธฃเธทเนเธญเธเนเธเนเนเธเธเนเธฒ','เธขเธถเธ”เธ•เธนเนเน€เธเนเธฒเธเธเธฑเธ']},
+  {k:'top',   l:'เธ—เนเธญเธเน€เธเธฒเธเนเน€เธ•เธญเธฃเน', i:'๐ชจ', tasks:['เธงเธฒเธเธ—เนเธญเธ / เธ•เธฃเธงเธเธฃเธฐเธ”เธฑเธ','เธขเธดเธเธเธดเธฅเธดเนเธเธเนเธเธงเธเธ','เน€เธเนเธเธเธญเธเนเธฅเธฐเธฃเธญเธขเธ•เนเธญ']},
+  {k:'sink',  l:'เธเธดเธเธเน / เธเนเธญเธเธเนเธณ', i:'๐ฐ', tasks:['เน€เธเธฒเธฐเธเนเธญเธเธเธดเธเธเน','เธ•เธดเธ”เธ•เธฑเนเธเธเธดเธเธเน + เธเนเธญเธ','เธ•เนเธญเธ—เนเธญเธเนเธณเธ”เธต-เธเนเธณเธ—เธดเนเธ','เธ—เธ”เธชเธญเธเธฃเธญเธขเธฃเธฑเนเธง']},
+  {k:'hob',   l:'เน€เธ•เธฒ / เน€เธเธฃเธทเนเธญเธเธ”เธนเธ”เธเธงเธฑเธ', i:'๐”ฅ', tasks:['เน€เธเธฒเธฐเธเนเธญเธเน€เธ•เธฒ','เธ•เธดเธ”เธ•เธฑเนเธเน€เธ•เธฒ','เธ•เธดเธ”เธ•เธฑเนเธเน€เธเธฃเธทเนเธญเธเธ”เธนเธ”เธเธงเธฑเธ','เธ•เนเธญเธ—เนเธญเธฃเธฐเธเธฒเธข / เธ—เธ”เธชเธญเธ']},
+  {k:'ward',  l:'เธ•เธนเนเน€เธชเธทเนเธญเธเนเธฒ / Walk-in', i:'๐‘”', tasks:['เธเธฃเธฐเธเธญเธเนเธเธฃเธเธ•เธนเน','เธขเธถเธ”เน€เธเนเธฒเธเธเธฑเธ','เธ•เธดเธ”เธ•เธฑเนเธเธฃเธฒเธงเนเธเธงเธ / เธเธฑเนเธ','เธเธฃเธฑเธเธเธฒเธเนเธฅเธฐเธฅเธดเนเธเธเธฑเธ']},
+  {k:'tv',    l:'เธ•เธนเนเธ—เธตเธงเธต / เธเธฑเนเธเธงเธฒเธ', i:'๐“บ', tasks:['เธเธฃเธฐเธเธญเธเธ•เธนเน','เธขเธถเธ”เน€เธเนเธฒเธเธเธฑเธ','เน€เธเนเธเธชเธฒเธขเนเธ']},
+  {k:'door',  l:'เธเธฒเธเน€เธฅเธทเนเธญเธ / เธเธฒเธเธชเธงเธดเธ', i:'๐ช', tasks:['เธ•เธดเธ”เธ•เธฑเนเธเธฃเธฒเธเธเธ-เธฅเนเธฒเธ','เนเธเธงเธเธเธฒเธ','เธเธฃเธฑเธเธฃเธฐเธขเธฐเธเธฒเธฃเน€เธฅเธทเนเธญเธ / เธฅเนเธญเธ']},
+  {k:'acc',   l:'เธญเธธเธเธเธฃเธ“เนเนเธเธ•เธนเน (เธ•เธฐเนเธเธฃเธ / เธฅเธดเนเธเธเธฑเธ)', i:'๐งฐ', tasks:['เธ•เธดเธ”เธ•เธฑเนเธเธฃเธฒเธเธฅเธดเนเธเธเธฑเธ','เนเธชเนเธ•เธฐเนเธเธฃเธ / เธญเธธเธเธเธฃเธ“เนเน€เธชเธฃเธดเธก','เธ—เธ”เธชเธญเธเธเธฒเธฃเน€เธเธดเธ”-เธเธดเธ”']},
+  {k:'fix',   l:'เธเนเธญเธก / เนเธเนเนเธเธเธฒเธเน€เธ”เธดเธก', i:'๐”ง', tasks:['เธ•เธฃเธงเธเธเธธเธ”เธ—เธตเนเธ•เนเธญเธเนเธเน','เธ”เธณเน€เธเธดเธเธเธฒเธฃเนเธเนเนเธ','เธ–เนเธฒเธขเธฃเธนเธเธเนเธญเธ-เธซเธฅเธฑเธ']},
+  {k:'close', l:'เน€เธเนเธเธเธฒเธ / เธฅเธนเธเธเนเธฒเธ•เธฃเธงเธเธฃเธฑเธ', i:'โ…', tasks:['เน€เธเนเธเธเธฒเธ / เธ—เธณเธเธงเธฒเธกเธชเธฐเธญเธฒเธ”','เธ–เนเธฒเธขเธฃเธนเธเธเธฒเธเน€เธชเธฃเนเธ','เธฅเธนเธเธเนเธฒเธ•เธฃเธงเธเธฃเธฑเธเนเธฅเธฐเน€เธเนเธเธฃเธฑเธเธเธฒเธ']}
+];
+function scopeLabel(keys){
+  return keys.map(function(k){ var f=SCOPE_LIB.filter(function(x){return x.k===k;})[0]; return f?f.l:k; }).join(' + ');
+}
+function scopeChecklist(keys, extra){
+  var out=[], seen={};
+  keys.forEach(function(k){
+    var f=SCOPE_LIB.filter(function(x){return x.k===k;})[0]; if(!f) return;
+    f.tasks.forEach(function(t){ if(!seen[t]){ seen[t]=1; out.push({label:t, done:false}); } });
+  });
+  (extra||[]).forEach(function(t){ t=String(t).trim(); if(t && !seen[t]){ seen[t]=1; out.push({label:t, done:false}); } });
+  return out;
+}
+
 var SEV = {low:{l:'เนเธกเนเน€เธฃเนเธ',c:'c-gray',x:'var(--text3)'}, normal:{l:'เธเธเธ•เธด',c:'c-blue',x:'var(--accent)'},
            high:{l:'เน€เธฃเนเธ',c:'c-orange',x:'var(--orange)'}, urgent:{l:'เธ”เนเธงเธเธกเธฒเธ',c:'c-red',x:'var(--red)'}};
 var IST = {open:{l:'เนเธซเธกเน',c:'c-red'}, acked:{l:'เธฃเธฑเธเน€เธฃเธทเนเธญเธเนเธฅเนเธง',c:'c-orange'}, in_progress:{l:'เธเธณเธฅเธฑเธเนเธเน',c:'c-blue'},
@@ -675,8 +707,10 @@ function startMgr(){
   $('mgrWho').textContent=S.mgrName;
   $('dtPick').value=S.date; $('asgDate').value=S.date;
   $('rpFrom').value=S.date; $('rpTo').value=S.date;
+  scopeBtnRefresh();
   loadMgr(); subscribe();
 }
+$('asgScopeBtn').onclick=function(){ scopePicker(); };
 $('btnOut').onclick=logout;
 $('btnReload').onclick=function(){ loadMgr(); };
 $('btnDiag').onclick=function(){ diag(); };
@@ -1110,16 +1144,73 @@ function teamForm(id){
   };
 }
 
-var DEFAULT_CHECK=['เธ•เธฃเธงเธเธฃเธฑเธเธเธญเธเธซเธเนเธฒเธเธฒเธ','เธงเธฑเธ”เธเธทเนเธเธ—เธตเน / เธเธฃเธฑเธเธฃเธฐเธ”เธฑเธ','เธ•เธดเธ”เธ•เธฑเนเธเธ•เธนเนเธฅเนเธฒเธ','เธ•เธดเธ”เธ•เธฑเนเธเธ•เธนเนเธเธ','เธ•เธดเธ”เธ•เธฑเนเธเธ—เนเธญเธ','เน€เธเนเธเธเธฒเธ / เธ—เธณเธเธงเธฒเธกเธชเธฐเธญเธฒเธ”','เธฅเธนเธเธเนเธฒเธ•เธฃเธงเธเธฃเธฑเธ'];
+var asgScope={keys:['recv','prep'], extra:[]};
+
+function scopeBtnRefresh(){
+  var b=$('asgScopeBtn'); if(!b) return;
+  var n=asgScope.keys.length + asgScope.extra.length;
+  if(!n){ b.textContent='เน€เธฅเธทเธญเธเธเธฒเธเธ—เธตเนเธเธฐเน€เธเนเธฒเนเธเธ—เธณโ€ฆ'; b.style.color='var(--text3)'; return; }
+  var txt=scopeLabel(asgScope.keys);
+  if(asgScope.extra.length) txt += (txt?' + ':'')+'เธเธฒเธเน€เธเธดเนเธก '+asgScope.extra.length+' เธเนเธญ';
+  b.textContent=txt; b.style.color='var(--text)';
+  b.title=txt;
+}
+
+function scopePicker(){
+  var keys=asgScope.keys.slice(), extra=asgScope.extra.slice();
+  sheet('เน€เธเนเธฒเนเธเธ—เธณเธญเธฐเนเธฃเธเนเธฒเธ',
+    '<p style="font-size:12px;color:var(--text2);line-height:1.6;margin-bottom:12px">'+
+      'เธ•เธดเนเธเนเธ”เนเธซเธฅเธฒเธขเธญเธขเนเธฒเธ เน€เธเนเธเธฅเธดเธชเธ•เนเธเธญเธเธ—เธตเธกเธเธฐเธชเธฃเนเธฒเธเธ•เธฒเธกเธเธฒเธเธ—เธตเนเน€เธฅเธทเธญเธ เนเธฅเธฐเธเธฐเนเธกเนเธเนเธณเธเธฑเธเนเธกเนเธเธฒเธเธเธเธฅเธฐเธญเธขเนเธฒเธเธเธฐเธกเธตเธเธฑเนเธเธ•เธญเธเน€เธ”เธตเธขเธงเธเธฑเธ</p>'+
+    '<div class="opts" id="scBox">'+
+      SCOPE_LIB.map(function(x){
+        return '<button class="opt'+(keys.indexOf(x.k)>=0?' on':'')+'" data-v="'+x.k+'">'+x.i+' '+esc(x.l)+
+          '<div style="font-size:10.5px;font-weight:500;color:var(--text3);margin-top:3px">'+x.tasks.length+' เธเธฑเนเธเธ•เธญเธ</div></button>';
+      }).join('')+
+    '</div>'+
+    '<div class="fld" style="margin-top:16px"><label>เธเธฒเธเน€เธเธดเนเธกเน€เธ•เธดเธกเธ—เธตเนเนเธกเนเธกเธตเนเธเธฃเธฒเธขเธเธฒเธฃ (เธเธฃเธฃเธ—เธฑเธ”เธฅเธฐ 1 เธเนเธญ)</label>'+
+      '<textarea id="scEx" style="height:76px;resize:none" placeholder="เน€เธเนเธ\nเธ•เธดเธ”เธ•เธฑเนเธเนเธเนเธ•เนเธ•เธนเน\nเน€เธเธฅเธตเนเธขเธเธกเธทเธญเธเธฑเธเธเธธเธ”เน€เธ”เธดเธก">'+esc(extra.join('\n'))+'</textarea></div>'+
+    '<div id="scPrev" style="margin-top:6px"></div>',
+    '<button class="btn sm" id="scSave">เนเธเนเธฃเธฒเธขเธเธฒเธฃเธเธตเน</button>');
+
+  var prev=function(){
+    var ex=$('scEx').value.split('\n').map(function(x){return x.trim();}).filter(Boolean);
+    var ck=scopeChecklist(keys, ex);
+    $('scPrev').innerHTML = ck.length
+      ? '<div class="sec-h">เน€เธเนเธเธฅเธดเธชเธ•เนเธ—เธตเนเธ—เธตเธกเธเธฐเน€เธซเนเธ ('+ck.length+' เธเนเธญ)</div>'+
+        '<div style="background:var(--s1);border:1px solid var(--border);border-radius:11px;padding:10px 13px">'+
+        ck.map(function(c,i){ return '<div style="font-size:12.5px;padding:2px 0;color:var(--text2)">'+(i+1)+'. '+esc(c.label)+'</div>'; }).join('')+
+        '</div>'
+      : '<div class="empty" style="padding:14px">เธขเธฑเธเนเธกเนเนเธ”เนเน€เธฅเธทเธญเธเธเธฒเธ</div>';
+  };
+  $('scBox').querySelectorAll('.opt').forEach(function(b){
+    b.onclick=function(){
+      var k=b.dataset.v, i=keys.indexOf(k);
+      if(i>=0) keys.splice(i,1); else keys.push(k);
+      b.classList.toggle('on'); prev();
+    };
+  });
+  $('scEx').oninput=prev;
+  prev();
+  $('scSave').onclick=function(){
+    asgScope.keys=keys;
+    asgScope.extra=$('scEx').value.split('\n').map(function(x){return x.trim();}).filter(Boolean);
+    scopeBtnRefresh(); closeSheet();
+  };
+}
+
 $('btnAsg').onclick=async function(){
+  if(!asgScope.keys.length && !asgScope.extra.length) return toast('เน€เธฅเธทเธญเธเธเนเธญเธเธงเนเธฒเน€เธเนเธฒเนเธเธ—เธณเธญเธฐเนเธฃเธเนเธฒเธ');
+  var scope=scopeLabel(asgScope.keys);
+  if(asgScope.extra.length) scope += (scope?' + ':'')+asgScope.extra.join(' + ');
   var p={site_id:$('asgSite').value, team_id:$('asgTeam').value, work_date:$('asgDate').value||S.date,
-    scope:$('asgScope').value.trim()||null, checklist:DEFAULT_CHECK.map(function(l){ return {label:l, done:false}; })};
+    scope:scope, checklist:scopeChecklist(asgScope.keys, asgScope.extra)};
   if(!p.site_id||!p.team_id) return toast('เน€เธฅเธทเธญเธเนเธเธ•เนเนเธฅเธฐเธ—เธตเธกเธเนเธญเธ');
   this.disabled=true;
   var r=await db.from('it_assignments').upsert(p,{onConflict:'site_id,team_id,work_date'});
   this.disabled=false;
   if(r.error) return toast('เธกเธญเธเธซเธกเธฒเธขเนเธกเนเธชเธณเน€เธฃเนเธ: '+r.error.message,4000);
-  toast('เธกเธญเธเธซเธกเธฒเธขเธเธฒเธเนเธฅเนเธง'); $('asgScope').value=''; loadMgr();
+  toast('เธกเธญเธเธซเธกเธฒเธขเธเธฒเธเนเธฅเนเธง ยท '+p.checklist.length+' เธเธฑเนเธเธ•เธญเธ');
+  loadMgr();
 };
 
 /* โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€ เธฃเธฒเธขเธเธฒเธ / Export โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€โ”€ */
