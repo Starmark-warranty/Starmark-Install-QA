@@ -297,11 +297,32 @@ button,input,select,textarea{font-family:inherit;color:inherit}
   border-radius:20px 20px 0 0;max-height:92vh;max-height:88dvh;display:flex;flex-direction:column;
   animation:up .28s cubic-bezier(.32,.72,0,1);padding-bottom:env(safe-area-inset-bottom)}
 @keyframes up{from{transform:translateY(100%)}}
+@keyframes popIn{from{opacity:0;transform:translate(-50%,-50%) scale(.96)}to{opacity:1;transform:translate(-50%,-50%) scale(1)}}
+@media(min-width:700px){
+  .sh-c{left:50%;top:50%;right:auto;bottom:auto;transform:translate(-50%,-50%);
+    width:min(580px,92vw);max-width:none;margin:0;border-radius:18px;
+    max-height:86vh;padding-bottom:0;animation:popIn .2s cubic-bezier(.32,.72,0,1)}
+}
 .sh-h{padding:14px 16px 10px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;flex-shrink:0}
 .sh-h .t{flex:1;font-size:16px;font-weight:700;letter-spacing:-.01em}
 .sh-h .x{background:none;border:none;font-size:22px;color:var(--text3);cursor:pointer;line-height:1}
 .sh-b{flex:1;overflow:auto;padding:14px 16px}
 .sh-f{padding:12px 16px;border-top:1px solid var(--border);flex-shrink:0}
+.pickbtn{display:flex;align-items:center;gap:11px;width:100%;text-align:left;cursor:pointer;font-family:inherit;
+  background:#fff;border:1.5px dashed var(--accent);border-radius:12px;padding:11px 13px;transition:.14s}
+.pickbtn:hover{background:var(--accent-glow);border-color:var(--accent2)}
+.pickbtn.filled{border-style:solid;border-color:var(--border2);background:var(--s1)}
+.pickbtn.filled:hover{border-color:var(--accent)}
+.pickbtn .ic{width:34px;height:34px;border-radius:10px;background:var(--accent-glow);color:var(--accent);
+  display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:700;flex-shrink:0}
+.pickbtn.filled .ic{background:var(--green-dim);color:#1e8e3e}
+.pickbtn .tx{flex:1;min-width:0}
+.pickbtn .t1{display:block;font-size:13.5px;font-weight:600;color:var(--accent);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pickbtn.filled .t1{color:var(--text)}
+.pickbtn .t2{display:block;font-size:11.5px;color:var(--text3);margin-top:2px;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pickbtn .ch{color:var(--text3);font-size:19px;line-height:1;flex-shrink:0}
 .opts{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .opt{background:#fff;border:1.5px solid var(--border2);border-radius:11px;padding:11px 10px;font-size:13px;
   font-weight:600;cursor:pointer;text-align:left;transition:.13s}
@@ -415,7 +436,7 @@ body.preview #previewBar{display:flex}
 
 <script>
 /* ── ยามเฝ้า splash: อยู่นอกสคริปต์หลัก ถ้าสคริปต์หลักพัง ตัวนี้ยังทำงาน ── */
-window.APP_VER='2.4';
+window.APP_VER='2.6';
 (function(){
   var fill=function(){
     var a=document.querySelectorAll('.ver');
@@ -585,7 +606,7 @@ window.APP_VER='2.4';
             <select id="asgDays" class="tin"><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option><option value="6">6</option><option value="7">7</option><option value="8">8</option><option value="9">9</option><option value="10">10</option><option value="12">12</option><option value="14">14</option></select></div>
           <label style="font-size:11.5px;color:var(--text2);display:flex;align-items:center;gap:5px;padding-bottom:8px">
             <input type="checkbox" id="asgSkipSun" checked> ข้ามวันอาทิตย์</label>
-          <div style="flex:2;min-width:220px"><label style="font-size:11px;color:var(--text2);font-weight:600;display:block;margin-bottom:4px">ขอบเขตงาน — เข้าไปทำอะไรบ้าง</label><button id="asgScopeBtn" class="tin" style="width:100%;text-align:left;cursor:pointer;background:#fff;color:var(--text3)">เลือกงานที่จะเข้าไปทำ…</button></div>
+          <div style="flex:2;min-width:220px"><label style="font-size:11px;color:var(--text2);font-weight:600;display:block;margin-bottom:4px">ขอบเขตงาน — เข้าไปทำอะไรบ้าง</label><button type="button" id="asgScopeBtn" class="pickbtn"></button></div>
           <button class="btn" id="btnAsg" style="width:auto;padding:8px 18px">มอบหมาย</button>
         </div>
       </div>
@@ -859,8 +880,9 @@ async function uploadPhotos(files, folder){
   }
   return out;
 }
-function photoPicker(hostId, store){
+function photoPicker(hostId, store, onChange){
   var host=$(hostId); if(!host) return;
+  var fire=function(){ if(onChange) onChange(store.length); };
   host.innerHTML='<div class="ph-add" id="'+hostId+'_add">＋</div>'+
     store.map(function(u,i){ return '<div class="ph"><img class="thumb" src="'+esc(u)+'"><div class="rm" data-i="'+i+'">×</div></div>'; }).join('');
   $(hostId+'_add').onclick=function(){
@@ -871,13 +893,13 @@ function photoPicker(hostId, store){
       try{
         var urls=await uploadPhotos(Array.prototype.slice.call(f.files,0,6),'p'+(S.me?S.me.emp_code:'mgr'));
         urls.forEach(function(u){ store.push(u); });
-        photoPicker(hostId, store); toast('อัปโหลดรูปแล้ว '+urls.length+' รูป');
+        photoPicker(hostId, store, onChange); fire(); toast('อัปโหลดรูปแล้ว '+urls.length+' รูป');
       }catch(e){ toast('อัปโหลดรูปไม่สำเร็จ — ลองใหม่เมื่อสัญญาณดีขึ้น', 3600); }
     };
     f.click();
   };
   Array.prototype.forEach.call(host.querySelectorAll('.rm'), function(b){
-    b.onclick=function(){ store.splice(+b.dataset.i,1); photoPicker(hostId,store); };
+    b.onclick=function(){ store.splice(+b.dataset.i,1); photoPicker(hostId,store,onChange); fire(); };
   });
 }
 function photoStrip(arr){
@@ -1724,14 +1746,7 @@ function nextSiteCode(){
 function quickAssign(teamId, date){
   var t=teamOf(teamId);
   var store={keys:[], extra:[]};
-  var lbl=function(){
-    var n=store.keys.length+store.extra.length;
-    var b=$('q_scope'); if(!b) return;
-    if(!n){ b.textContent='แตะเพื่อเลือกงานที่จะเข้าไปทำ…'; b.style.color='var(--text3)';
-            b.style.borderColor='var(--orange)'; return; }
-    b.textContent=scopeLabel(store.keys)+(store.extra.length?(' + งานเพิ่ม '+store.extra.length+' ข้อ'):'');
-    b.style.color='var(--text)'; b.style.borderColor='var(--border2)';
-  };
+  var lbl=function(){ setPickBtn('q_scope', store); };
   var dt=new Date(date+'T00:00:00');
   sheet('มอบหมายงาน',
     '<div style="background:var(--s1);border:1px solid var(--border);border-radius:11px;padding:11px 13px;margin-bottom:14px;font-size:13px;line-height:1.7">'+
@@ -1757,7 +1772,7 @@ function quickAssign(teamId, date){
     '</div>'+
 
     '<div class="fld"><label id="q_scopelabel">ขอบเขตงาน — เข้าไปทำอะไรบ้าง</label>'+
-      '<button id="q_scope" class="tin" style="width:100%;text-align:left;cursor:pointer;background:#fff"></button></div>'+
+      '<button type="button" id="q_scope" class="pickbtn"></button></div>'+
 
     '<div class="fld"><label>ระยะเวลางาน</label>'+
       '<div class="row"><select id="q_days">'+
@@ -2172,7 +2187,8 @@ var HELP_STAFF=[
   ]},
   {k:'ck', i:'✅', t:'เช็กลิสต์และรายงาน', b:[
     'ติ๊กเช็กลิสต์ทีละข้อตามงานที่ทำจริง เปอร์เซ็นต์คืบหน้าจะขยับเอง ไม่ต้องกรอกเลข',
-    'ปุ่ม “ส่งรายงานความคืบหน้า” ใช้เมื่ออยากบอกรายละเอียดหรือส่งรูปให้ออฟฟิศ',
+    'ปุ่ม “ส่งรายงานความคืบหน้า” ต้องแนบรูปอย่างน้อย 1 รูปเสมอ ไม่งั้นปุ่มส่งจะกดไม่ได้',
+    'เปอร์เซ็นต์ในรายงานคิดจากเช็กลิสต์อย่างเดียว แก้เองไม่ได้ — อยากให้ตัวเลขขยับต้องไปติ๊กเช็กลิสต์',
     'แนบรูปได้หลายรูป ระบบย่อรูปให้ก่อนอัปเพื่อประหยัดเน็ต',
     'รูปหน้างานช่วยให้ออฟฟิศตัดสินใจได้เร็วขึ้นมาก ถ่ายไว้เยอะ ๆ ไม่เสียหาย'
   ]},
@@ -3291,15 +3307,29 @@ function teamForm(id){
 
 var asgScope={keys:[], extra:[]};
 
-function scopeBtnRefresh(){
-  var b=$('asgScopeBtn'); if(!b) return;
-  var n=asgScope.keys.length + asgScope.extra.length;
-  if(!n){ b.textContent='เลือกงานที่จะเข้าไปทำ…'; b.style.color='var(--text3)'; return; }
-  var txt=scopeLabel(asgScope.keys);
-  if(asgScope.extra.length) txt += (txt?' + ':'')+'งานเพิ่ม '+asgScope.extra.length+' ข้อ';
-  b.textContent=txt; b.style.color='var(--text)';
+/* ปุ่มเลือกขอบเขตงาน — บอกชัดว่าต้องกด และกดแล้วได้อะไร */
+function setPickBtn(id, store){
+  var b=$(id); if(!b) return;
+  var n=store.keys.length + store.extra.length;
+  b.className='pickbtn'+(n?' filled':'');
+  if(!n){
+    b.innerHTML='<span class="ic">＋</span><span class="tx">'+
+      '<span class="t1">แตะเพื่อเลือกงานที่จะเข้าไปทำ</span>'+
+      '<span class="t2">ยังไม่ได้เลือก — ต้องเลือกก่อนถึงจะมอบหมายได้</span></span>'+
+      '<span class="ch">›</span>';
+    b.title='';
+    return;
+  }
+  var txt=scopeLabel(store.keys);
+  if(store.extra.length) txt += (txt?' + ':'')+'งานเพิ่ม '+store.extra.length+' ข้อ';
+  var steps=scopeChecklist(store.keys, store.extra).length;
+  b.innerHTML='<span class="ic">✓</span><span class="tx">'+
+    '<span class="t1">'+esc(txt)+'</span>'+
+    '<span class="t2">'+steps+' ขั้นตอนในเช็กลิสต์ · แตะเพื่อแก้ไข</span></span>'+
+    '<span class="ch">›</span>';
   b.title=txt;
 }
+function scopeBtnRefresh(){ setPickBtn('asgScopeBtn', asgScope); }
 
 function scopePicker(store, done){
   store=store||asgScope;
@@ -3847,18 +3877,41 @@ async function toggleCheck(a, i){
 }
 
 function reportSheet(a){
-  var photos=[], prog=pct(a.progress);
+  var photos=[];
+  var ck=Array.isArray(a.checklist)?a.checklist:[];
+  var doneN=ck.filter(function(c){ return c.done; }).length;
+  var p = ck.length? Math.round(doneN/ck.length*100) : pct(a.progress);
+
   sheet('ส่งรายงานความคืบหน้า',
-    '<div class="fld"><label>ความคืบหน้าตอนนี้ <b id="pv" style="color:var(--accent);font-size:15px">'+prog+'%</b></label>'+
-      '<input type="range" class="slider" id="pr" min="0" max="100" step="5" value="'+prog+'"></div>'+
+    '<div style="background:var(--s1);border:1px solid var(--border);border-radius:13px;padding:13px 15px;margin-bottom:14px">'+
+      '<div style="display:flex;align-items:baseline;gap:10px">'+
+        '<span style="font-size:30px;font-weight:700;letter-spacing:-.03em;color:'+(p>=100?'var(--green)':'var(--accent)')+'">'+p+'%</span>'+
+        '<span style="font-size:12.5px;color:var(--text2)">'+
+          (ck.length? ('ติ๊กแล้ว '+doneN+' จาก '+ck.length+' ข้อ') : 'ค่าคืบหน้าล่าสุด')+'</span></div>'+
+      '<div class="bar'+(p>=100?' ok':'')+'" style="height:7px;margin-top:9px"><i style="width:'+p+'%"></i></div>'+
+      '<div style="font-size:11.5px;color:var(--text3);line-height:1.6;margin-top:9px">'+
+        (ck.length
+          ? 'เปอร์เซ็นต์คิดจากเช็กลิสต์อย่างเดียว ปรับเองไม่ได้ — ถ้ายังไม่ตรงกับงานจริง ให้ปิดหน้านี้แล้วไปติ๊กเช็กลิสต์ให้ครบก่อน'
+          : 'งานนี้ไม่มีเช็กลิสต์ ระบบจะใช้ค่าคืบหน้าล่าสุดที่บันทึกไว้')+
+      '</div></div>'+
     '<div class="fld"><label>บันทึก / สิ่งที่ทำไป</label><textarea id="nt" style="height:96px;resize:none" placeholder="เช่น ติดตั้งตู้ล่างครบแล้ว รอท็อปหินมาส่งพรุ่งนี้เช้า"></textarea></div>'+
-    '<div class="fld"><label>รูปหน้างาน</label><div class="phs" id="phB"></div></div>',
-    '<button class="btn" id="sv">ส่งรายงาน</button>');
-  photoPicker('phB', photos);
-  $('pr').oninput=function(){ $('pv').textContent=this.value+'%'; };
+    '<div class="fld"><label>รูปหน้างาน <span style="color:var(--red)">*</span></label>'+
+      '<div class="phs" id="phB"></div>'+
+      '<p style="font-size:11.5px;color:var(--text2);line-height:1.6;margin-top:8px">'+
+        'ต้องแนบอย่างน้อย 1 รูป — รูปคือหลักฐานว่างานถึงไหนจริง ออฟฟิศตัดสินใจได้เร็วขึ้นมาก</p></div>',
+    '<button class="btn" id="sv" disabled>แนบรูปก่อนถึงจะส่งได้</button>');
+
+  var syncBtn=function(){
+    var b=$('sv'); if(!b) return;
+    b.disabled = photos.length===0;
+    b.textContent = photos.length? ('ส่งรายงาน · '+photos.length+' รูป') : 'แนบรูปก่อนถึงจะส่งได้';
+  };
+  photoPicker('phB', photos, syncBtn);
+  syncBtn();
+
   $('sv').onclick=async function(){
-    var note=$('nt').value.trim(), p=+$('pr').value;
-    if(!note && !photos.length && p===prog) return toast('ใส่บันทึกหรือรูปอย่างน้อยหนึ่งอย่าง');
+    if(!photos.length) return toast('ต้องแนบรูปหน้างานอย่างน้อย 1 รูป', 3200);
+    var note=$('nt').value.trim();
     this.disabled=true; this.textContent='กำลังส่ง…';
     var pos=await getPos();
     var rep={assignment_id:a.id, site_id:a.site_id, team_id:S.team.id, kind:'progress', progress:p, note:note||null,
