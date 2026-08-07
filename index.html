@@ -148,7 +148,7 @@ button,input,select,textarea{font-family:inherit;color:inherit}
 
 .board{max-height:430px;overflow:auto}
 .brow{padding:11px 14px;border-bottom:1px solid var(--border);cursor:pointer;transition:background .1s}
-.brow:hover{background:rgba(255,255,255,.75)}
+.brow:hover{background:var(--accent-glow);box-shadow:inset 3px 0 0 var(--accent)}
 .brow:last-child{border-bottom:none}
 .brow-t{display:flex;align-items:center;gap:7px;margin-bottom:3px}
 .brow-t .nm{font-size:12.5px;font-weight:600;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -445,7 +445,7 @@ body.preview #previewBar{display:flex}
 
 <script>
 /* ── ยามเฝ้า splash: อยู่นอกสคริปต์หลัก ถ้าสคริปต์หลักพัง ตัวนี้ยังทำงาน ── */
-window.APP_VER='4.5';
+window.APP_VER='4.6';
 (function(){
   var fill=function(){
     var a=document.querySelectorAll('.ver');
@@ -548,6 +548,9 @@ window.APP_VER='4.5';
     <div class="kpis" id="kpis"></div>
     <div class="toolbar" style="padding-top:0">
       <input id="ovSearch" class="tin" style="min-width:210px" placeholder="ค้นหาไซต์ / ทีม / ลูกค้า…">
+      <label id="geoWrap" class="hide" style="font-size:11.5px;color:var(--text2);display:flex;align-items:center;gap:5px;cursor:pointer"
+             title="เปิดเพื่อดูว่าทีมเช็คอินตรงหน้างานจริงหรือไม่ — ระยะห่าง จุดเช็คอิน และเส้นทาง">
+        <input type="checkbox" id="geoChk"> 📍 ตรวจตำแหน่งเช็คอิน</label>
       <div id="ovChips" style="display:flex;gap:6px;flex-wrap:wrap"></div>
     </div>
     <div class="split">
@@ -721,7 +724,7 @@ var S = {
   role:'team', mgrName:'', team:null, me:null, staff:[],
   date: todayISO(),
   sites:[], teams:[], asgs:[], issues:[],
-  work:[], pins:[], icats:[], hols:[], plan:[], showRoutes:true, asTeam:null, forcedField:false, planFrom:null, planDays:14, pnQ:'', pnBusy:false,
+  work:[], pins:[], icats:[], hols:[], plan:[], showRoutes:true, geoCheck:false, asTeam:null, forcedField:false, planFrom:null, planDays:14, pnQ:'', pnBusy:false,
   ovFilter:'all', ovQ:'', isFilter:'open', isQ:'', isAllDates:true,
   tView:'jobs', tJob:null, map:null, markers:[], mapLayer:null
 };
@@ -978,12 +981,16 @@ function isMgr(u){ return rank(u)>=1; }          /* เข้า Dashboard ไ�
    แอดมินเข้าไม่ได้ เพราะเข้าไปแล้วเช็คอิน ส่งรายงาน หรือติ๊กเช็กลิสต์แทนช่างได้
    ซึ่งทำให้ข้อมูลหน้างานเชื่อถือไม่ได้ */
 function canField(u){ return rank(u)>=2; }
+/* ตรวจตำแหน่งเช็คอิน — ปิดไว้เป็นค่าเริ่มต้น เปิดได้เฉพาะผู้จัดการขึ้นไป
+   ปิดอยู่ = ไม่แสดงระยะห่าง จุดเช็คอินจริง หรือเส้นทาง ทั้งบนแผนที่ ในตาราง และใน Export */
+function geoOn(){ return !!S.geoCheck && rank(S.me)>=2; }
 /* ซ่อน/แสดงปุ่มบน Dashboard ตามสิทธิ์ — เรียกจากทุกทางที่เข้าหน้า Dashboard */
 function applyRoleUI(){
   var set=function(id, show){ var e=$(id); if(e) e.classList.toggle('hide', !show); };
   set('btnField', canField(S.me));              /* สลับไปมุมมองหน้างาน — ผู้จัดการขึ้นไป */
   set('btnCats',  isAdmin(S.me));               /* ประเภทปัญหา — ผู้จัดการขึ้นไป */
   set('pnHol',    rank(S.me)>=1);               /* วันหยุด — แอดมินขึ้นไป */
+  set('geoWrap',  rank(S.me)>=2);               /* ตรวจตำแหน่งเช็คอิน — ผู้จัดการขึ้นไป */
   set('btnHelp',  !isOwner(S.me));              /* คู่มือ — ซ่อนของระดับสูงสุด */
 }
 function isAdmin(u){ return rank(u)>=2; }
@@ -1346,6 +1353,14 @@ document.querySelectorAll('#mgr .tab').forEach(function(t){
   };
 });
 try{ S.showRoutes = localStorage.getItem('it_routes')!=='0'; }catch(e){}
+try{ S.geoCheck = localStorage.getItem('it_geochk')==='1'; }catch(e){}
+$('geoChk').checked = S.geoCheck;
+$('geoChk').onchange=function(){
+  S.geoCheck=this.checked;
+  try{ localStorage.setItem('it_geochk', this.checked?'1':'0'); }catch(e){}
+  toast(this.checked? 'เปิดการตรวจตำแหน่งเช็คอินแล้ว' : 'ปิดการตรวจตำแหน่งเช็คอินแล้ว');
+  renderAll();
+};
 $('mapRoute').checked = S.showRoutes;
 $('mapRoute').onchange=function(){
   S.showRoutes=this.checked;
@@ -1452,6 +1467,7 @@ function renderKPI(){
     kpi('ปัญหาค้างอยู่', open.length, stale+' เรื่องค้างเกิน 4 ชม.', open.length>0)+
     kpi('เรื่องด่วน', urgent, blocked+' ทีมหยุดงานเพราะติดปัญหา', urgent>0)+
     (function(){
+      if(!geoOn()) return '';
       var far=a.filter(function(x){ return x.checkin_dist_m!=null && x.checkin_dist_m>CHECKIN_RADIUS; });
       var max=far.length? Math.max.apply(null, far.map(function(x){return x.checkin_dist_m;})) : 0;
       return kpi('เช็คอินนอกพื้นที่', far.length,
@@ -1514,9 +1530,9 @@ function renderBoard(){
       '<div class="brow-t"><span class="nm">'+esc(s.name||'—')+'</span><span class="chip '+st.c+'">'+st.l+'</span></div>'+
       '<div class="brow-s"><span>'+esc(t.name||'—')+'</span><span>·</span><span>'+esc(leadInfo(t).name||'ยังไม่มีหัวหน้าทีม')+'</span>'+
         (a.checkin_at?'<span class="tm">เข้า '+fmtT(a.checkin_at)+'</span>':'')+
-        (a.checkin_road_m!=null
+        (!geoOn()? '' : (a.checkin_road_m!=null
           ? '<span class="chip '+distTone(a.checkin_road_m)+'">🚗 '+(a.checkin_road_m/1000).toFixed(1)+' กม.</span>'
-          : (a.checkin_dist_m!=null?'<span class="chip '+distTone(a.checkin_dist_m)+'">📍 '+fmtDist(a.checkin_dist_m)+'</span>':''))+
+          : (a.checkin_dist_m!=null?'<span class="chip '+distTone(a.checkin_dist_m)+'">📍 '+fmtDist(a.checkin_dist_m)+'</span>':'')))+
         (iss?'<span class="chip c-red">⚠ '+iss+'</span>':'')+'</div>'+
       '<div class="brow-p"><div class="bar'+(a.progress>=100?' ok':'')+'"><i style="width:'+pct(a.progress)+'%"></i></div>'+
         '<span class="pc">'+pct(a.progress)+'%</span></div>'+
@@ -1524,6 +1540,8 @@ function renderBoard(){
   }).join('');
   $('board').querySelectorAll('.brow').forEach(function(r){
     r.onclick=function(){ openAsg(r.dataset.id); };
+    r.onmouseenter=function(){ hoverFocus(r.dataset.id); };
+    r.onmouseleave=hoverClear;
   });
 }
 
@@ -1541,12 +1559,13 @@ function renderMap(){
     setTimeout(function(){ S.map.invalidateSize(); }, 200);
   }
   S.mapLayer.clearLayers();
+  if(S.hoverLayer) S.hoverLayer.clearLayers();
   var tok=++_mapToken, queue=[];
   var list=asgFiltered(), pts=[], nGps=0;
   list.forEach(function(a){
     var s=siteOf(a.site_id), t=teamOf(a.team_id), st=AST[a.status]||AST.assigned;
     var iss=S.issues.filter(function(i){ return i.site_id===a.site_id&&i.status!=='closed'&&i.status!=='resolved'; }).length;
-    var hasCk = a.checkin_lat!=null && a.checkin_lng!=null;
+    var hasCk = geoOn() && a.checkin_lat!=null && a.checkin_lng!=null;
     var hasSite= s.lat!=null && s.lng!=null;
     if(!hasCk && !hasSite) return;
 
@@ -1586,6 +1605,31 @@ function renderMap(){
     (noGeo?(' · '+noGeo+' ไซต์ยังไม่มีพิกัด'):'');
   if(pts.length) S.map.fitBounds(pts, {padding:[40,40], maxZoom:16});
   drawRoutes(queue, tok);
+}
+
+/* ── ชี้แถวสถานะรายทีม แล้วแผนที่ซูมไปหางานนั้นพร้อมไฮไลต์ ── */
+var _hoverT=null;
+function hoverFocus(id){
+  clearTimeout(_hoverT);
+  if(typeof L==='undefined' || !S.map) return;
+  var a=S.asgs.filter(function(x){ return x.id===id; })[0]; if(!a) return;
+  var si=siteOf(a.site_id);
+  var at = (geoOn() && a.checkin_lat!=null)? [a.checkin_lat, a.checkin_lng]
+         : (si.lat!=null? [si.lat, si.lng] : null);
+  if(!at) return;
+  if(!S.hoverLayer) S.hoverLayer=L.layerGroup().addTo(S.map);
+  S.hoverLayer.clearLayers();
+  L.circleMarker(at,{radius:20, color:'#007AFF', weight:3, opacity:.95,
+    fillColor:'#007AFF', fillOpacity:.16}).addTo(S.hoverLayer);
+  L.circleMarker(at,{radius:30, color:'#007AFF', weight:1.5, opacity:.45,
+    fillOpacity:0, dashArray:'4,4'}).addTo(S.hoverLayer);
+  _hoverT=setTimeout(function(){
+    S.map.setView(at, Math.max(S.map.getZoom(), 15), {animate:true});
+  }, 280);   /* หน่วงไว้ ไม่ให้แผนที่กระโดดตอนเลื่อนผ่านเฉย ๆ */
+}
+function hoverClear(){
+  clearTimeout(_hoverT);
+  if(S.hoverLayer) S.hoverLayer.clearLayers();
 }
 
 /* ── เส้นทางถนนจริงระหว่างพิกัดไซต์กับจุดที่ทีมเช็คอิน ── */
@@ -2363,7 +2407,7 @@ async function openAsg(id){
       '<dt>เช็คอิน</dt><dd>'+(a.checkin_at? fmtDT(a.checkin_at) : 'ยังไม่เช็คอิน')+'</dd>'+
       '<dt>คืบหน้า</dt><dd>'+pct(a.progress)+'% · เช็กลิสต์ '+ckDone+'/'+ck.length+'</dd>'+
     '</dl></div>'+
-    (a.checkin_at? checkinBlock(a, s) : '')+
+    ((a.checkin_at && geoOn())? checkinBlock(a, s) : '')+
     (ck.length?('<div class="sec"><div class="sec-h">เช็กลิสต์</div>'+
       ck.map(function(c){ return '<div style="font-size:13px;padding:4px 0;color:'+(c.done?'var(--text3)':'var(--text)')+'">'+
         (c.done?'✅':'⬜')+' '+esc(c.label)+'</div>'; }).join('')+'</div>'):'')+
@@ -2725,11 +2769,13 @@ var HELP_DASH=[
     'ปุ่ม 📊 Excel ได้ 2 ไฟล์: ตารางเหมือนบนจอ และรายการแถวต่อแถวไว้กรองหรือทำ Pivot'
   ]},
   {k:'ov', i:'📍', t:'ภาพรวมหน้างาน', b:[
-    'หมุดบนแผนที่คือจุดที่ทีมเช็คอินจริง ไม่ใช่พิกัดไซต์ที่ลงทะเบียนไว้',
+    'ปกติหมุดบนแผนที่คือพิกัดไซต์ · เปิด “ตรวจตำแหน่งเช็คอิน” แล้วหมุดจะย้ายไปที่จุดที่ทีมเช็คอินจริง',
     'วงกลมเทาโปร่งคือพิกัดไซต์ตามทะเบียน เส้นประบอกว่าคลาดกันแค่ไหน',
     'วงจาง ๆ รอบหมุดคือความคลาดเคลื่อนของ GPS มือถือ ดูคู่กันก่อนสรุปว่าทีมไปผิดที่',
     'เส้นน้ำเงินคือเส้นทางถนนจริงจากไซต์ไปจุดที่เช็คอิน คลิกที่เส้นเพื่อดูระยะทางและเวลาขับ ปิดได้ที่ติ๊กมุมขวาบนของแผนที่',
-    'KPI แถวบนเตือนอัตโนมัติ เช่น ทีมที่ยังไม่เช็คอินหลัง 10 โมง และเรื่องที่ค้างเกิน 4 ชม.'
+    'KPI แถวบนเตือนอัตโนมัติ เช่น ทีมที่ยังไม่เช็คอินหลัง 10 โมง และเรื่องที่ค้างเกิน 4 ชม.',
+    'เอาเมาส์ชี้แถวในตาราง “สถานะรายทีม” แผนที่จะซูมไปหางานนั้นพร้อมวงน้ำเงินไฮไลต์ให้',
+    'ติ๊ก “📍 ตรวจตำแหน่งเช็คอิน” (ผู้จัดการขึ้นไป · ปิดไว้เป็นค่าเริ่มต้น) ถึงจะเห็นระยะห่าง จุดเช็คอินจริง และเส้นทางถนน'
   ]},
   {k:'is', i:'⚠️', t:'ปัญหา — สั่งการ', b:[
     'เรียงตามความเร่งด่วนก่อน แล้วตามเวลาที่ค้าง คอลัมน์ “ค้างมา” เปลี่ยนสีเมื่อเกิน 4 และ 8 ชม.',
@@ -3957,11 +4003,11 @@ $('btnRpRun').onclick=async function(){
     return {วันที่:a.work_date, รหัสงาน:s.code, ไซต์:s.name, ลูกค้า:s.customer, ทีม:tm.code+' '+tm.name,
       หัวหน้าทีม:leadInfo(tm).name, เบอร์หัวหน้าทีม:leadInfo(tm).phone, สถานะ:(AST[a.status]||{}).l, คืบหน้า:a.progress,
       เช็คอิน:a.checkin_at?fmtDT(a.checkin_at):'',
-      ห่างจากไซต์กม:a.checkin_dist_m!=null?(a.checkin_dist_m/1000).toFixed(2):'',
-      พิกัดเช็คอิน:a.checkin_lat!=null?(a.checkin_lat.toFixed(6)+', '+a.checkin_lng.toFixed(6)):'',
-      GPSแม่นยำเมตร:a.checkin_acc_m,
-      ระยะถนนกม:a.checkin_road_m!=null?(a.checkin_road_m/1000).toFixed(1):'',
-      เวลาขับโดยประมาณนาที:a.checkin_road_min, ขอบเขต:a.scope};
+      ห่างจากไซต์กม: geoOn()&&a.checkin_dist_m!=null?(a.checkin_dist_m/1000).toFixed(2):'',
+      พิกัดเช็คอิน: geoOn()&&a.checkin_lat!=null?(a.checkin_lat.toFixed(6)+', '+a.checkin_lng.toFixed(6)):'',
+      GPSแม่นยำเมตร: geoOn()? a.checkin_acc_m : '',
+      ระยะถนนกม: geoOn()&&a.checkin_road_m!=null?(a.checkin_road_m/1000).toFixed(1):'',
+      เวลาขับโดยประมาณนาที: geoOn()? a.checkin_road_min : '', ขอบเขต:a.scope};
   })); };
   $('exI').onclick=function(){ csv('issues_'+f+'_'+t, I.map(function(i){
     var s=siteOf(i.site_id), tm=teamOf(i.team_id);
