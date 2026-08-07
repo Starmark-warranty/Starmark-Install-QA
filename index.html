@@ -415,7 +415,7 @@ body.preview #previewBar{display:flex}
 
 <script>
 /* ── ยามเฝ้า splash: อยู่นอกสคริปต์หลัก ถ้าสคริปต์หลักพัง ตัวนี้ยังทำงาน ── */
-window.APP_VER='2.3';
+window.APP_VER='2.4';
 (function(){
   var fill=function(){
     var a=document.querySelectorAll('.ver');
@@ -522,7 +522,11 @@ window.APP_VER='2.3';
     </div>
     <div class="split">
       <div class="card">
-        <div class="card-h"><span>แผนที่หน้างาน</span><span id="mapNote" style="text-transform:none;letter-spacing:0;font-weight:500">—</span></div>
+        <div class="card-h"><span>แผนที่หน้างาน</span>
+          <span style="display:flex;align-items:center;gap:9px">
+            <label style="text-transform:none;letter-spacing:0;font-weight:500;font-size:11px;display:flex;align-items:center;gap:5px;cursor:pointer">
+              <input type="checkbox" id="mapRoute" checked> 🚗 เส้นทางถนน</label>
+            <span id="mapNote" style="text-transform:none;letter-spacing:0;font-weight:500">—</span></span></div>
         <div id="map"></div>
       </div>
       <div class="card">
@@ -687,7 +691,7 @@ var S = {
   role:'team', mgrName:'', team:null, me:null, staff:[],
   date: todayISO(),
   sites:[], teams:[], asgs:[], issues:[],
-  work:[], pins:[], icats:[], plan:[], asTeam:null, forcedField:false, planFrom:null, planDays:14, pnQ:'', pnBusy:false,
+  work:[], pins:[], icats:[], plan:[], showRoutes:true, asTeam:null, forcedField:false, planFrom:null, planDays:14, pnQ:'', pnBusy:false,
   ovFilter:'all', ovQ:'', isFilter:'open', isQ:'', isAllDates:true,
   tView:'jobs', tJob:null, map:null, markers:[], mapLayer:null
 };
@@ -907,6 +911,23 @@ async function roadDistance(lat1,lng1,lat2,lng2){
     return {m:Math.round(j.routes[0].distance), min:Math.round(j.routes[0].duration/60)};
   }catch(e){ clearTimeout(to); throw e; }
 }
+var ROUTE_CACHE={};
+async function roadRoute(lat1,lng1,lat2,lng2){
+  var url='https://router.project-osrm.org/route/v1/driving/'+
+    lng1+','+lat1+';'+lng2+','+lat2+'?overview=full&geometries=geojson&alternatives=false';
+  var ctl=new AbortController(); var to=setTimeout(function(){ ctl.abort(); }, 9000);
+  try{
+    var r=await fetch(url,{signal:ctl.signal});
+    clearTimeout(to);
+    if(!r.ok) throw new Error('HTTP '+r.status);
+    var j=await r.json();
+    if(j.code!=='Ok' || !j.routes || !j.routes.length) throw new Error('ไม่พบเส้นทางรถ');
+    var rt=j.routes[0];
+    return {m:Math.round(rt.distance), min:Math.round(rt.duration/60),
+            line:(rt.geometry.coordinates||[]).map(function(c){ return [c[1], c[0]]; })};
+  }catch(e){ clearTimeout(to); throw e; }
+}
+
 function fmtDrive(m, min){
   if(m==null) return '—';
   return (m/1000).toFixed(1)+' กม.'+(min!=null? (' · ~'+(min>=60? (Math.floor(min/60)+' ชม. '+(min%60)+' นาที') : (min+' นาที')) ):'');
@@ -1270,6 +1291,13 @@ document.querySelectorAll('#mgr .tab').forEach(function(t){
     if(t.dataset.p==='ov' && S.map) setTimeout(function(){ S.map.invalidateSize(); },60);
   };
 });
+try{ S.showRoutes = localStorage.getItem('it_routes')!=='0'; }catch(e){}
+$('mapRoute').checked = S.showRoutes;
+$('mapRoute').onchange=function(){
+  S.showRoutes=this.checked;
+  try{ localStorage.setItem('it_routes', this.checked?'1':'0'); }catch(e){}
+  renderMap();
+};
 $('ovSearch').oninput=function(){ S.ovQ=this.value.toLowerCase(); renderBoard(); renderMap(); };
 $('isSearch').oninput=function(){ S.isQ=this.value.toLowerCase(); renderIssues(); };
 $('isAllDates').onchange=function(){ S.isAllDates=this.checked; loadMgr(); };
@@ -1458,6 +1486,7 @@ function renderMap(){
     setTimeout(function(){ S.map.invalidateSize(); }, 200);
   }
   S.mapLayer.clearLayers();
+  var tok=++_mapToken, queue=[];
   var list=asgFiltered(), pts=[], nGps=0;
   list.forEach(function(a){
     var s=siteOf(a.site_id), t=teamOf(a.team_id), st=AST[a.status]||AST.assigned;
@@ -1476,7 +1505,8 @@ function renderMap(){
         .addTo(S.mapLayer).bindPopup('พิกัดไซต์ตามทะเบียน<br><b>'+esc(s.name||'')+'</b>'+
           (a.checkin_dist_m!=null?('<br>ทีมเช็คอินห่างจากจุดนี้ '+fmtDist(a.checkin_dist_m)):''));
       if(a.checkin_dist_m==null || a.checkin_dist_m>25){
-        L.polyline([[s.lat,s.lng], at],{color:'#8e8e93',weight:1.5,dashArray:'4,5',opacity:.7}).addTo(S.mapLayer);
+        L.polyline([[s.lat,s.lng], at],{color:'#8e8e93',weight:1.2,dashArray:'4,5',opacity:.45}).addTo(S.mapLayer);
+        queue.push({id:a.id, from:[s.lat,s.lng], to:at, team:(t.name||'')});
       }
     }
     /* วงความคลาดเคลื่อนของ GPS มือถือ */
@@ -1500,6 +1530,33 @@ function renderMap(){
   $('mapNote').textContent = pts.length+' จุด · เช็คอินจริง '+nGps+
     (noGeo?(' · '+noGeo+' ไซต์ยังไม่มีพิกัด'):'');
   if(pts.length) S.map.fitBounds(pts, {padding:[40,40], maxZoom:16});
+  drawRoutes(queue, tok);
+}
+
+/* ── เส้นทางถนนจริงระหว่างพิกัดไซต์กับจุดที่ทีมเช็คอิน ── */
+var _mapToken=0;
+async function drawRoutes(q, tok){
+  if(!S.showRoutes || typeof L==='undefined' || !q.length) return;
+  var drawn=0;
+  for(var i=0;i<q.length && i<15;i++){
+    if(tok!==_mapToken) return;                 /* มีการวาดแผนที่ใหม่ระหว่างทาง */
+    var it=q[i], r=ROUTE_CACHE[it.id];
+    if(!r){
+      try{ r=await roadRoute(it.from[0],it.from[1],it.to[0],it.to[1]); }
+      catch(e){ r={fail:true}; }
+      ROUTE_CACHE[it.id]=r;
+    }
+    if(r.fail || !r.line || !r.line.length) continue;
+    if(tok!==_mapToken) return;
+    L.polyline(r.line,{color:'#fff',weight:7,opacity:.85,lineJoin:'round'}).addTo(S.mapLayer);
+    L.polyline(r.line,{color:'#007AFF',weight:4,opacity:.9,lineJoin:'round'}).addTo(S.mapLayer)
+      .bindPopup('🚗 <b>'+esc(it.team)+'</b><br>ระยะทางจริงตามถนน '+fmtDrive(r.m, r.min));
+    drawn++;
+  }
+  if(drawn && tok===_mapToken){
+    var n=$('mapNote');
+    if(n) n.textContent = n.textContent + ' · เส้นทาง '+drawn;
+  }
 }
 
 function renderIssues(){
@@ -2025,7 +2082,11 @@ function focusCheckin(id){
   document.querySelector('#mgr .tab[data-p="ov"]').click();
   setTimeout(function(){
     S.map.invalidateSize();
-    S.map.setView([a.checkin_lat, a.checkin_lng], 17, {animate:true});
+    var si=siteOf(a.site_id);
+    var r=ROUTE_CACHE[a.id];
+    if(r && r.line && r.line.length) S.map.fitBounds(r.line, {padding:[50,50]});
+    else if(si.lat!=null) S.map.fitBounds([[si.lat,si.lng],[a.checkin_lat,a.checkin_lng]], {padding:[60,60], maxZoom:16});
+    else S.map.setView([a.checkin_lat, a.checkin_lng], 17, {animate:true});
     L.popup().setLatLng([a.checkin_lat, a.checkin_lng])
       .setContent('<b>จุดเช็คอินจริง</b><br>'+esc(teamOf(a.team_id).name||'')+'<br>'+
         'ห่างจากไซต์ '+fmtDist(a.checkin_dist_m))
@@ -2152,6 +2213,7 @@ var HELP_DASH=[
     'หมุดบนแผนที่คือจุดที่ทีมเช็คอินจริง ไม่ใช่พิกัดไซต์ที่ลงทะเบียนไว้',
     'วงกลมเทาโปร่งคือพิกัดไซต์ตามทะเบียน เส้นประบอกว่าคลาดกันแค่ไหน',
     'วงจาง ๆ รอบหมุดคือความคลาดเคลื่อนของ GPS มือถือ ดูคู่กันก่อนสรุปว่าทีมไปผิดที่',
+    'เส้นน้ำเงินคือเส้นทางถนนจริงจากไซต์ไปจุดที่เช็คอิน คลิกที่เส้นเพื่อดูระยะทางและเวลาขับ ปิดได้ที่ติ๊กมุมขวาบนของแผนที่',
     'KPI แถวบนเตือนอัตโนมัติ เช่น ทีมที่ยังไม่เช็คอินหลัง 10 โมง และเรื่องที่ค้างเกิน 4 ชม.'
   ]},
   {k:'is', i:'⚠️', t:'ปัญหา — สั่งการ', b:[
