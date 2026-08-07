@@ -169,6 +169,9 @@ button,input,select,textarea{font-family:inherit;color:inherit}
 .plan th,.plan td{border-bottom:1px solid var(--border);border-right:1px solid var(--border);padding:5px 6px;vertical-align:top}
 .plan thead th{position:sticky;top:0;z-index:3;background:rgba(250,250,252,.97);backdrop-filter:blur(8px);
   font-size:10.5px;font-weight:700;color:var(--text2);text-align:center;letter-spacing:.2px;line-height:1.35;padding:7px 6px}
+.pcell.clash{box-shadow:inset 0 0 0 2px var(--orange);background:rgba(255,149,0,.08)}
+.pcell.clash:hover{background:var(--accent-glow)}
+.pclash{display:block;font-size:9.5px;font-weight:700;color:#c26c00;margin-bottom:3px;letter-spacing:.2px}
 .plan.compact .pcell{min-width:92px}
 .plan.compact .pjob{padding:3px 0 3px 4px;margin-bottom:2px}
 .plan.compact .pjob b{font-size:9px}
@@ -442,7 +445,7 @@ body.preview #previewBar{display:flex}
 
 <script>
 /* ── ยามเฝ้า splash: อยู่นอกสคริปต์หลัก ถ้าสคริปต์หลักพัง ตัวนี้ยังทำงาน ── */
-window.APP_VER='4.1';
+window.APP_VER='4.2';
 (function(){
   var fill=function(){
     var a=document.querySelectorAll('.ver');
@@ -1722,8 +1725,9 @@ function renderSchedule(){
   teams.forEach(function(t){ days.forEach(function(d){
     if(S.plan.some(function(a){return a.team_id===t.id && a.work_date===d;})) busyCells++; }); });
   var cap=teams.length*days.length;
-  $('pnNote').textContent = totalJobs+' งานใน '+days.length+' วัน · '+teams.length+' ทีม · '+
+  var noteTxt = totalJobs+' งานใน '+days.length+' วัน · '+teams.length+' ทีม · '+
     'ใช้กำลังคน '+(cap? Math.round(busyCells/cap*100):0)+'%';
+  $('pnNote').innerHTML = esc(noteTxt);
 
   if(!teams.length){
     wrap.innerHTML='<div class="empty"><b>ยังไม่มีทีมให้วางแผน</b>สร้างทีมที่แท็บ Team ก่อน</div>';
@@ -1742,6 +1746,7 @@ function renderSchedule(){
     '</th>';
   }).join('')+'</tr>';
 
+  var nClash=0;
   var body=teams.map(function(t){
     var L=leadInfo(t);
     return '<tr><td class="tcol">'+esc(t.name)+
@@ -1749,7 +1754,11 @@ function renderSchedule(){
       days.map(function(d){
         var dt=new Date(d+'T00:00:00');
         var jobs=S.plan.filter(function(a){ return a.team_id===t.id && a.work_date===d; });
-        var cls='pcell'+(isHoliday(d)?' hol':(dt.getDay()===0?' sun':''))+(d===today?' pcol-today':'');
+        var siteSet={}; jobs.forEach(function(a){ siteSet[a.site_id]=1; });
+        var nSite=Object.keys(siteSet).length;
+        var clash = nSite>1;
+        if(clash) nClash++;
+        var cls='pcell'+(isHoliday(d)?' hol':(dt.getDay()===0?' sun':''))+(d===today?' pcol-today':'')+(clash?' clash':'');
         var inner=jobs.map(function(a){
           var st=AST[a.status]||AST.assigned, si=siteOf(a.site_id);
           var iss=S.issues.filter(function(x){ return x.site_id===a.site_id && x.status!=='closed' && x.status!=='resolved'; }).length;
@@ -1761,12 +1770,15 @@ function renderSchedule(){
             '<span class="sc" style="color:'+st.x+'">'+st.l+(a.progress?' · '+pct(a.progress)+'%':'')+
             (iss?' · ⚠'+iss:'')+'</span></div>';
         }).join('');
-        return '<td class="'+cls+'" data-add="'+t.id+'|'+d+'">'+inner+
+        return '<td class="'+cls+'" data-add="'+t.id+'|'+d+'"'+
+          (clash?' title="ทีมนี้ถูกจอง '+nSite+' ไซต์ในวันเดียวกัน — ตรวจว่าทำไหวหรือต้องเลื่อน"':'')+'>'+
+          (clash? '<span class="pclash">⚠️ ซ้อน '+nSite+' ไซต์</span>' : '')+inner+
           '<div class="padd">+</div></td>';
       }).join('')+'</tr>';
   }).join('');
 
   wrap.innerHTML='<table class="plan'+(days.length>45?' compact':'')+'"><thead>'+head+'</thead><tbody>'+body+'</tbody></table>';
+  if(nClash) $('pnNote').innerHTML += ' · <b style="color:#c26c00">⚠️ งานซ้อน '+nClash+' ช่อง</b>';
 
   wrap.querySelectorAll('[data-job]').forEach(function(el){
     el.onclick=function(e){ e.stopPropagation(); openAsg(el.dataset.job); };
@@ -1937,7 +1949,10 @@ function printSchedule(){
       days.map(function(x){
         var dt=new Date(x+'T00:00:00');
         var js=jobsAt(t.id, x);
-        return '<td'+(isHoliday(x)?' class="hol"':(dt.getDay()===0?' class="sun"':''))+'>'+
+        var ss={}; js.forEach(function(a){ ss[a.site_id]=1; });
+        var cl=Object.keys(ss).length>1;
+        return '<td'+(cl?' class="clash"':(isHoliday(x)?' class="hol"':(dt.getDay()===0?' class="sun"':'')))+'>'+
+          (cl?'<div class="clash-n">⚠ ซ้อน '+Object.keys(ss).length+' ไซต์</div>':'')+
           (js.length? js.map(function(a){
             var si=siteOf(a.site_id), st=AST[a.status]||AST.assigned;
             return '<div class="job"><b>'+esc(si.name||'—')+'</b>'+
@@ -1965,6 +1980,8 @@ function printSchedule(){
     'th{background:#f0f0f3;text-align:center;font-size:9.5px;font-weight:700}'+
     'th.sun,td.sun{background:#f7f7f9}'+
     'th.hol,td.hol{background:#fdeceb}'+
+    'td.clash{background:#fff5e6;box-shadow:inset 0 0 0 2px #d98800}'+
+    '.clash-n{font-size:8.5px;font-weight:700;color:#a35c00;margin-bottom:2px}'+
     '.tc{width:110px;text-align:left;background:#f0f0f3}'+
     'td.tc{font-size:10px}'+
     '.sm{color:#666;font-size:8.5px;font-weight:400}'+
@@ -2239,6 +2256,14 @@ async function openAsg(id){
           (L.phone?' · <a href="tel:'+esc(L.phone)+'">'+esc(L.phone)+'</a>':''))
           : '<span style="color:var(--orange)">ยังไม่ได้ตั้งหัวหน้าทีม</span>'; })()+'</dd>'+
       '<dt>ขอบเขต</dt><dd>'+esc(a.scope||'—')+'</dd>'+
+      (function(){
+        var other=busyElsewhere(a.team_id, a.work_date, a.site_id);
+        if(!other.length) return '';
+        return '<dt style="color:var(--orange)">งานซ้อน</dt><dd style="color:#c26c00">'+
+          'ทีมนี้ถูกจองอีก '+other.length+' ไซต์ในวันเดียวกัน<br>'+
+          other.map(function(x){ var si=siteOf(x.site_id);
+            return '<span style="font-size:11.5px">• '+esc(si.name||'—')+'</span>'; }).join('<br>')+'</dd>';
+      })()+
       '<dt>เช็คอิน</dt><dd>'+(a.checkin_at? fmtDT(a.checkin_at) : 'ยังไม่เช็คอิน')+'</dd>'+
       '<dt>คืบหน้า</dt><dd>'+pct(a.progress)+'% · เช็กลิสต์ '+ckDone+'/'+ck.length+'</dd>'+
     '</dl></div>'+
@@ -2569,6 +2594,8 @@ var HELP_DASH=[
     'แต่ละวันกด “กำหนดเอง” เพื่อแบ่งขอบเขตงานคนละอย่างได้ เช่น วันแรกตู้ล่าง วันสองท็อป',
     'คลิกขวาที่ใบงาน = เปิดหน้าเลื่อนวัน ย้ายทีม หรือลบงานทันที',
     'ใบงานที่มีป้าย “↪ งานยกมา” คืองานค้างจากวันก่อนที่ระบบยกมาให้เอง เช็กลิสต์เหลือเฉพาะข้อที่ยังไม่ได้ทำ',
+    'ช่องที่มีกรอบส้ม “⚠️ ซ้อน 2 ไซต์” คือทีมถูกจองหลายไซต์ในวันเดียวกัน มักเกิดตอนงานค้างถูกยกมาชนกับงานที่วางไว้แล้ว',
+    'จำนวนช่องที่ซ้อนทั้งหมดขึ้นอยู่มุมขวาบนของตาราง คลิกใบงานแล้วกด “เปลี่ยนแผน” เพื่อเลื่อนวันหรือย้ายทีม',
     'ถ้าทีมทำเสร็จก่อนกำหนด วันที่เหลือในแผนจะหายไปเอง ไม่ต้องมาลบทีละใบ',
     'ปุ่ม 🏖 วันหยุด ใส่วันหยุดที่โรงงานประกาศได้ (แอดมินขึ้นไป) วันนั้นจะขึ้นสีแดงและถูกข้ามอัตโนมัติเวลาคีย์งานหลายวัน',
     'ช่วงวันเลือกได้ถึง 90 วัน (3 เดือน) หรือกด “⚙️ กำหนดเอง” ใส่เองได้ถึง 180 วัน ระบบจำค่าที่คุณตั้งไว้ในเครื่องนี้',
@@ -4501,14 +4528,20 @@ async function rollover(a, full, pick){
     if(!items.length) return;
 
     var scope=(a.scope||'งานค้าง')+' · ต่อจาก '+dayText(a.work_date);
+    var warnClash=function(d){
+      var other=(S.plan||[]).filter(function(x){
+        return x.team_id===a.team_id && x.work_date===d && x.site_id!==a.site_id; });
+      if(other.length) toast('⚠️ วัน '+dayText(d)+' ทีมมีงานที่ไซต์อื่นอยู่แล้ว — แจ้งออฟฟิศให้ช่วยจัดคิว', 6000);
+    };
     if(future.length){
       await db.from('it_assignments').update({checklist:items, scope:scope, progress:0}).eq('id', future[0].id);
       toast('ยกงานค้าง '+items.length+' ข้อ ไปวัน '+dayText(future[0].work_date), 5000);
+      warnClash(future[0].work_date);
     }else{
       var d=planDates(addDays(a.work_date,1), 1, true)[0];
       var r=await db.from('it_assignments').upsert({site_id:a.site_id, team_id:a.team_id, work_date:d,
         scope:scope, checklist:items}, {onConflict:'site_id,team_id,work_date'});
-      if(!r.error) toast('สร้างงานต่อวัน '+dayText(d)+' · ค้าง '+items.length+' ข้อ', 5000);
+      if(!r.error){ toast('สร้างงานต่อวัน '+dayText(d)+' · ค้าง '+items.length+' ข้อ', 5000); warnClash(d); }
     }
   }catch(e){}
 }
