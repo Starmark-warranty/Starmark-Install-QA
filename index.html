@@ -432,7 +432,7 @@ body.preview #previewBar{display:flex}
 
 <script>
 /* ── ยามเฝ้า splash: อยู่นอกสคริปต์หลัก ถ้าสคริปต์หลักพัง ตัวนี้ยังทำงาน ── */
-window.APP_VER='3.3';
+window.APP_VER='3.5';
 (function(){
   var fill=function(){
     var a=document.querySelectorAll('.ver');
@@ -2345,7 +2345,7 @@ var HELP_STAFF=[
   {k:'ck', i:'✅', t:'เช็กลิสต์และรายงาน', b:[
     'ติ๊กเช็กลิสต์ทีละข้อตามงานที่ทำจริง เปอร์เซ็นต์คืบหน้าจะขยับเอง ไม่ต้องกรอกเลข',
     'ปุ่ม “ส่งรายงานความคืบหน้า” ต้องแนบรูปอย่างน้อย 1 รูปเสมอ ไม่งั้นปุ่มส่งจะกดไม่ได้',
-    'ติ๊กเช็กลิสต์ครบทุกข้อแล้ว ในหน้าส่งรายงานจะมีปุ่มเขียว “ส่งรายงาน + ปิดงานเสร็จ 100%” จบในปุ่มเดียว',
+    'ติ๊กเช็กลิสต์ครบทุกข้อแล้ว ช่อง “ปิดจบงานวันนี้ด้วย” จะถูกติ๊กให้อัตโนมัติ กดส่งครั้งเดียวจบงาน',
     'เปอร์เซ็นต์ในรายงานคิดจากเช็กลิสต์อย่างเดียว แก้เองไม่ได้ — อยากให้ตัวเลขขยับต้องไปติ๊กเช็กลิสต์',
     'แนบรูปได้หลายรูป ระบบย่อรูปให้ก่อนอัปเพื่อประหยัดเน็ต',
     'รูปหน้างานช่วยให้ออฟฟิศตัดสินใจได้เร็วขึ้นมาก ถ่ายไว้เยอะ ๆ ไม่เสียหาย'
@@ -2353,7 +2353,7 @@ var HELP_STAFF=[
   {k:'is', i:'⚠️', t:'แจ้งปัญหา', b:[
     'แจ้งปัญหาอยู่ในหน้าส่งรายงาน ไม่มีปุ่มแยกแล้ว — เพราะปัญหาคือคำตอบว่าทำไมเช็กลิสต์ยังไม่ครบ',
     'ติ๊กครบ 100% จะไม่มีช่องแจ้งปัญหาขึ้นมาเลย เพราะงานจบแล้ว',
-    'ยังไม่ครบ ระบบจะถามว่า “แค่ทำไม่ทัน” หรือ “ติดปัญหา” เลือกอย่างหลังแล้วค่อยเลือกประเภทกับความเร่งด่วน',
+    'ยังไม่ครบ ระบบจะถามว่า “ยังไม่มีปัญหา” หรือ “ติดปัญหา” เลือกอย่างหลังแล้วค่อยเลือกประเภทกับความเร่งด่วน',
     'ติ๊ก “ทำงานต่อไม่ได้เลย” ถ้าหยุดงานจริง งานจะขึ้นสีแดงเตือนออฟฟิศทันที',
     'รูปที่แนบในรายงานจะติดไปกับปัญหาด้วยอัตโนมัติ ไม่ต้องถ่ายซ้ำ',
     'ออฟฟิศตอบกลับได้ในเรื่องนั้น ดูความเคลื่อนไหวได้ที่แท็บ “ปัญหา”',
@@ -2362,8 +2362,9 @@ var HELP_STAFF=[
   ]},
   {k:'end', i:'🏁', t:'ปิดงานประจำวัน', b:[
     'ปิดงานอยู่ในหน้าส่งรายงานเช่นกัน ไม่มีปุ่มแยกท้ายหน้าแล้ว',
-    'ติ๊กครบทุกข้อ → ปุ่มเขียว “ส่งรายงาน + ปิดงานเสร็จ 100%”',
-    'ยังไม่ครบ → ปุ่มรอง “ส่งแล้วปิดวันนี้เลย” บันทึกเป็น “ปิดวัน · ค้างต่อ” ตามเปอร์เซ็นต์จริง',
+    'ในหน้าส่งรายงานมีติ๊ก “ปิดจบงานวันนี้ด้วย” เหนือปุ่มส่ง',
+    'ติ๊กเช็กลิสต์ครบทุกข้อ ระบบติ๊กช่องนี้ให้เองเพราะงานจบแล้ว — เอาออกได้ถ้ายังมีงานเก็บต่อ',
+    'ยังไม่ครบ ช่องนี้จะไม่ติ๊กไว้ ส่งรายงานเฉย ๆ ได้ ถ้าจะปิดวันค่อยติ๊กเอง',
     'ไม่ต้องกลัวว่าตัวเลขไม่ถึง 100% จะดูไม่ดี — ออฟฟิศต้องรู้ของจริงถึงจะช่วยได้ถูก',
     'ปิดวันไปแล้วแต่ทำงานต่อได้ กด “↩️ เปิดงานต่อ / แก้ไข” ติ๊กเช็กลิสต์เพิ่มแล้วปิดใหม่ได้ ระบบบันทึกทุกครั้งที่เปิดต่อ',
     'ปิดวันโดยยังไม่ครบ ระบบยกข้อที่ยังไม่ได้ทำและปัญหาที่ค้าง ไปเป็นเช็กลิสต์ของวันถัดไปให้เอง ข้อที่ทำแล้วจะไม่โผล่ซ้ำ',
@@ -4073,7 +4074,7 @@ function reportSheet(a){
   var issueUI = full? '' : (
     '<div class="sec-h" style="margin-top:18px">ยังไม่ครบ '+left+' ข้อ — เพราะอะไร?</div>'+
     '<div class="opts" id="whyBox" style="grid-template-columns:1fr;gap:7px">'+
-      '<button class="opt on" data-w="none">⏳ ยังไม่มีปัญหา — แค่ทำไม่ทันวันนี้</button>'+
+      '<button class="opt on" data-w="none">⏳ ยังไม่มีปัญหา</button>'+
       '<button class="opt" data-w="issue">⚠️ ติดปัญหา ต้องให้ออฟฟิศช่วย</button>'+
     '</div>'+
     '<div id="isBox" class="hide" style="margin-top:14px;background:var(--red-dim);'+
@@ -4124,11 +4125,16 @@ function reportSheet(a){
         'ต้องแนบอย่างน้อย 1 รูป — รูปคือหลักฐานว่างานถึงไหนจริง ออฟฟิศตัดสินใจได้เร็วขึ้นมาก</p></div>'+
     issueUI,
 
-    (full
-      ? '<button class="btn sm" id="svClose" disabled style="background:var(--green);box-shadow:none;margin-bottom:7px">แนบรูปก่อนถึงจะส่งได้</button>'+
-        '<button class="btn ghost sm" id="svOnly" disabled>ส่งรายงานอย่างเดียว ยังไม่ปิดงาน</button>'
-      : '<button class="btn sm" id="svOnly" disabled style="margin-bottom:7px">แนบรูปก่อนถึงจะส่งได้</button>'+
-        '<button class="btn ghost sm" id="svClose" disabled>ส่งแล้วปิดวันนี้เลย · ค้าง '+left+' ข้อ</button>'));
+    '<label style="display:flex;align-items:flex-start;gap:10px;margin-bottom:9px;cursor:pointer;'+
+      'background:'+(full?'var(--green-dim)':'var(--s1)')+';border:1px solid '+(full?'rgba(52,199,89,.32)':'var(--border)')+
+      ';border-radius:11px;padding:10px 12px">'+
+      '<input type="checkbox" id="cdClose"'+(full?' checked':'')+' style="margin-top:3px;flex-shrink:0">'+
+      '<span style="font-size:13.5px;line-height:1.5"><b>ปิดจบงานวันนี้ด้วย</b>'+
+        '<div style="font-size:11.5px;color:var(--text2);margin-top:2px;font-weight:400">'+
+          (full? 'เช็กลิสต์ครบทุกข้อแล้ว — จะปิดเป็นเสร็จ 100%'
+               : 'จะบันทึกเป็น “ปิดวัน · ค้างต่อ” ที่ '+p+'% และยกงานค้าง '+left+' ข้อไปวันถัดไป')+
+        '</div></span></label>'+
+    '<button class="btn sm" id="sv" disabled>แนบรูปก่อนถึงจะส่งได้</button>');
 
   /* ตัวเลือกเหตุผล */
   if($('whyBox')){
@@ -4151,15 +4157,20 @@ function reportSheet(a){
   }
 
   var syncBtn=function(){
+    var b=$('sv'); if(!b) return;
     var ok=photos.length>0;
-    var b1=$('svOnly'), b2=$('svClose');
-    if(b1){ b1.disabled=!ok;
-      if(full) b1.textContent='ส่งรายงานอย่างเดียว ยังไม่ปิดงาน';
-      else b1.textContent= ok? ('ส่งรายงาน · '+photos.length+' รูป') : 'แนบรูปก่อนถึงจะส่งได้'; }
-    if(b2){ b2.disabled=!ok;
-      if(full) b2.textContent= ok? ('✅ ส่งรายงาน + ปิดงานเสร็จ 100% · '+photos.length+' รูป') : 'แนบรูปก่อนถึงจะส่งได้';
-      else b2.textContent='ส่งแล้วปิดวันนี้เลย · ค้าง '+left+' ข้อ'; }
+    var close=$('cdClose') && $('cdClose').checked;
+    b.disabled=!ok;
+    b.style.background = close? 'var(--green)' : '';
+    b.style.boxShadow  = close? 'none' : '';
+    b.textContent = !ok
+      ? 'แนบรูปก่อนถึงจะส่งได้'
+      : (close
+          ? (full? ('✅ ส่งรายงาน + ปิดงานเสร็จ 100% · '+photos.length+' รูป')
+                 : ('✅ ส่งรายงาน + ปิดจบวันนี้ · '+photos.length+' รูป'))
+          : ('ส่งรายงาน · '+photos.length+' รูป'));
   };
+  if($('cdClose')) $('cdClose').onchange=syncBtn;
   photoPicker('phB', photos, syncBtn);
   syncBtn();
 
@@ -4207,8 +4218,7 @@ function reportSheet(a){
     Object.assign(a, upd); closeSheet(); renderTeam(); loadTeamData();
   };
 
-  if($('svOnly'))  $('svOnly').onclick=function(){ send(false, this); };
-  if($('svClose')) $('svClose').onclick=function(){ send(true,  this); };
+  if($('sv')) $('sv').onclick=function(){ send($('cdClose') && $('cdClose').checked, this); };
 }
 
 function renderTeamIssues(){
