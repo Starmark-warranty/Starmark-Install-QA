@@ -415,7 +415,7 @@ body.preview #previewBar{display:flex}
 
 <script>
 /* ── ยามเฝ้า splash: อยู่นอกสคริปต์หลัก ถ้าสคริปต์หลักพัง ตัวนี้ยังทำงาน ── */
-window.APP_VER='2.0';
+window.APP_VER='2.2';
 (function(){
   var fill=function(){
     var a=document.querySelectorAll('.ver');
@@ -893,18 +893,23 @@ function getPos(){
   });
 }
 function meName(){ return (S.me && (S.me.name || S.me.emp_code)) || 'ทีม'; }
-var ROLES={staff:'พนักงานหน้างาน', admin:'แอดมิน', manager:'ผู้จัดการ', owner:'เจ้าของระบบ'};
-var RANK ={staff:0, admin:1, manager:2, owner:3};
-function rank(u){ return RANK[(u&&u.role)||'staff'] || 0; }
+var ROLES={staff:'พนักงานหน้างาน', admin:'แอดมิน', manager:'ผู้จัดการ', owner:'เจ้าของระบบ', super:'ผู้ควบคุมระบบ'};
+var RANK ={staff:0, admin:1, manager:2, owner:3, super:4};
+function rank(u){
+  var r=(u&&u.role)||'staff';
+  return (RANK[r]!==undefined)? RANK[r] : 0;
+}
+/* สิทธิ์ที่ไฟล์แอปเวอร์ชันนี้ยังไม่รู้จัก — เกิดตอนอัปฐานข้อมูลแล้วแต่ยังใช้ไฟล์เก่า */
+function unknownRole(u){ return !!(u && u.role && RANK[u.role]===undefined); }
 function isMgr(u){ return rank(u)>=1; }          /* เข้า Dashboard ได้ */
 function isAdmin(u){ return rank(u)>=2; }
 function isOwner(u){ return rank(u)>=3; }
-/* ตั้งสิทธิ์ได้เฉพาะระดับที่ต่ำกว่าตัวเอง — เจ้าของระบบเท่านั้นที่ตั้งแอดมินได้ */
+function isSuper(u){ return rank(u)>=4; }
+/* ตั้งสิทธิ์ได้เฉพาะระดับที่ต่ำกว่าตัวเอง · ผู้ควบคุมระบบตั้งได้ทุกระดับรวมระดับเดียวกัน */
 function canGrant(me, role){
   var r=rank(me);
-  if(r>=3) return true;
-  if(r===2) return RANK[role]<=1;
-  return false;
+  if(r>=4) return true;
+  return RANK[role] < r;
 }
 /* แก้ไข/ลบบัญชีคนอื่นได้เฉพาะคนที่สิทธิ์ต่ำกว่าตัวเอง */
 function canEdit(me, target){ return rank(me) > rank(target); }
@@ -1086,6 +1091,22 @@ $('inCode').addEventListener('keydown', function(e){ if(e.key==='Enter') $('btnN
 
 function approved(u){ return !u || u.approved!==false; }
 
+/* ไฟล์แอปเก่ากว่าฐานข้อมูล — บอกให้ชัดแทนที่จะลดสิทธิ์เงียบ ๆ */
+function showStaleApp(u){
+  $('login').classList.remove('hide');
+  $('mgr').classList.add('hide'); $('team').classList.add('hide');
+  $('lgTeam').classList.add('hide');
+  var box=$('lgErr');
+  box.classList.remove('hide');
+  box.style.background='var(--orange-dim)'; box.style.color='#c26c00';
+  box.innerHTML='<b>ไฟล์แอปเวอร์ชันนี้ยังไม่รองรับสิทธิ์ “'+esc(u.role)+'”</b><br>'+
+    'ฐานข้อมูลถูกอัปเดตแล้วแต่ไฟล์หน้าเว็บยังเป็นของเก่า (v'+window.APP_VER+')<br><br>'+
+    'วิธีแก้: อัปไฟล์ install_tracker.html เวอร์ชันล่าสุดขึ้นเซิร์ฟเวอร์ '+
+    'แล้วกด Ctrl + Shift + R เพื่อล้างแคช<br><br>'+
+    '<button class="btn sm" onclick="localStorage.removeItem(\'it_sess\');location.reload(true)">ลองใหม่</button>';
+  hideSplash();
+}
+
 function finishLogin(staff, pin, remember){
   S.me=staff;
   userRemember(staff, pin, !!remember);
@@ -1094,6 +1115,7 @@ function finishLogin(staff, pin, remember){
 }
 function routeUser(u){
   S.me=u;
+  if(unknownRole(u)){ showStaleApp(u); return; }
   if(!approved(u)){ S.role='team'; startTeam(); return; }   /* ค้างที่หน้ารอกำหนดตำแหน่ง */
   if(isMgr(u)){ S.role='mgr'; S.mgrName=meName(); startMgr(); }
   else{ S.role='team'; startTeam(); }
@@ -2129,7 +2151,7 @@ var HELP_MGR_EXTRA=[
     'ตั้งสิทธิ์ผู้ใช้ได้ถึงระดับแอดมิน ที่แท็บ Team กดแก้ไขที่ชื่อคนนั้น',
     'แก้ไข ลบ และล้าง PIN ให้บัญชีระดับแอดมินและพนักงานหน้างานได้',
     'จัดการประเภทปัญหาได้ที่ปุ่ม ⚙️ ในแท็บปัญหา — เพิ่มหมวด แก้ชื่อ เรียงลำดับ',
-    'เปลี่ยนสิทธิ์ตัวเองไม่ได้ และแตะบัญชีเจ้าของระบบไม่ได้',
+    'เปลี่ยนสิทธิ์ตัวเองไม่ได้ และแตะบัญชีที่สิทธิ์สูงกว่าไม่ได้',
     'กด “👷 มุมมองหน้างาน” เพื่อดูแอปฝั่งทีม เลือกดูทีมไหนก็ได้ กดกลับมาได้ตลอด',
     'เปิดจากคอมจะขึ้นเป็นกรอบมือถือจำลอง สลับทีมได้จากแถบบน กดปุ่ม “🖥 กลับ Dashboard” เพื่อออก',
     'ถ้าเผลออยู่ในหน้ามือถือ ปุ่ม “🖥 Dashboard” อยู่มุมขวาบนของหัวจอเสมอ'
@@ -2700,13 +2722,14 @@ function renderStaff(){
       return '<option value="'+t.id+'"'+(x.team_id===t.id?' selected':'')+'>'+esc(t.code+' · '+t.name)+'</option>'; }).join('');
     return '<div class="brow" style="cursor:default'+
       (x.approved===false?';background:rgba(255,59,48,.07)'
+        :(rank(x)>=4?';background:rgba(88,86,214,.13)'
         :(rank(x)>=3?';background:rgba(88,86,214,.07)'
-                 :(isMgr(x)?';background:rgba(0,122,255,.05)':(x.team_id||!x.active?'':';background:rgba(255,149,0,.08)'))))+'">'+
+                 :(isMgr(x)?';background:rgba(0,122,255,.05)':(x.team_id||!x.active?'':';background:rgba(255,149,0,.08)')))))+'">'+
       '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">'+
         '<div style="flex:1;min-width:170px">'+
           '<div class="brow-t"><span class="nm">'+esc(x.name||'(ยังไม่ใส่ชื่อ)')+'</span>'+
             (isMgr(x)?'<span class="chip '+(rank(x)>=3?'c-purple':(rank(x)===2?'c-blue':'c-gray'))+'">'+
-              (rank(x)>=3?'👑 ':'')+esc(ROLES[x.role])+'</span>':'')+
+              (rank(x)>=4?'⭐ ':(rank(x)===3?'👑 ':''))+esc(ROLES[x.role])+'</span>':'')+
             (x.is_leader?'<span class="chip c-purple">หัวหน้าทีม</span>':'')+
             (x.approved===false?('<span class="chip c-red">'+(rank(x)>0?'⏳ ตั้งตำแหน่งแล้ว รออนุมัติ':'🆕 รอกำหนดตำแหน่ง')+'</span>'):'')+
             (x.active?'':'<span class="chip c-gray">ปิดใช้งาน</span>')+
@@ -2767,7 +2790,7 @@ function staffForm(id){
   var isSelf = S.me && id===S.me.id;
   var mayEdit = isSelf ? true : canEdit(S.me, x);
   var mayRole = mayEdit && !isSelf && rank(S.me)>=2;      /* แก้สิทธิ์ตัวเองไม่ได้เด็ดขาด */
-  var mayDel  = mayEdit && !isSelf && !x.protected && x.role!=='owner';
+  var mayDel  = mayEdit && !isSelf && !x.protected && x.role!=='super';
 
   /* สิทธิ์ที่ตัวเรามอบให้คนนี้ได้ + สิทธิ์ปัจจุบันของเขา (ไว้แสดงเฉย ๆ) */
   var opts=Object.keys(ROLES).filter(function(k){ return canGrant(S.me,k) || k===(x.role||'staff'); });
@@ -2787,7 +2810,7 @@ function staffForm(id){
       'padding:11px 13px;margin-bottom:14px;font-size:12.5px;line-height:1.65;color:var(--purple)">'+
       '🔒 <b>บัญชีนี้สิทธิ์สูงกว่าหรือเท่ากับคุณ</b><br>'+
       'คุณเป็น '+esc(ROLES[S.me.role]||'')+' แก้ไขหรือลบบัญชี '+esc(ROLES[x.role]||'')+' ไม่ได้'+
-      (x.role==='owner'? ' — บัญชีเจ้าของระบบแก้ได้จากฐานข้อมูลเท่านั้น':'')+'</div>';
+      (x.role==='super'? ' — บัญชีผู้ควบคุมระบบแก้ได้จากฐานข้อมูลเท่านั้น':'')+'</div>';
   }else if(isSelf){
     notice='<div style="background:var(--accent-glow);border:1px solid rgba(0,122,255,.22);border-radius:11px;'+
       'padding:11px 13px;margin-bottom:14px;font-size:12.5px;line-height:1.65;color:var(--accent)">'+
@@ -2821,7 +2844,7 @@ function staffForm(id){
     '<label style="font-size:13.5px;display:flex;align-items:center;gap:9px;margin-bottom:8px">'+
       '<input type="checkbox" id="p_lead"'+(x.is_leader?' checked':'')+dis+'> เป็นหัวหน้าทีม</label>'+
     '<label style="font-size:13.5px;display:flex;align-items:center;gap:9px;margin-bottom:8px">'+
-      '<input type="checkbox" id="p_act"'+(x.active!==false?' checked':'')+((mayEdit&&!isSelf&&x.role!=='owner')?'':' disabled')+'> เปิดใช้งานบัญชีนี้</label>'+
+      '<input type="checkbox" id="p_act"'+(x.active!==false?' checked':'')+((mayEdit&&!isSelf&&x.role!=='super')?'':' disabled')+'> เปิดใช้งานบัญชีนี้</label>'+
     '<label style="font-size:13.5px;display:flex;align-items:center;gap:9px;'+
       (pending?'background:var(--green-dim);border:1px solid rgba(52,199,89,.3);border-radius:10px;padding:10px 12px':'')+'">'+
       '<input type="checkbox" id="p_ok"'+(x.approved!==false?' checked':'')+((mayEdit&&!isSelf)?'':' disabled')+'> '+
@@ -2830,7 +2853,7 @@ function staffForm(id){
       '<div style="font-size:12px;color:var(--text2);line-height:1.6">'+
         (x.pin? 'ตั้ง PIN แล้ว · เข้าล่าสุด '+ (x.last_login_at?fmtDT(x.last_login_at):'—')
               : 'ยังไม่เคยตั้ง PIN — ครั้งแรกที่เข้าระบบจะให้ตั้งเอง')+'</div>'+
-      ((x.pin && mayEdit && !isSelf && x.role!=='owner')
+      ((x.pin && mayEdit && !isSelf && x.role!=='super')
         ? '<button class="btn ghost sm" id="p_reset" style="margin-top:9px">ล้าง PIN (ให้ตั้งใหม่ตอนเข้าครั้งหน้า)</button>'
         : (x.pin? '<div style="font-size:11.5px;color:var(--text3);margin-top:7px">ล้าง PIN บัญชีนี้ไม่ได้ — เจ้าของบัญชีเปลี่ยนเองที่ปุ่ม “บัญชีของฉัน”</div>':''))+
     '</div>',
@@ -2847,7 +2870,7 @@ function staffForm(id){
       phone:$('p_ph').value.trim()||null, team_id:tid, is_leader: tid? $('p_lead').checked : false,
       role: mayRole? $('p_role').value : x.role,
       approved: (isSelf? true : $('p_ok').checked),
-      active: (isSelf||x.role==='owner')? true : $('p_act').checked};
+      active: (isSelf||x.role==='super')? true : $('p_act').checked};
     if(p.approved && p.role==='staff' && !tid && !confirm('อนุมัติเป็นพนักงานหน้างานแต่ยังไม่ได้จัดเข้าทีม\nเขาจะเห็นหน้า “รอจัดเข้าทีม” ต่อ — ยืนยันหรือไม่?')) return;
     if(!p.approved && RANK[p.role]>=1 && !confirm('ตั้งเป็น'+(ROLES[p.role]||'')+'แล้ว แต่ยังไม่ได้ติ๊ก “อนุมัติให้เข้าใช้งาน”\n\n'+
       'เขาจะยังเข้า Dashboard ไม่ได้ ค้างอยู่ที่หน้ารอ\nบันทึกแบบนี้หรือไม่?')) return;
