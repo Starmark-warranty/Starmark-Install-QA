@@ -415,7 +415,7 @@ body.preview #previewBar{display:flex}
 
 <script>
 /* ── ยามเฝ้า splash: อยู่นอกสคริปต์หลัก ถ้าสคริปต์หลักพัง ตัวนี้ยังทำงาน ── */
-window.APP_VER='1.9';
+window.APP_VER='2.0';
 (function(){
   var fill=function(){
     var a=document.querySelectorAll('.ver');
@@ -1117,10 +1117,17 @@ function goField(){
   loadTeamData();
 }
 function goDash(){
+  if(!isMgr(S.me) || !approved(S.me)) return toast('บัญชีนี้ยังไม่มีสิทธิ์เข้า Dashboard');
+  if(!S.mgrName) S.mgrName=meName();
   S.role='mgr'; S.forcedField=false;
   document.body.classList.remove('preview');
   $('team').classList.add('hide'); $('mgr').classList.remove('hide');
   $('testbar').classList.remove('on');
+  $('mgrWho').innerHTML=esc(meName())+' · '+esc(ROLES[S.me.role]||'');
+  $('btnField').classList.toggle('hide', !isMgr(S.me));
+  $('btnCats').classList.toggle('hide', !isAdmin(S.me));
+  $('btnHelp').classList.toggle('hide', isOwner(S.me));
+  if(!$('dtPick').value){ $('dtPick').value=S.date; $('asgDate').value=S.date; S.planFrom=todayISO(); }
   loadMgr(); mobileHint();
 }
 
@@ -2123,7 +2130,9 @@ var HELP_MGR_EXTRA=[
     'แก้ไข ลบ และล้าง PIN ให้บัญชีระดับแอดมินและพนักงานหน้างานได้',
     'จัดการประเภทปัญหาได้ที่ปุ่ม ⚙️ ในแท็บปัญหา — เพิ่มหมวด แก้ชื่อ เรียงลำดับ',
     'เปลี่ยนสิทธิ์ตัวเองไม่ได้ และแตะบัญชีเจ้าของระบบไม่ได้',
-    'กด “👷 มุมมองหน้างาน” เพื่อดูแอปฝั่งทีม เลือกดูทีมไหนก็ได้ กดกลับมาได้ตลอด'
+    'กด “👷 มุมมองหน้างาน” เพื่อดูแอปฝั่งทีม เลือกดูทีมไหนก็ได้ กดกลับมาได้ตลอด',
+    'เปิดจากคอมจะขึ้นเป็นกรอบมือถือจำลอง สลับทีมได้จากแถบบน กดปุ่ม “🖥 กลับ Dashboard” เพื่อออก',
+    'ถ้าเผลออยู่ในหน้ามือถือ ปุ่ม “🖥 Dashboard” อยู่มุมขวาบนของหัวจอเสมอ'
   ]}
 ];
 var HELP_ADM_EXTRA=[
@@ -2131,7 +2140,8 @@ var HELP_ADM_EXTRA=[
     'ใช้งาน Dashboard ได้ครบทุกแท็บ วางแผน สั่งการ และจัดการข้อมูลได้ทั้งหมด',
     'แก้ไขและลบได้เฉพาะบัญชีระดับพนักงานหน้างาน',
     'เปลี่ยนสิทธิ์ผู้ใช้ไม่ได้ และแก้ไขประเภทปัญหาไม่ได้ ต้องให้ผู้จัดการขึ้นไปทำ',
-    'กด “👷 มุมมองหน้างาน” เพื่อดูแอปฝั่งทีมได้ เลือกดูทีมไหนก็ได้'
+    'กด “👷 มุมมองหน้างาน” เพื่อดูแอปฝั่งทีมได้ เลือกดูทีมไหนก็ได้',
+    'ถ้าเผลออยู่ในหน้ามือถือ ปุ่ม “🖥 Dashboard” อยู่มุมขวาบนของหัวจอเสมอ'
   ]}
 ];
 
@@ -2698,7 +2708,7 @@ function renderStaff(){
             (isMgr(x)?'<span class="chip '+(rank(x)>=3?'c-purple':(rank(x)===2?'c-blue':'c-gray'))+'">'+
               (rank(x)>=3?'👑 ':'')+esc(ROLES[x.role])+'</span>':'')+
             (x.is_leader?'<span class="chip c-purple">หัวหน้าทีม</span>':'')+
-            (x.approved===false?'<span class="chip c-red">🆕 รอกำหนดตำแหน่ง</span>':'')+
+            (x.approved===false?('<span class="chip c-red">'+(rank(x)>0?'⏳ ตั้งตำแหน่งแล้ว รออนุมัติ':'🆕 รอกำหนดตำแหน่ง')+'</span>'):'')+
             (x.active?'':'<span class="chip c-gray">ปิดใช้งาน</span>')+
             (x.pin?'':'<span class="chip c-orange">ยังไม่ตั้ง PIN</span>')+'</div>'+
           '<div class="brow-s"><span class="tm">'+esc(x.emp_code)+'</span>'+
@@ -2839,6 +2849,8 @@ function staffForm(id){
       approved: (isSelf? true : $('p_ok').checked),
       active: (isSelf||x.role==='owner')? true : $('p_act').checked};
     if(p.approved && p.role==='staff' && !tid && !confirm('อนุมัติเป็นพนักงานหน้างานแต่ยังไม่ได้จัดเข้าทีม\nเขาจะเห็นหน้า “รอจัดเข้าทีม” ต่อ — ยืนยันหรือไม่?')) return;
+    if(!p.approved && RANK[p.role]>=1 && !confirm('ตั้งเป็น'+(ROLES[p.role]||'')+'แล้ว แต่ยังไม่ได้ติ๊ก “อนุมัติให้เข้าใช้งาน”\n\n'+
+      'เขาจะยังเข้า Dashboard ไม่ได้ ค้างอยู่ที่หน้ารอ\nบันทึกแบบนี้หรือไม่?')) return;
     if(!p.emp_code) return toast('ต้องมีรหัสพนักงาน');
     if(mayRole && !canGrant(S.me, p.role)) return toast('คุณไม่มีสิทธิ์ตั้งระดับ '+ROLES[p.role]);
     this.disabled=true;
@@ -3546,7 +3558,8 @@ async function loadTeamData(){
     var me=await db.from('it_staff').select('*').eq('id',S.me.id).single();
     if(me.data) S.me=me.data;
   }catch(e){}
-  if(!approved(S.me)){ S.team=null; testBar(); renderTeam(); return; }
+  if(!approved(S.me)){ S.team=null; testBar();
+    $('tDash').classList.add('hide'); renderTeam(); return; }
   /* เพิ่งได้รับอนุมัติเป็นระดับที่ใช้ Dashboard → พาไปฝั่งที่ถูกต้อง */
   if(!S.forcedField && isMgr(S.me)){
     toast('ผู้ดูแลกำหนดตำแหน่งให้แล้ว: '+(ROLES[S.me.role]||''), 4200);
@@ -3573,6 +3586,7 @@ async function loadTeamData(){
   var pn=$('tPlanN'); pn.textContent=openToday; pn.classList.toggle('hide', !openToday);
   testBar();
   $('tHelp').classList.toggle('hide', isOwner(S.me));
+  $('tDash').classList.toggle('hide', !(isMgr(S.me) && approved(S.me)));
   pvTeams();
   renderTeam();
 }
@@ -3600,13 +3614,18 @@ function renderPending(){
         '<div><div style="font-weight:700">'+esc(S.me.name||'')+'</div>'+
         '<div style="font-size:12px;color:var(--text3);font-family:var(--mono)">'+esc(S.me.emp_code)+'</div></div></div>'+
       '<div style="border-top:1px solid var(--border);padding-top:11px;margin-top:6px">'+
-        'ตำแหน่ง: <b style="color:var(--orange)">ยังไม่กำหนด</b><br>'+
+        'ตำแหน่ง: '+(rank(S.me)>0
+          ? ('<b style="color:var(--accent)">'+esc(ROLES[S.me.role]||'')+'</b> '+
+             '<span class="chip c-orange">แต่ยังไม่ได้กดอนุมัติ</span>')
+          : '<b style="color:var(--orange)">ยังไม่กำหนด</b>')+'<br>'+
         '<span style="font-size:12.5px;color:var(--text2)">ผู้ดูแลต้องกำหนดตำแหน่งให้ก่อน '+
         'ระบบถึงจะรู้ว่าคุณควรเห็นหน้าจอแบบไหน — พนักงานหน้างาน แอดมิน หรือผู้จัดการ</span>'+
       '</div></div></div>'+
     '<div class="blk"><div class="blk-h">ต้องทำอะไรต่อ</div><div class="blk-c" style="font-size:13px;line-height:1.9;color:var(--text2)">'+
       '<div>1. แจ้งผู้ดูแลว่ารหัส <b style="color:var(--text)">'+esc(S.me.emp_code)+'</b> ลงทะเบียนแล้ว</div>'+
       '<div>2. รอกำหนดตำแหน่ง (และจัดเข้าทีมถ้าเป็นพนักงานหน้างาน)</div>'+
+      (rank(S.me)>0? '<div style="color:var(--orange)">ตำแหน่งถูกตั้งไว้แล้ว เหลือแค่ให้ผู้ดูแลติ๊ก '+
+        '“อนุมัติให้เข้าใช้งาน” แล้วบันทึกอีกครั้ง</div>':'')+
       '<div>3. พออนุมัติแล้วหน้านี้จะเปลี่ยนเองทันที ไม่ต้องล็อกเอาต์</div>'+
     '</div></div>'+
     '<div class="mpad" style="margin-top:12px"><button class="bigbtn" id="pdRe">🔄 ตรวจสอบอีกครั้ง</button></div>'+
@@ -3646,11 +3665,14 @@ function renderNoTeam(){
       'บัญชีของคุณพร้อมใช้งานแล้ว แต่ยังไม่ได้ถูกจัดเข้าทีม<br>'+
       'แจ้งผู้จัดการว่ารหัสพนักงาน <b>'+esc(S.me.emp_code)+'</b> ลงทะเบียนแล้ว '+
       'พอจัดเข้าทีมเมื่อไหร่ งานจะขึ้นที่หน้านี้ทันที</div></div>'+
-    '<div class="mpad"><button class="bigbtn" id="ntRe">🔄 ตรวจสอบอีกครั้ง</button></div>'+
+    (isMgr(S.me)? '<div class="mpad"><button class="bigbtn" id="ntDash">🖥 เข้า Dashboard</button></div>':'')+
+    '<div class="mpad"'+(isMgr(S.me)?' style="margin-top:-4px"':'')+'><button class="bigbtn" id="ntRe" '+
+      (isMgr(S.me)?'style="background:var(--s3);color:var(--text);box-shadow:none"':'')+'>🔄 ตรวจสอบอีกครั้ง</button></div>'+
     '<div class="mpad" style="margin-top:-4px"><button class="bigbtn" id="ntEdit" '+
       'style="background:var(--s3);color:var(--text);box-shadow:none">✏️ แก้ไขชื่อ / เบอร์ / PIN</button></div>'+
     '<div class="mpad" style="margin-top:-4px"><button class="bigbtn" id="ntOut" '+
       'style="background:var(--s3);color:var(--text);box-shadow:none">ออกจากระบบ</button></div>';
+  if($('ntDash')) $('ntDash').onclick=goDash;
   $('ntRe').onclick=function(){ loadTeamData(); toast('ตรวจสอบแล้ว'); };
   $('ntEdit').onclick=myAccount;
   $('ntOut').onclick=function(){ if(confirm('ออกจากระบบ?')) logout(); };
