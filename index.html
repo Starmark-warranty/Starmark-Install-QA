@@ -415,7 +415,7 @@ body.preview #previewBar{display:flex}
 
 <script>
 /* ── ยามเฝ้า splash: อยู่นอกสคริปต์หลัก ถ้าสคริปต์หลักพัง ตัวนี้ยังทำงาน ── */
-window.APP_VER='2.2';
+window.APP_VER='2.3';
 (function(){
   var fill=function(){
     var a=document.querySelectorAll('.ver');
@@ -892,6 +892,26 @@ function getPos(){
       function(){ res(null); }, {enableHighAccuracy:true, timeout:12000, maximumAge:0});
   });
 }
+/* ระยะทางจริงตามถนน — ใช้ OSRM (OpenStreetMap) ไม่ต้องมี API key
+   คำนวณครั้งเดียวตอนเช็คอินแล้วเก็บลงฐานข้อมูล ไม่เรียกซ้ำทุกครั้งที่เปิดดู */
+async function roadDistance(lat1,lng1,lat2,lng2){
+  var url='https://router.project-osrm.org/route/v1/driving/'+
+    lng1+','+lat1+';'+lng2+','+lat2+'?overview=false&alternatives=false';
+  var ctl=new AbortController(); var to=setTimeout(function(){ ctl.abort(); }, 9000);
+  try{
+    var r=await fetch(url,{signal:ctl.signal});
+    clearTimeout(to);
+    if(!r.ok) throw new Error('HTTP '+r.status);
+    var j=await r.json();
+    if(j.code!=='Ok' || !j.routes || !j.routes.length) throw new Error('ไม่พบเส้นทางรถ');
+    return {m:Math.round(j.routes[0].distance), min:Math.round(j.routes[0].duration/60)};
+  }catch(e){ clearTimeout(to); throw e; }
+}
+function fmtDrive(m, min){
+  if(m==null) return '—';
+  return (m/1000).toFixed(1)+' กม.'+(min!=null? (' · ~'+(min>=60? (Math.floor(min/60)+' ชม. '+(min%60)+' นาที') : (min+' นาที')) ):'');
+}
+
 function meName(){ return (S.me && (S.me.name || S.me.emp_code)) || 'ทีม'; }
 var ROLES={staff:'พนักงานหน้างาน', admin:'แอดมิน', manager:'ผู้จัดการ', owner:'เจ้าของระบบ', super:'ผู้ควบคุมระบบ'};
 var RANK ={staff:0, admin:1, manager:2, owner:3, super:4};
@@ -1411,7 +1431,9 @@ function renderBoard(){
       '<div class="brow-t"><span class="nm">'+esc(s.name||'—')+'</span><span class="chip '+st.c+'">'+st.l+'</span></div>'+
       '<div class="brow-s"><span>'+esc(t.name||'—')+'</span><span>·</span><span>'+esc(leadInfo(t).name||'ยังไม่มีหัวหน้าทีม')+'</span>'+
         (a.checkin_at?'<span class="tm">เข้า '+fmtT(a.checkin_at)+'</span>':'')+
-        (a.checkin_dist_m!=null?'<span class="chip '+distTone(a.checkin_dist_m)+'">📍 '+fmtDist(a.checkin_dist_m)+'</span>':'')+
+        (a.checkin_road_m!=null
+          ? '<span class="chip '+distTone(a.checkin_road_m)+'">🚗 '+(a.checkin_road_m/1000).toFixed(1)+' กม.</span>'
+          : (a.checkin_dist_m!=null?'<span class="chip '+distTone(a.checkin_dist_m)+'">📍 '+fmtDist(a.checkin_dist_m)+'</span>':''))+
         (iss?'<span class="chip c-red">⚠ '+iss+'</span>':'')+'</div>'+
       '<div class="brow-p"><div class="bar'+(a.progress>=100?' ok':'')+'"><i style="width:'+pct(a.progress)+'%"></i></div>'+
         '<span class="pc">'+pct(a.progress)+'%</span></div>'+
@@ -1832,6 +1854,20 @@ async function openAsg(id){
     '<button class="btn sm" id="dwGo">เปิดแผนที่นำทาง</button></div>'+
     '<button class="btn ghost sm" id="dwEdit" style="width:100%">🗓 เปลี่ยนแผน · เลื่อนวัน · ย้ายทีม · ลบงาน</button>';
   $('dwEdit').onclick=function(){ asgActions(a); };
+  if($('roadGo')) $('roadGo').onclick=async function(){
+    if(s.lat==null || a.checkin_lat==null) return toast('ต้องมีทั้งพิกัดไซต์และพิกัดเช็คอินก่อน');
+    this.disabled=true; this.textContent='กำลังคำนวณ…';
+    try{
+      var rd=await roadDistance(s.lat, s.lng, a.checkin_lat, a.checkin_lng);
+      await db.from('it_assignments').update({checkin_road_m:rd.m, checkin_road_min:rd.min}).eq('id',a.id);
+      a.checkin_road_m=rd.m; a.checkin_road_min=rd.min;
+      $('roadBox').innerHTML='🚗 ระยะทางจริงตามถนน <b style="color:var(--text)">'+fmtDrive(rd.m, rd.min)+'</b>';
+      loadMgr();
+    }catch(e){
+      $('roadBox').innerHTML='<span style="color:var(--orange)">คำนวณเส้นทางไม่ได้ — '+
+        'เน็ตองค์กรอาจบล็อก router.project-osrm.org หรือจุดนั้นไม่มีถนนเชื่อมถึง</span>';
+    }
+  };
   $('dwCall').onclick=function(){ var ph=leadInfo(t).phone;
     if(ph) location.href='tel:'+ph; else toast('หัวหน้าทีมยังไม่ได้ใส่เบอร์โทร'); };
   $('dwGo').onclick=function(){ if(s.lat!=null) window.open('https://www.google.com/maps/search/?api=1&query='+s.lat+','+s.lng,'_blank');
@@ -1961,9 +1997,14 @@ function checkinBlock(a, s){
       '<div style="display:flex;align-items:baseline;gap:9px;flex-wrap:wrap">'+
         '<span style="font-size:22px;font-weight:700;letter-spacing:-.02em;font-variant-numeric:tabular-nums;color:'+
           (far?'var(--red)':'var(--text)')+'">'+(d!=null? fmtDist(d) : '—')+'</span>'+
-        '<span style="font-size:12px;color:var(--text2)">ห่างจากพิกัดไซต์ตามทะเบียน</span>'+
+        '<span style="font-size:12px;color:var(--text2)">เส้นตรงจากพิกัดไซต์ตามทะเบียน</span>'+
       '</div>'+
-      (a.checkin_acc_m? '<div style="font-size:11.5px;color:var(--text3);margin-top:3px">'+
+      '<div id="roadBox" style="font-size:12.5px;color:var(--text2);margin-top:7px;line-height:1.6">'+
+        (a.checkin_road_m!=null
+          ? ('🚗 ระยะทางจริงตามถนน <b style="color:var(--text)">'+fmtDrive(a.checkin_road_m, a.checkin_road_min)+'</b>')
+          : '<button class="btn ghost sm" id="roadGo" style="width:auto;padding:6px 12px">🚗 คำนวณระยะทางจริงตามถนน</button>')+
+      '</div>'+
+      (a.checkin_acc_m? '<div style="font-size:11.5px;color:var(--text3);margin-top:5px">'+
         'GPS มือถือแม่นยำ ±'+a.checkin_acc_m+' ม. — ระยะจริงอาจคลาดได้ประมาณนี้</div>':'')+
       (hasCk? '<div style="font-size:11.5px;color:var(--text2);margin-top:8px;font-family:var(--mono)">'+
         a.checkin_lat.toFixed(6)+', '+a.checkin_lng.toFixed(6)+'</div>':'')+
@@ -2645,14 +2686,32 @@ async function delIssue(i, nComment){
 
 /* ───────── Work & Team ───────── */
 function renderPlan(){
-  $('siteList').innerHTML = S.sites.length? S.sites.map(function(s){
+  var srow=function(s){
     var todayAsg=S.asgs.filter(function(a){return a.site_id===s.id;}).length;
     return '<div class="brow" data-sid="'+s.id+'"><div class="brow-t"><span class="nm">'+esc(s.name)+'</span>'+
       '<span class="chip '+(s.status==='active'?'c-blue':s.status==='done'?'c-green':s.status==='hold'?'c-orange':'c-gray')+'">'+esc(s.status)+'</span></div>'+
       '<div class="brow-s"><span class="tm">'+esc(s.code)+'</span><span>'+esc(s.customer||'')+'</span>'+
       (s.lat==null?'<span class="chip c-orange">ยังไม่มีพิกัด</span>':'')+
       (todayAsg?'<span class="chip c-blue">วันนี้ '+todayAsg+' ทีม</span>':'')+'</div></div>';
-  }).join('') : '<div class="empty"><b>ยังไม่มีไซต์งาน</b>กด “เพิ่มไซต์” เพื่อเริ่ม</div>';
+  };
+  if(!S.sites.length){
+    $('siteList').innerHTML='<div class="empty"><b>ยังไม่มีไซต์งาน</b>กด “เพิ่มไซต์” เพื่อเริ่ม</div>';
+  }else{
+    var cs=[], byC={};
+    S.sites.forEach(function(x){ var c=x.category||'ทั่วไป'; if(!byC[c]){ byC[c]=[]; cs.push(c); } byC[c].push(x); });
+    cs.sort();
+    $('siteList').innerHTML = cs.map(function(c){
+      return '<div style="padding:9px 14px 5px;background:rgba(0,0,0,.025);border-bottom:1px solid var(--border);'+
+        'display:flex;align-items:center;gap:8px">'+
+        '<span style="font-size:11.5px;font-weight:700;color:var(--text2);letter-spacing:.3px;flex:1">'+esc(c)+
+          ' <span style="font-weight:500;color:var(--text3)">('+byC[c].length+')</span></span>'+
+        '<button class="tb-btn" data-scren="'+esc(c)+'">เปลี่ยนชื่อหมวด</button></div>'+
+        byC[c].map(srow).join('');
+    }).join('');
+    $('siteList').querySelectorAll('[data-scren]').forEach(function(b){
+      b.onclick=function(e){ e.stopPropagation(); renameSiteCat(b.dataset.scren); };
+    });
+  }
   $('siteList').querySelectorAll('[data-sid]').forEach(function(r){ r.onclick=function(){ siteForm(r.dataset.sid); }; });
 
   $('teamList').innerHTML = S.teams.length? S.teams.map(function(t){
@@ -2666,7 +2725,15 @@ function renderPlan(){
   }).join('') : '<div class="empty"><b>ยังไม่มีทีม</b>กด “เพิ่มทีม” เพื่อเริ่ม</div>';
   $('teamList').querySelectorAll('[data-tid]').forEach(function(r){ r.onclick=function(){ teamForm(r.dataset.tid); }; });
 
-  $('asgSite').innerHTML=S.sites.map(function(s){ return '<option value="'+s.id+'">'+esc(s.code+' — '+s.name)+'</option>'; }).join('');
+  (function(){
+    var cs=[], byC={};
+    S.sites.forEach(function(x){ var c=x.category||'ทั่วไป'; if(!byC[c]){ byC[c]=[]; cs.push(c); } byC[c].push(x); });
+    cs.sort();
+    $('asgSite').innerHTML=cs.map(function(c){
+      return '<optgroup label="'+esc(c)+'">'+byC[c].map(function(x){
+        return '<option value="'+x.id+'">'+esc(x.code+' — '+x.name)+'</option>'; }).join('')+'</optgroup>';
+    }).join('');
+  })();
   $('asgTeam').innerHTML=S.teams.filter(function(t){return t.active;}).map(function(t){ return '<option value="'+t.id+'">'+esc(t.code+' — '+t.name)+'</option>'; }).join('');
 }
 /* ── พนักงาน: จัดคนเข้าทีม ── */
@@ -3009,11 +3076,30 @@ function mapPicker(ids, lat, lng){
   };
 }
 
+function siteCats(){
+  var out=[];
+  (S.sites||[]).forEach(function(x){ var c=x.category||'ทั่วไป'; if(out.indexOf(c)<0) out.push(c); });
+  if(!out.length) out=['ทั่วไป'];
+  return out.sort();
+}
+async function renameSiteCat(oldName){
+  var n=prompt('เปลี่ยนชื่อหมวดไซต์ "'+oldName+'" เป็น', oldName);
+  if(n==null) return;
+  n=n.trim(); if(!n || n===oldName) return;
+  var r=await db.from('it_sites').update({category:n}).eq('category',oldName);
+  if(r.error) return toast('เปลี่ยนชื่อไม่สำเร็จ: '+r.error.message,4000);
+  toast('เปลี่ยนชื่อหมวดแล้ว'); loadMgr();
+}
+
 function siteForm(id){
   var s=id? siteOf(id) : {status:'planned'};
   sheet(id?'แก้ไขไซต์งาน':'เพิ่มไซต์งาน',
     '<div class="fld"><label>รหัสงาน</label><input id="f_code" value="'+esc(s.code||'')+'" placeholder="JOB-2601"></div>'+
     '<div class="fld"><label>ชื่องาน</label><input id="f_name" value="'+esc(s.name||'')+'"></div>'+
+    '<div class="fld"><label>หมวดไซต์</label><select id="f_cat">'+
+      siteCats().map(function(c){ return '<option value="'+esc(c)+'"'+((s.category||'ทั่วไป')===c?' selected':'')+'>'+esc(c)+'</option>'; }).join('')+
+      '<option value="__new">＋ สร้างหมวดใหม่…</option></select>'+
+      '<input id="f_catnew" class="hide" placeholder="ชื่อหมวดใหม่ เช่น คอนโด / บ้านเดี่ยว / โครงการ" style="margin-top:7px"></div>'+
     '<div class="fld"><label>ลูกค้า</label><input id="f_cus" value="'+esc(s.customer||'')+'"></div>'+
     '<div class="fld"><label>ที่อยู่</label><input id="f_addr" value="'+esc(s.address||'')+'"></div>'+
     '<div class="fld"><label>พิกัดหน้างาน — แตะบนแผนที่เพื่อปักหมุด</label>'+
@@ -3033,13 +3119,22 @@ function siteForm(id){
     '<div class="row">'+(id?'<button class="btn ghost sm" id="f_del" style="flex:0 0 90px">ลบ</button>':'')+'<button class="btn sm" id="f_save">บันทึก</button></div>');
   mapPicker({map:'pickMap', lat:'f_lat', lng:'f_lng', bar:'pinBar',
             here:'f_here', paste:'f_paste', savePin:'f_pin'}, s.lat, s.lng);
+  $('f_cat').onchange=function(){ $('f_catnew').classList.toggle('hide', this.value!=='__new');
+    if(this.value==='__new') $('f_catnew').focus(); };
   $('f_save').onclick=async function(){
     var p={code:$('f_code').value.trim(), name:$('f_name').value.trim(), customer:$('f_cus').value.trim()||null,
       address:$('f_addr').value.trim()||null, lat:parseFloat($('f_lat').value)||null, lng:parseFloat($('f_lng').value)||null,
-      contact:$('f_ct').value.trim()||null, start_date:$('f_sd').value||null, due_date:$('f_dd').value||null, status:$('f_st').value};
+      contact:$('f_ct').value.trim()||null, start_date:$('f_sd').value||null, due_date:$('f_dd').value||null, status:$('f_st').value,
+      category: ($('f_cat').value==='__new' ? ($('f_catnew').value.trim()||'ทั่วไป') : $('f_cat').value)};
     if(!p.code||!p.name) return toast('ต้องมีรหัสงานและชื่องาน');
     this.disabled=true;
-    var r = id? await db.from('it_sites').update(p).eq('id',id) : await db.from('it_sites').insert(p);
+    var save=async function(pp){ return id? db.from('it_sites').update(pp).eq('id',id) : db.from('it_sites').insert(pp); };
+    var r = await save(p);
+    if(r.error && /category/i.test(r.error.message||'')){
+      delete p.category;                       /* ยังไม่ได้รันไฟล์ SQL เพิ่มหมวด — บันทึกส่วนที่เหลือให้ก่อน */
+      r = await save(p);
+      if(!r.error) toast('บันทึกแล้ว แต่หมวดไซต์ยังใช้ไม่ได้ — ต้องรัน install_tracker_road_cat.sql ก่อน', 5500);
+    }
     if(r.error){ toast('บันทึกไม่สำเร็จ: '+r.error.message,4000); this.disabled=false; return; }
     closeSheet(); toast('บันทึกไซต์แล้ว'); loadMgr();
   };
@@ -3268,7 +3363,9 @@ $('btnRpRun').onclick=async function(){
       เช็คอิน:a.checkin_at?fmtDT(a.checkin_at):'',
       ห่างจากไซต์กม:a.checkin_dist_m!=null?(a.checkin_dist_m/1000).toFixed(2):'',
       พิกัดเช็คอิน:a.checkin_lat!=null?(a.checkin_lat.toFixed(6)+', '+a.checkin_lng.toFixed(6)):'',
-      GPSแม่นยำเมตร:a.checkin_acc_m, ขอบเขต:a.scope};
+      GPSแม่นยำเมตร:a.checkin_acc_m,
+      ระยะถนนกม:a.checkin_road_m!=null?(a.checkin_road_m/1000).toFixed(1):'',
+      เวลาขับโดยประมาณนาที:a.checkin_road_min, ขอบเขต:a.scope};
   })); };
   $('exI').onclick=function(){ csv('issues_'+f+'_'+t, I.map(function(i){
     var s=siteOf(i.site_id), tm=teamOf(i.team_id);
@@ -3666,6 +3763,13 @@ async function doCheckin(a){
     toast('ยังไม่มีเน็ต — บันทึกไว้ในเครื่อง จะส่งให้อัตโนมัติ', 3600);
   }
   Object.assign(a, upd); renderTeam(); loadTeamData();
+
+  /* คำนวณระยะทางจริงตามถนนแบบเบื้องหลัง ถ้าไม่ได้ก็ไม่กระทบอะไร */
+  if(pos && s.lat!=null && s.lng!=null){
+    roadDistance(s.lat, s.lng, pos.lat, pos.lng).then(function(rd){
+      db.from('it_assignments').update({checkin_road_m:rd.m, checkin_road_min:rd.min}).eq('id',a.id);
+    }).catch(function(){});
+  }
 }
 
 async function toggleCheck(a, i){
