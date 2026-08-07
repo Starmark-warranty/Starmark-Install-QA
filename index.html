@@ -169,6 +169,10 @@ button,input,select,textarea{font-family:inherit;color:inherit}
 .plan th,.plan td{border-bottom:1px solid var(--border);border-right:1px solid var(--border);padding:5px 6px;vertical-align:top}
 .plan thead th{position:sticky;top:0;z-index:3;background:rgba(250,250,252,.97);backdrop-filter:blur(8px);
   font-size:10.5px;font-weight:700;color:var(--text2);text-align:center;letter-spacing:.2px;line-height:1.35;padding:7px 6px}
+.plan th.hol{background:rgba(255,59,48,.09);color:#c9251c}
+.plan th.hol .dw{color:#c9251c}
+.pcell.hol{background:rgba(255,59,48,.05)}
+.pcell.hol:hover{background:var(--accent-glow)}
 .plan thead th .dw{font-size:9.5px;font-weight:600;color:var(--text3);display:block}
 .plan .tcol{position:sticky;left:0;z-index:2;background:rgba(250,250,252,.97);backdrop-filter:blur(8px);
   min-width:158px;max-width:158px;text-align:left}
@@ -432,7 +436,7 @@ body.preview #previewBar{display:flex}
 
 <script>
 /* ── ยามเฝ้า splash: อยู่นอกสคริปต์หลัก ถ้าสคริปต์หลักพัง ตัวนี้ยังทำงาน ── */
-window.APP_VER='3.6';
+window.APP_VER='3.7';
 (function(){
   var fill=function(){
     var a=document.querySelectorAll('.ver');
@@ -525,6 +529,7 @@ window.APP_VER='3.6';
       <label style="font-size:11.5px;color:var(--text2);display:flex;align-items:center;gap:5px">
         <input type="checkbox" id="pnBusy"> เฉพาะทีมที่มีงาน</label>
       <span id="pnNote" style="margin-left:auto;font-size:11.5px;color:var(--text2)">—</span>
+      <button class="tb-btn hide" id="pnHol">🏖 วันหยุด</button>
       <button class="tb-btn" id="pnPrint">🖨 พิมพ์</button>
       <button class="tb-btn" id="pnXls">📊 Excel</button>
     </div>
@@ -604,7 +609,7 @@ window.APP_VER='3.6';
           <div><label style="font-size:11px;color:var(--text2);font-weight:600;display:block;margin-bottom:4px">กี่วัน</label>
             <select id="asgDays" class="tin"><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option><option value="6">6</option><option value="7">7</option><option value="8">8</option><option value="9">9</option><option value="10">10</option><option value="12">12</option><option value="14">14</option></select></div>
           <label style="font-size:11.5px;color:var(--text2);display:flex;align-items:center;gap:5px;padding-bottom:8px">
-            <input type="checkbox" id="asgSkipSun" checked> ข้ามวันอาทิตย์</label>
+            <input type="checkbox" id="asgSkipSun" checked> ข้ามวันอาทิตย์และวันหยุด</label>
           <div style="flex:2;min-width:220px"><label style="font-size:11px;color:var(--text2);font-weight:600;display:block;margin-bottom:4px">ขอบเขตงาน — เข้าไปทำอะไรบ้าง</label><button type="button" id="asgScopeBtn" class="pickbtn"></button></div>
           <button class="btn" id="btnAsg" style="width:auto;padding:8px 18px">มอบหมาย</button>
         </div>
@@ -711,7 +716,7 @@ var S = {
   role:'team', mgrName:'', team:null, me:null, staff:[],
   date: todayISO(),
   sites:[], teams:[], asgs:[], issues:[],
-  work:[], pins:[], icats:[], plan:[], showRoutes:true, asTeam:null, forcedField:false, planFrom:null, planDays:14, pnQ:'', pnBusy:false,
+  work:[], pins:[], icats:[], hols:[], plan:[], showRoutes:true, asTeam:null, forcedField:false, planFrom:null, planDays:14, pnQ:'', pnBusy:false,
   ovFilter:'all', ovQ:'', isFilter:'open', isQ:'', isAllDates:true,
   tView:'jobs', tJob:null, map:null, markers:[], mapLayer:null
 };
@@ -1210,6 +1215,7 @@ function goDash(){
   $('mgrWho').innerHTML=esc(meName())+' · '+esc(ROLES[S.me.role]||'');
   $('btnField').classList.toggle('hide', !isMgr(S.me));
   $('btnCats').classList.toggle('hide', !isAdmin(S.me));
+  $('pnHol').classList.toggle('hide', rank(S.me)<1);
   $('btnHelp').classList.toggle('hide', isOwner(S.me));
   if(!$('dtPick').value){ $('dtPick').value=S.date; $('asgDate').value=S.date; S.planFrom=todayISO(); }
   loadMgr(); mobileHint();
@@ -1294,6 +1300,7 @@ $('pnToday').onclick=function(){ S.planFrom=todayISO(); loadSchedule(); };
 $('pnFrom').onchange=function(){ S.planFrom=this.value||todayISO(); loadSchedule(); };
 $('pnDays').onchange=function(){ S.planDays=+this.value||14; loadSchedule(); };
 $('pnTeam').onchange=function(){ S.pnTeam=this.value; renderSchedule(); };
+$('pnHol').onclick=holidayManager;
 $('pnPrint').onclick=printSchedule;
 $('pnXls').onclick=exportSchedule;
 $('pnSearch').oninput=function(){ S.pnQ=this.value.toLowerCase(); renderSchedule(); };
@@ -1338,6 +1345,7 @@ async function loadMgr(){
     ['คลังงาน (it_work_items)', db.from('it_work_items').select('*').eq('active',true).order('sort')],
     ['หมุดพิกัด (it_pins)', db.from('it_pins').select('*').eq('active',true).order('sort')],
     ['ประเภทปัญหา (it_issue_cats)', db.from('it_issue_cats').select('*').eq('active',true).order('sort')],
+    ['วันหยุด (it_holidays)', db.from('it_holidays').select('*').order('hday')],
     ['ปัญหา (it_issues)', S.isAllDates
         ? db.from('it_issues').select('*').neq('status','closed').order('opened_at',{ascending:false}).limit(400)
         : db.from('it_issues').select('*').gte('opened_at',S.date+'T00:00:00').lte('opened_at',S.date+'T23:59:59').order('opened_at',{ascending:false})]
@@ -1348,7 +1356,7 @@ async function loadMgr(){
          else res.push(r.data||[]); }
     catch(e){ errs.push(jobs[i][0]+' → '+(e.message||e)); res.push([]); }
   }
-  S.sites=res[0]; S.teams=res[1]; S.asgs=res[2]; S.staff=res[3]; S.work=res[4]; S.pins=res[5]; S.icats=res[6]; S.issues=res[7];
+  S.sites=res[0]; S.teams=res[1]; S.asgs=res[2]; S.staff=res[3]; S.work=res[4]; S.pins=res[5]; S.icats=res[6]; S.hols=res[7]; S.issues=res[8];
 
   try{ renderAll(); }
   catch(e){ errs.push('แสดงผลหน้าจอ → '+(e.message||e)); }
@@ -1368,7 +1376,7 @@ async function loadMgr(){
 /* ───────── ตรวจระบบ: บอกให้ชัดว่าติดตรงไหน ───────── */
 async function diag(){
   sheet('ตรวจระบบ','<div class="empty"><span class="spin"></span> กำลังตรวจ…','');
-  var tabs=['it_staff','it_teams','it_work_items','it_pins','it_issue_cats','it_sites','it_assignments','it_reports','it_issues','it_issue_comments'];
+  var tabs=['it_staff','it_teams','it_work_items','it_pins','it_issue_cats','it_holidays','it_sites','it_assignments','it_reports','it_issues','it_issue_comments'];
   var out=[];
   for(var i=0;i<tabs.length;i++){
     var r;
@@ -1698,13 +1706,15 @@ function renderSchedule(){
   }
 
   var head='<tr><th class="tcol">ทีม</th>'+days.map(function(d){
-    var dt=new Date(d+'T00:00:00'), dow=dt.getDay();
+    var dt=new Date(d+'T00:00:00'), dow=dt.getDay(), hd=isHoliday(d);
     var free=teams.length - teams.filter(function(t){
       return S.plan.some(function(a){return a.team_id===t.id && a.work_date===d;}); }).length;
-    return '<th class="'+(d===today?'pcol-today':'')+'">'+
+    return '<th class="'+(d===today?'pcol-today ':'')+(hd?'hol':'')+'" title="'+esc(hd?(hd.name+(hd.note?(' — '+hd.note):'')):'')+'">'+
       '<span class="dw">'+DW_TH[dow]+'</span>'+dt.getDate()+' '+MO_TH[dt.getMonth()]+
-      '<span class="dw" style="color:'+(free?'var(--text3)':'var(--green)')+'">'+
-        (free? ('ว่าง '+free) : 'เต็ม')+'</span></th>';
+      (hd
+        ? '<span class="dw" style="color:#c9251c">🏖 '+esc(hd.name)+'</span>'
+        : '<span class="dw" style="color:'+(free?'var(--text3)':'var(--green)')+'">'+(free? ('ว่าง '+free) : 'เต็ม')+'</span>')+
+    '</th>';
   }).join('')+'</tr>';
 
   var body=teams.map(function(t){
@@ -1714,7 +1724,7 @@ function renderSchedule(){
       days.map(function(d){
         var dt=new Date(d+'T00:00:00');
         var jobs=S.plan.filter(function(a){ return a.team_id===t.id && a.work_date===d; });
-        var cls='pcell'+(dt.getDay()===0?' sun':'')+(d===today?' pcol-today':'');
+        var cls='pcell'+(isHoliday(d)?' hol':(dt.getDay()===0?' sun':''))+(d===today?' pcol-today':'');
         var inner=jobs.map(function(a){
           var st=AST[a.status]||AST.assigned, si=siteOf(a.site_id);
           var iss=S.issues.filter(function(x){ return x.site_id===a.site_id && x.status!=='closed' && x.status!=='resolved'; }).length;
@@ -1747,14 +1757,87 @@ function renderSchedule(){
   });
 }
 
+/* ═════ วันหยุดที่โรงงานประกาศ — แอดมินขึ้นไปจัดการได้ ═════ */
+function holidayManager(){
+  if(rank(S.me)<1) return toast('ต้องเป็นแอดมินขึ้นไปถึงจะจัดการวันหยุดได้');
+  var all=(S.hols||[]).slice().sort(function(a,b){ return a.hday<b.hday? -1:1; });
+  var today=todayISO();
+  var future=all.filter(function(h){ return h.hday>=today; });
+  var past=all.filter(function(h){ return h.hday<today; });
+
+  var row=function(h, dim){
+    var dt=new Date(h.hday+'T00:00:00');
+    return '<div style="display:flex;align-items:center;gap:11px;background:'+(dim?'var(--s2)':'var(--s1)')+
+      ';border:1px solid var(--border);border-radius:11px;padding:10px 12px;margin-bottom:6px'+(dim?';opacity:.6':'')+'">'+
+      '<div style="width:52px;text-align:center;flex-shrink:0">'+
+        '<div style="font-size:19px;font-weight:700;letter-spacing:-.02em;color:'+(dim?'var(--text3)':'#c9251c')+'">'+dt.getDate()+'</div>'+
+        '<div style="font-size:10px;color:var(--text3)">'+MO_TH[dt.getMonth()]+' '+String(dt.getFullYear()+543).slice(2)+'</div></div>'+
+      '<div style="flex:1;min-width:0">'+
+        '<div style="font-size:13.5px;font-weight:600">'+esc(h.name)+'</div>'+
+        '<div style="font-size:11px;color:var(--text3)">'+DW_TH[dt.getDay()]+
+          (h.note?(' · '+esc(h.note)):'')+'</div></div>'+
+      '<button class="tb-btn" data-he="'+h.id+'">แก้ไข</button></div>';
+  };
+
+  if(!S.hols){ S.hols=[]; }
+  var body = (!all.length
+    ? '<div class="empty"><b>ยังไม่มีวันหยุดในระบบ</b>เพิ่มวันหยุดที่โรงงานประกาศ ระบบจะข้ามวันเหล่านี้ตอนวางแผนงานให้อัตโนมัติ</div>'
+    : ((future.length? ('<div class="sec-h">วันหยุดที่กำลังจะถึง ('+future.length+')</div>'+future.map(function(h){ return row(h,false); }).join('')) : '')+
+       (past.length? ('<div class="sec-h" style="margin-top:16px">ผ่านไปแล้ว ('+past.length+')</div>'+past.slice(-6).map(function(h){ return row(h,true); }).join('')) : '')));
+
+  sheet('🏖 วันหยุดโรงงาน',
+    '<p style="font-size:12px;color:var(--text2);line-height:1.65;margin-bottom:12px">'+
+      'วันที่อยู่ในรายการนี้จะขึ้นสีแดงในตารางแผนงาน และระบบจะข้ามให้อัตโนมัติเวลาคีย์งานหลายวันหรือยกงานค้างไปวันถัดไป</p>'+body,
+    '<button class="btn sm" id="hAdd">+ เพิ่มวันหยุด</button>');
+
+  $('hAdd').onclick=function(){ holidayForm(null); };
+  document.querySelectorAll('[data-he]').forEach(function(b){
+    b.onclick=function(){ holidayForm(b.dataset.he); };
+  });
+}
+
+function holidayForm(id){
+  var h = id? (S.hols||[]).filter(function(x){ return x.id===id; })[0]||{} : {};
+  sheet2(id?'แก้ไขวันหยุด':'เพิ่มวันหยุด',
+    '<div class="fld"><label>วันที่</label><input type="date" id="h_date" value="'+(h.hday||'')+'"></div>'+
+    '<div class="fld"><label>ชื่อวันหยุด</label><input id="h_name" value="'+esc(h.name||'')+'" placeholder="เช่น วันแม่แห่งชาติ / หยุดประจำปีโรงงาน"></div>'+
+    '<div class="fld"><label>หมายเหตุ (ไม่บังคับ)</label><input id="h_note" value="'+esc(h.note||'')+'" placeholder="เช่น หยุดเฉพาะโรงงาน ทีมติดตั้งยังทำงาน"></div>'+
+    '<p style="font-size:11.5px;color:var(--text2);line-height:1.65">'+
+      'ถ้ามีงานที่มอบหมายไว้ในวันนี้อยู่แล้ว ระบบจะไม่ลบให้ ต้องเลื่อนเองในตารางแผนงาน</p>',
+    '<div class="row">'+(id?'<button class="btn ghost sm" id="h_del" style="flex:0 0 90px">ลบ</button>':'')+
+      '<button class="btn sm" id="h_save">บันทึก</button></div>');
+
+  $('h_save').onclick=async function(){
+    var p={hday:$('h_date').value, name:$('h_name').value.trim(), note:$('h_note').value.trim()||null,
+      created_by:meName()};
+    if(!p.hday) return toast('เลือกวันที่ก่อน');
+    if(!p.name) return toast('ใส่ชื่อวันหยุดก่อน');
+    this.disabled=true;
+    var r = id? await db.from('it_holidays').update(p).eq('id',id)
+              : await db.from('it_holidays').upsert(p,{onConflict:'hday'});
+    if(r.error){ toast('บันทึกไม่สำเร็จ: '+r.error.message,4500); this.disabled=false; return; }
+    var busy=(S.plan||[]).filter(function(a){ return a.work_date===p.hday; }).length;
+    closeSheet2(); await loadMgr();
+    toast('บันทึกวันหยุดแล้ว'+(busy? (' · ⚠️ วันนี้มีงานค้างอยู่ '+busy+' ใบ ตรวจในตารางด้วย') : ''), busy?5500:3000);
+    holidayManager();
+  };
+  if(id) $('h_del').onclick=async function(){
+    if(!confirm('ลบวันหยุด "'+(h.name||'')+'" ?')) return;
+    var r=await db.from('it_holidays').delete().eq('id',id);
+    if(r.error) return toast('ลบไม่สำเร็จ: '+r.error.message,4000);
+    closeSheet2(); await loadMgr(); toast('ลบแล้ว'); holidayManager();
+  };
+}
+
 /* ═════ พิมพ์ตารางแผนงาน ═════ */
 function printSchedule(){
   var d=scheduleData(), days=d.days, teams=d.teams, today=todayISO();
   if(!teams.length) return toast('ไม่มีทีมให้พิมพ์');
 
   var head='<tr><th class="tc">ทีม</th>'+days.map(function(x){
-    var dt=new Date(x+'T00:00:00');
-    return '<th'+(dt.getDay()===0?' class="sun"':'')+'>'+DW_TH[dt.getDay()]+'<br>'+dt.getDate()+' '+MO_TH[dt.getMonth()]+'</th>';
+    var dt=new Date(x+'T00:00:00'), hd=isHoliday(x);
+    return '<th'+(hd?' class="hol"':(dt.getDay()===0?' class="sun"':''))+'>'+DW_TH[dt.getDay()]+'<br>'+dt.getDate()+' '+MO_TH[dt.getMonth()]+
+      (hd?'<br><span style="font-size:8px;color:#c9251c">🏖 '+esc(hd.name)+'</span>':'')+'</th>';
   }).join('')+'</tr>';
 
   var body=teams.map(function(t){
@@ -1764,7 +1847,7 @@ function printSchedule(){
       days.map(function(x){
         var dt=new Date(x+'T00:00:00');
         var js=jobsAt(t.id, x);
-        return '<td'+(dt.getDay()===0?' class="sun"':'')+'>'+
+        return '<td'+(isHoliday(x)?' class="hol"':(dt.getDay()===0?' class="sun"':''))+'>'+
           (js.length? js.map(function(a){
             var si=siteOf(a.site_id), st=AST[a.status]||AST.assigned;
             return '<div class="job"><b>'+esc(si.name||'—')+'</b>'+
@@ -1791,6 +1874,7 @@ function printSchedule(){
     'th,td{border:1px solid #bbb;padding:4px 5px;vertical-align:top;font-size:9.5px;word-break:break-word}'+
     'th{background:#f0f0f3;text-align:center;font-size:9.5px;font-weight:700}'+
     'th.sun,td.sun{background:#f7f7f9}'+
+    'th.hol,td.hol{background:#fdeceb}'+
     '.tc{width:110px;text-align:left;background:#f0f0f3}'+
     'td.tc{font-size:10px}'+
     '.sm{color:#666;font-size:8.5px;font-weight:400}'+
@@ -1875,12 +1959,15 @@ function exportSchedule(){
 }
 
 /* เพิ่มงานลงช่องว่างในตารางได้เลย — เลือกไซต์เดิม หรือคีย์ไซต์ใหม่ตรงนี้ */
-/* วันทำงานต่อเนื่อง — ข้ามวันอาทิตย์ได้ */
-function planDates(start, count, skipSun){
+/* วันหยุดที่โรงงานประกาศ */
+function isHoliday(d){ return (S.hols||[]).filter(function(h){ return h.hday===d; })[0]||null; }
+function isOff(d){ return new Date(d+'T00:00:00').getDay()===0 || !!isHoliday(d); }
+
+/* วันทำงานต่อเนื่อง — ข้ามวันอาทิตย์และวันหยุดโรงงานได้ */
+function planDates(start, count, skipOff){
   var out=[], d=start, guard=0;
-  while(out.length<count && guard<200){
-    var dt=new Date(d+'T00:00:00');
-    if(!(skipSun && dt.getDay()===0)) out.push(d);
+  while(out.length<count && guard<250){
+    if(!(skipOff && isOff(d))) out.push(d);
     d=addDays(d,1); guard++;
   }
   return out;
@@ -1935,7 +2022,7 @@ function quickAssign(teamId, date){
       '<div class="row"><select id="q_days">'+
         [1,2,3,4,5,6,7,8,9,10,12,14].map(function(n){ return '<option value="'+n+'">'+n+' วัน</option>'; }).join('')+
       '</select>'+
-      '<label class="lg-rem" style="margin:0;flex:1.4"><input type="checkbox" id="q_skipsun" checked> ข้ามวันอาทิตย์</label></div></div>'+
+      '<label class="lg-rem" style="margin:0;flex:1.4"><input type="checkbox" id="q_skipsun" checked> ข้ามวันอาทิตย์และวันหยุด</label></div></div>'+
     '<div id="q_daylist"></div>',
     '<button class="btn sm" id="q_save">มอบหมาย</button>');
   lbl();
@@ -1957,6 +2044,7 @@ function quickAssign(teamId, date){
           (busy.length?'rgba(255,149,0,.35)':'var(--border)')+';border-radius:11px;padding:9px 11px;margin-bottom:6px">'+
           '<div style="flex:1;min-width:0">'+
             '<div style="font-size:12.5px;font-weight:600">วันที่ '+(i+1)+' · '+dayText(d)+
+              (isHoliday(d)?' <span class="chip c-red">🏖 '+esc(isHoliday(d).name)+'</span>':'')+
               (busy.length?' <span class="chip c-orange">ทีมมีงานอื่นอยู่แล้ว</span>':'')+'</div>'+
             '<div style="font-size:11px;color:'+(own?'var(--accent)':'var(--text3)')+';overflow:hidden;'+
               'text-overflow:ellipsis;white-space:nowrap">'+
@@ -2392,6 +2480,7 @@ var HELP_DASH=[
     'คลิกขวาที่ใบงาน = เปิดหน้าเลื่อนวัน ย้ายทีม หรือลบงานทันที',
     'ใบงานที่มีป้าย “↪ งานยกมา” คืองานค้างจากวันก่อนที่ระบบยกมาให้เอง เช็กลิสต์เหลือเฉพาะข้อที่ยังไม่ได้ทำ',
     'ถ้าทีมทำเสร็จก่อนกำหนด วันที่เหลือในแผนจะหายไปเอง ไม่ต้องมาลบทีละใบ',
+    'ปุ่ม 🏖 วันหยุด ใส่วันหยุดที่โรงงานประกาศได้ (แอดมินขึ้นไป) วันนั้นจะขึ้นสีแดงและถูกข้ามอัตโนมัติเวลาคีย์งานหลายวัน',
     'ปุ่ม 🖨 พิมพ์ ได้ตารางแนวนอน A4 พร้อมช่องเซ็นผู้จัดทำ/ตรวจสอบ/อนุมัติ — ติดบอร์ดหรือส่งให้ทีมได้เลย',
     'ปุ่ม 📊 Excel ได้ 2 ไฟล์: ตารางเหมือนบนจอ และรายการแถวต่อแถวไว้กรองหรือทำ Pivot'
   ]},
@@ -3715,10 +3804,11 @@ async function loadTeamData(){
     db.from('it_issues').select('*').eq('team_id',tid).order('opened_at',{ascending:false}).limit(80),
     db.from('it_teams').select('*').eq('id',tid).single(),
     db.from('it_staff').select('*').eq('team_id',tid),
-    db.from('it_issue_cats').select('*').eq('active',true).order('sort')
+    db.from('it_issue_cats').select('*').eq('active',true).order('sort'),
+    db.from('it_holidays').select('*').order('hday')
   ]);
   S.asgs=r[0].data||[]; S.sites=r[1].data||[]; S.issues=r[2].data||[];
-  S.team=r[3].data||null; S.staff=r[4].data||[]; S.icats=r[5].data||[];
+  S.team=r[3].data||null; S.staff=r[4].data||[]; S.icats=r[5].data||[]; S.hols=r[6].data||[];
   var openN=S.issues.filter(function(i){ return i.status!=='closed'&&i.status!=='resolved'; }).length;
   var e=$('tIssN'); e.textContent=openN; e.classList.toggle('hide', !openN);
   var openToday=S.asgs.filter(function(a){ return a.work_date===todayISO() && a.status!=='done'; }).length;
@@ -3866,9 +3956,11 @@ function renderJobs(){
     list.forEach(function(a){ if(!by[a.work_date]){ by[a.work_date]=[]; ds.push(a.work_date); } by[a.work_date].push(a); });
     return ds.map(function(d){
       var lab=dayLabel(d);
-      return '<div style="padding:16px 16px 4px;display:flex;align-items:center;gap:8px">'+
+      var hd=isHoliday(d);
+      return '<div style="padding:16px 16px 4px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">'+
           '<span style="font-size:13px;font-weight:700">'+dayText(d)+'</span>'+
           (lab?'<span class="chip '+(d===today?'c-blue':(lab==='พรุ่งนี้'?'c-orange':'c-gray'))+'">'+lab+'</span>':'')+
+          (hd?'<span class="chip c-red">🏖 '+esc(hd.name)+'</span>':'')+
           '<span style="margin-left:auto;font-size:11px;color:var(--text3)">'+by[d].length+' งาน</span>'+
         '</div>'+ by[d].map(jobCard).join('');
     }).join('');
