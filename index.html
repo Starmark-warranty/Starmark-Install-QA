@@ -366,7 +366,7 @@ button,input,select,textarea{font-family:inherit;color:inherit}
 <body>
 <div id="splash">
   <div class="splash-logo"><div class="brandmark" style="width:240px;height:85px"></div></div>
-  <div class="splash-sub">Install-QA Tracker &middot; ติดตามทีมติดตั้ง</div>
+  <div class="splash-sub">Install-QA Tracker &middot; ติดตามทีมติดตั้ง-QA &middot; <span class="ver"></span></div>
   <div class="splash-bar"><div class="splash-bar-fill"></div></div>
   <div class="splash-dots"><span></span><span></span><span></span></div>
   <div id="splashErr"></div>
@@ -374,6 +374,15 @@ button,input,select,textarea{font-family:inherit;color:inherit}
 
 <script>
 /* ── ยามเฝ้า splash: อยู่นอกสคริปต์หลัก ถ้าสคริปต์หลักพัง ตัวนี้ยังทำงาน ── */
+window.APP_VER='1.5';
+(function(){
+  var fill=function(){
+    var a=document.querySelectorAll('.ver');
+    for(var i=0;i<a.length;i++) a[i].textContent='v'+window.APP_VER;
+  };
+  fill();
+  document.addEventListener('DOMContentLoaded', fill);
+})();
 (function(){
   var sp=document.getElementById('splash'), t0=Date.now(), gone=false;
   function kill(){
@@ -400,8 +409,8 @@ button,input,select,textarea{font-family:inherit;color:inherit}
 <div id="login">
   <div class="lg-card">
     <div class="brandmark" style="width:168px;height:60px;margin:0 0 14px -6px"></div>
-    <h1>Install-QA Tracker</h1>
-    <p class="sub">ติดตามทีมติดตั้งหน้างาน · รายงานความคืบหน้าและปัญหาแบบเรียลไทม์</p>
+    <h1>Install-QA Tracker <span class="ver" style="font-size:11px;font-weight:600;color:var(--text3);letter-spacing:.5px"></span></h1>
+    <p class="sub">ติดตามทีมติดตั้ง-QA หน้างาน · รายงานความคืบหน้าและปัญหาแบบเรียลไทม์</p>
 
     <div id="lgErr" class="lg-err hide"></div>
 
@@ -420,7 +429,7 @@ button,input,select,textarea{font-family:inherit;color:inherit}
 <!-- ══════════ MANAGER ══════════ -->
 <div id="mgr" class="hide">
   <div class="tb">
-    <div class="tb-title"><div class="brandmark" style="width:96px;height:24px"></div><span style="color:var(--border2)">|</span> Install-QA Tracker <span class="v" id="mgrWho"></span></div>
+    <div class="tb-title"><div class="brandmark" style="width:96px;height:24px"></div><span style="color:var(--border2)">|</span> Install-QA Tracker <span class="v ver"></span> <span class="v" id="mgrWho"></span></div>
     <input type="date" id="dtPick" class="tin" style="height:28px;padding:4px 9px">
     <button class="tb-btn" id="btnToday">วันนี้</button>
     <div class="tb-live"><span class="tb-dot" id="liveDot"></span><span id="liveTxt">กำลังเชื่อมต่อ…</span></div>
@@ -601,7 +610,7 @@ button,input,select,textarea{font-family:inherit;color:inherit}
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
 /* =====================================================================
-   Install-QA Tracker v1.2 — ติดตามทีมติดตั้งหลายทีม หลายหน้างาน
+   Install-QA Tracker — ติดตามทีมติดตั้ง-QA หลายทีม หลายหน้างาน (เวอร์ชันอยู่ที่ window.APP_VER)
    ใช้ Supabase project เดียวกับ production_v2.html (ตาราง it_*)
    ===================================================================== */
 var SB_URL = 'https://vyzsdfezmzawctfkehbk.supabase.co';
@@ -3753,7 +3762,7 @@ function renderMe(){
     '<div class="mpad" style="margin-top:-4px"><button class="bigbtn" style="background:var(--s3);color:var(--text);box-shadow:none" id="bOut">ออกจากระบบ</button></div>'+
     '<div style="display:flex;flex-direction:column;align-items:center;gap:6px;padding:18px 0 26px">'+
       '<div class="brandmark" style="width:120px;height:42px"></div>'+
-      '<p style="font-size:10.5px;color:var(--text3);letter-spacing:1px">INSTALL-QA TRACKER v1.2</p></div>';
+      '<p style="font-size:10.5px;color:var(--text3);letter-spacing:1px">INSTALL-QA TRACKER v'+window.APP_VER+'</p></div>';
   if($('vtTeam')) $('vtTeam').onchange=function(){ S.asTeam=this.value; S.tJob=null; loadTeamData(); toast('สลับไปทีม '+(teamOf(this.value).name||'')); };
   if($('vtDash')) $('vtDash').onclick=goDash;
   $('bEdit').onclick=myAccount;
