@@ -432,7 +432,7 @@ body.preview #previewBar{display:flex}
 
 <script>
 /* ── ยามเฝ้า splash: อยู่นอกสคริปต์หลัก ถ้าสคริปต์หลักพัง ตัวนี้ยังทำงาน ── */
-window.APP_VER='3.5';
+window.APP_VER='3.6';
 (function(){
   var fill=function(){
     var a=document.querySelectorAll('.ver');
@@ -4219,6 +4219,126 @@ function reportSheet(a){
   };
 
   if($('sv')) $('sv').onclick=function(){ send($('cdClose') && $('cdClose').checked, this); };
+}
+
+/* เลือกว่าจะปิดปัญหาเรื่องไหนบ้าง ตอนงานเสร็จ 100% — ติ๊กมาให้ทุกเรื่อง เอาออกเฉพาะที่ยังต้องตามต่อ */
+function askCloseIssues(list, a){
+  return new Promise(function(res){
+    var sel={}; list.forEach(function(i){ sel[i.id]=true; });
+    var finish=function(ids){
+      $('shX2').onclick=closeSheet2; $('shBd2').onclick=closeSheet2;
+      closeSheet2(); res(ids);
+    };
+    var count=function(){ return Object.keys(sel).filter(function(k){ return sel[k]; }).length; };
+    var draw=function(){
+      $('shB2').innerHTML=
+        '<p style="font-size:13px;color:var(--text2);line-height:1.7;margin-bottom:12px">'+
+          'งานที่ไซต์นี้เสร็จครบ 100% แล้ว แต่ยังมีปัญหาค้างอยู่ <b style="color:var(--text)">'+list.length+' เรื่อง</b><br>'+
+          'ติ๊กไว้ = ปิดเรื่องนี้ไปพร้อมงาน · เอาติ๊กออก = ยังต้องให้ออฟฟิศตามต่อ เช่น เคลมของเสียหาย</p>'+
+        list.map(function(i){
+          var c=catOf(i.category);
+          return '<label style="display:flex;align-items:flex-start;gap:10px;background:'+(sel[i.id]?'var(--green-dim)':'var(--s1)')+
+            ';border:1px solid '+(sel[i.id]?'rgba(52,199,89,.3)':'var(--border)')+';border-radius:11px;'+
+            'padding:10px 12px;margin-bottom:7px;cursor:pointer">'+
+            '<input type="checkbox" data-ci="'+i.id+'"'+(sel[i.id]?' checked':'')+' style="margin-top:3px;flex-shrink:0">'+
+            '<span style="flex:1;min-width:0">'+
+              '<span style="font-size:13px;font-weight:600;display:block">#'+i.ref+' '+esc(i.title)+'</span>'+
+              '<span style="font-size:11px;color:var(--text3);display:block;margin-top:2px">'+
+                c.i+' '+esc(c.l)+' · '+esc(SEV[i.severity].l)+' · แจ้ง '+fmtDT(i.opened_at)+'</span>'+
+            '</span></label>';
+        }).join('');
+      $('shB2').querySelectorAll('[data-ci]').forEach(function(cb){
+        cb.onchange=function(){ sel[cb.dataset.ci]=cb.checked; draw(); };
+      });
+      var b=$('ciGo');
+      if(b){ b.textContent = count()? ('ปิด '+count()+' เรื่อง แล้วจบงาน') : 'ไม่ปิดเรื่องไหนเลย';
+             b.style.background = count()? 'var(--green)' : ''; b.style.boxShadow='none'; }
+    };
+    sheet2('งานเสร็จแล้ว — จัดการปัญหาที่ค้าง', '',
+      '<button class="btn sm" id="ciGo">ปิดทั้งหมด แล้วจบงาน</button>');
+    draw();
+    $('ciGo').onclick=function(){ finish(Object.keys(sel).filter(function(k){ return sel[k]; })); };
+    $('shX2').onclick=function(){ finish([]); };
+    $('shBd2').onclick=function(){ finish([]); };
+  });
+}
+
+/* ═════ ปิดวันแล้วจัดการงานที่เหลือ ═════
+   เสร็จ 100%  → ลบวันที่เหลือในแผน + ให้เลือกปิดปัญหาที่ค้าง
+   ยังไม่ครบ  → ยกเช็กลิสต์ที่ยังไม่ได้ทำ + ปัญหาที่ค้าง ไปเป็นงานวันถัดไป */
+async function rollover(a, full){
+  try{
+    var openQ=await db.from('it_issues').select('*')
+      .eq('site_id',a.site_id).neq('status','resolved').neq('status','closed');
+    var open=openQ.data||[];
+
+    var nxtQ=await db.from('it_assignments').select('*')
+      .eq('site_id',a.site_id).eq('team_id',a.team_id).gt('work_date',a.work_date).order('work_date');
+    var future=(nxtQ.data||[]).filter(function(x){ return !x.checkin_at && x.status==='assigned'; });
+
+    if(full){
+      var msg=[];
+      if(future.length){
+        await db.from('it_assignments').delete().in('id', future.map(function(x){ return x.id; }));
+        msg.push('ยกเลิกวันที่เหลืออีก '+future.length+' วัน');
+      }
+      if(open.length){
+        var pick=await askCloseIssues(open, a);
+        if(pick.length){
+          var now=new Date().toISOString();
+          await db.from('it_issues').update({status:'resolved', resolved_at:now}).in('id', pick);
+          for(var k=0;k<pick.length;k++){
+            await db.from('it_issue_comments').insert({issue_id:pick[k], author:meName(), role:'team',
+              body:'ปิดพร้อมงาน — งานที่ไซต์นี้เสร็จครบ 100% เมื่อ '+dayText(a.work_date)});
+          }
+          msg.push('ปิดปัญหา '+pick.length+' เรื่อง');
+        }
+      }
+      if(msg.length) toast(msg.join(' · '), 5000);
+      return;
+    }
+
+    /* ยังไม่ครบ — ยกของค้างไปวันถัดไป */
+    var ck=Array.isArray(a.checklist)?a.checklist:[];
+    var items=ck.filter(function(c){ return !c.done; }).map(function(c){ return {label:c.label, done:false}; });
+    open.forEach(function(i){
+      var lb='⚠️ แก้ปัญหา #'+i.ref+': '+i.title;
+      if(!items.some(function(x){ return x.label===lb; })) items.push({label:lb, done:false});
+    });
+    if(!items.length) return;
+
+    var scope=(a.scope||'งานค้าง')+' · ต่อจาก '+dayText(a.work_date);
+    if(future.length){
+      await db.from('it_assignments').update({checklist:items, scope:scope, progress:0}).eq('id', future[0].id);
+      toast('ยกงานค้าง '+items.length+' ข้อ ไปวัน '+dayText(future[0].work_date), 5000);
+    }else{
+      var d=planDates(addDays(a.work_date,1), 1, true)[0];
+      var r=await db.from('it_assignments').upsert({site_id:a.site_id, team_id:a.team_id, work_date:d,
+        scope:scope, checklist:items}, {onConflict:'site_id,team_id,work_date'});
+      if(!r.error) toast('สร้างงานต่อวัน '+dayText(d)+' · ค้าง '+items.length+' ข้อ', 5000);
+    }
+  }catch(e){}
+}
+
+/* เปิดงานที่ปิดไปแล้วกลับมาแก้ไข — ทำได้จากหน้างานเอง */
+async function reopenDay(a){
+  var was = a.status==='done'? 'ปิดงานเสร็จ' : ('ปิดวันที่ '+pct(a.progress)+'%');
+  var msg='เปิดงานนี้ต่อเพื่อแก้ไข?\n\nสถานะจะกลับเป็น “กำลังทำ” ติ๊กเช็กลิสต์ ส่งรายงาน และปิดงานใหม่ได้อีกครั้ง';
+  if(a.work_date!==todayISO()) msg+='\n\n⚠️ งานนี้เป็นของวันที่ '+dayText(a.work_date)+' ไม่ใช่วันนี้';
+  if(!confirm(msg)) return;
+
+  var upd={status:'working', checkout_at:null};
+  var rep={assignment_id:a.id, site_id:a.site_id, team_id:S.team.id, kind:'progress', progress:pct(a.progress),
+    note:'เปิดงานต่อเพื่อแก้ไข (จาก '+was+')', created_by:meName(), staff_id:S.me.id};
+  try{
+    await db.from('it_assignments').update(upd).eq('id',a.id);
+    await db.from('it_reports').insert(rep);
+    toast('เปิดงานต่อแล้ว — แก้ไขได้ตามปกติ');
+  }catch(e){
+    qPush({t:'report', p:rep, asg:{id:a.id, v:upd}});
+    toast('ยังไม่มีเน็ต — บันทึกไว้ในเครื่องแล้ว', 3600);
+  }
+  Object.assign(a, upd); renderTeam(); loadTeamData();
 }
 
 function renderTeamIssues(){
