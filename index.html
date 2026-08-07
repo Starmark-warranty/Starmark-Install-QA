@@ -445,7 +445,7 @@ body.preview #previewBar{display:flex}
 
 <script>
 /* ── ยามเฝ้า splash: อยู่นอกสคริปต์หลัก ถ้าสคริปต์หลักพัง ตัวนี้ยังทำงาน ── */
-window.APP_VER='4.6';
+window.APP_VER='4.7';
 (function(){
   var fill=function(){
     var a=document.querySelectorAll('.ver');
@@ -3363,7 +3363,11 @@ function renderPlan(){
 }
 /* ── พนักงาน: จัดคนเข้าทีม ── */
 function staffOf(id){ return S.staff.filter(function(x){return x.id===id;})[0]||{}; }
-function teamStaff(tid){ return S.staff.filter(function(x){ return x.team_id===tid && x.active; }); }
+function teamStaff(tid){
+  return S.staff.filter(function(x){
+    return x.team_id===tid && x.active && (rank(x)<4 || isSuper(S.me));
+  });
+}
 function teamLeader(tid){ return teamStaff(tid).filter(function(x){return x.is_leader;})[0]||null; }
 /* ชื่อ/เบอร์หัวหน้าทีมที่ใช้แสดงทุกที่ — เอาจากรายชื่อพนักงานก่อน ค่าเก่าใน it_teams เป็นแค่ตัวสำรอง */
 function leadInfo(t){
@@ -3386,22 +3390,25 @@ async function syncTeamLeader(teamId){
 }
 
 function renderStaff(){
-  var pend=S.staff.filter(function(x){ return x.approved===false; });
-  var un=S.staff.filter(function(x){ return x.approved!==false && !x.team_id && x.active && !isMgr(x); });
-  var noPin=S.staff.filter(function(x){ return !x.pin; }).length;
-  var mgrs=S.staff.filter(function(x){ return rank(x)>=2; }).length;
-  $('staffNote').textContent = S.staff.length+' คน'+(pend.length?(' · 🆕 รออนุมัติ '+pend.length):'')+' · ผู้จัดการขึ้นไป '+mgrs+
+  /* ซ่อนบัญชีผู้ควบคุมระบบจากรายชื่อ — เห็นได้เฉพาะผู้ควบคุมระบบด้วยกันเอง */
+  var list=S.staff.filter(function(x){ return rank(x)<4 || isSuper(S.me); });
+
+  var pend=list.filter(function(x){ return x.approved===false; });
+  var un=list.filter(function(x){ return x.approved!==false && !x.team_id && x.active && !isMgr(x); });
+  var noPin=list.filter(function(x){ return !x.pin; }).length;
+  var mgrs=list.filter(function(x){ return rank(x)>=2; }).length;
+  $('staffNote').textContent = list.length+' คน'+(pend.length?(' · 🆕 รออนุมัติ '+pend.length):'')+' · ผู้จัดการขึ้นไป '+mgrs+
     (un.length?(' · รอจัดทีม '+un.length):'')+(noPin?(' · ยังไม่ตั้ง PIN '+noPin):'');
   var tb=$('tabStaffN');
   var badge=pend.length||un.length;
   if(tb){ tb.textContent=badge; tb.style.display=badge?'':'none'; }
 
-  if(!S.staff.length){
+  if(!list.length){
     $('staffList').innerHTML='<div class="empty"><b>ยังไม่มีพนักงานในระบบ</b>'+
       'ส่งลิงก์แอปให้พนักงานเปิดแล้วลงทะเบียนด้วยรหัสพนักงานของตัวเอง<br>ชื่อจะขึ้นที่นี่ให้จัดเข้าทีมทันที</div>';
     return;
   }
-  var order=S.staff.slice().sort(function(a,b){
+  var order=list.slice().sort(function(a,b){
     var pa=a.approved===false?0:1, pb=b.approved===false?0:1;
     if(pa!==pb) return pa-pb;                                    /* คนรออนุมัติขึ้นบนสุด */
     if(rank(a)!==rank(b)) return rank(b)-rank(a);                /* สิทธิ์สูงขึ้นบนสุด */
