@@ -445,7 +445,7 @@ body.preview #previewBar{display:flex}
 
 <script>
 /* ── ยามเฝ้า splash: อยู่นอกสคริปต์หลัก ถ้าสคริปต์หลักพัง ตัวนี้ยังทำงาน ── */
-window.APP_VER='4.2';
+window.APP_VER='4.5';
 (function(){
   var fill=function(){
     var a=document.querySelectorAll('.ver');
@@ -516,8 +516,8 @@ window.APP_VER='4.2';
     <button class="tab on" data-p="pn">📅 แผนงาน</button>
     <button class="tab" data-p="ov">📍 ภาพรวมหน้างาน</button>
     <button class="tab" data-p="is">⚠️ ปัญหา <b id="tabIssueN" class="q">0</b></button>
-    <button class="tab" data-p="wk">🗂 Work</button>
-    <button class="tab" data-p="tm">👥 Team <b id="tabStaffN" style="display:none">0</b></button>
+    <button class="tab" data-p="wk">🗂 Work &amp; Site</button>
+    <button class="tab" data-p="tm">👥 Manage Team <b id="tabStaffN" style="display:none">0</b></button>
     <button class="tab" data-p="rp">📤 รายงาน / Export</button>
   </div>
 
@@ -578,7 +578,7 @@ window.APP_VER='4.2';
     <div style="padding:0 14px 16px"><div class="card"><div id="isTblWrap"></div></div></div>
   </div>
 
-  <!-- Work -->
+  <!-- Work & Site -->
   <div class="pane" id="pWk">
     <div style="padding:12px 14px 14px">
       <div class="card">
@@ -622,7 +622,7 @@ window.APP_VER='4.2';
     </div>
   </div>
 
-  <!-- Team -->
+  <!-- Manage Team -->
   <div class="pane" id="pTm">
     <div style="padding:12px 14px 14px">
       <div class="card">
@@ -974,10 +974,14 @@ function rank(u){
 /* สิทธิ์ที่ไฟล์แอปเวอร์ชันนี้ยังไม่รู้จัก — เกิดตอนอัปฐานข้อมูลแล้วแต่ยังใช้ไฟล์เก่า */
 function unknownRole(u){ return !!(u && u.role && RANK[u.role]===undefined); }
 function isMgr(u){ return rank(u)>=1; }          /* เข้า Dashboard ได้ */
+/* เข้ามุมมองหน้างานได้ = ผู้จัดการขึ้นไป
+   แอดมินเข้าไม่ได้ เพราะเข้าไปแล้วเช็คอิน ส่งรายงาน หรือติ๊กเช็กลิสต์แทนช่างได้
+   ซึ่งทำให้ข้อมูลหน้างานเชื่อถือไม่ได้ */
+function canField(u){ return rank(u)>=2; }
 /* ซ่อน/แสดงปุ่มบน Dashboard ตามสิทธิ์ — เรียกจากทุกทางที่เข้าหน้า Dashboard */
 function applyRoleUI(){
   var set=function(id, show){ var e=$(id); if(e) e.classList.toggle('hide', !show); };
-  set('btnField', isMgr(S.me));                 /* สลับไปมุมมองหน้างาน */
+  set('btnField', canField(S.me));              /* สลับไปมุมมองหน้างาน — ผู้จัดการขึ้นไป */
   set('btnCats',  isAdmin(S.me));               /* ประเภทปัญหา — ผู้จัดการขึ้นไป */
   set('pnHol',    rank(S.me)>=1);               /* วันหยุด — แอดมินขึ้นไป */
   set('btnHelp',  !isOwner(S.me));              /* คู่มือ — ซ่อนของระดับสูงสุด */
@@ -1207,7 +1211,7 @@ function hideSplash(){ if(window.__splashReady) window.__splashReady(); }
 function isWide(){ return window.innerWidth>=900; }
 
 function goField(){
-  if(!isMgr(S.me)) return;
+  if(!canField(S.me)) return toast('ระดับแอดมินเข้ามุมมองหน้างานไม่ได้ — กันการคีย์ข้อมูลแทนช่าง', 4500);
   S.forcedField=true;
   if(!S.asTeam) S.asTeam = S.me.team_id || ((S.teams[0]||{}).id) || null;
   S.role='team'; S.tView='jobs'; S.tJob=null;
@@ -1259,7 +1263,7 @@ window.addEventListener('resize', function(){
 });
 function testBar(){
   var b=$('testbar');
-  if(isMgr(S.me) && S.role==='team'){
+  if(canField(S.me) && S.role==='team'){
     b.classList.add('on');
     b.innerHTML='🧪 โหมดทดสอบ — คุณกำลังดูมุมมองหน้างานของ '+
       '<b>'+esc(S.team? S.team.name : 'ยังไม่ได้เลือกทีม')+'</b> · เปลี่ยนทีมได้ที่แท็บ “ทีมของฉัน”';
@@ -1931,6 +1935,98 @@ function holidayForm(id){
   };
 }
 
+/* ═════ พิมพ์รายงานสรุป ═════ */
+function printReport(){
+  var d=S.rp;
+  if(!d) return toast('กดปุ่ม “สรุปข้อมูล” ก่อน');
+  var f=d.from, t=d.to, A=d.A, I=d.I, R=d.R, rows=d.rows;
+  var dt0=new Date(f+'T00:00:00'), dt1=new Date(t+'T00:00:00');
+  var period=dt0.getDate()+' '+MO_TH[dt0.getMonth()]+' — '+dt1.getDate()+' '+MO_TH[dt1.getMonth()]+' '+(dt1.getFullYear()+543);
+  var done=A.filter(function(a){ return a.status==='done'; }).length;
+  var part=A.filter(function(a){ return a.status==='partial'; }).length;
+  var noCk=A.filter(function(a){ return !a.checkin_at; }).length;
+
+  /* ปัญหาแยกตามประเภทและความเร่งด่วน */
+  var byCat={}, cats=[];
+  I.forEach(function(i){ var c=catOf(i.category).l; if(!byCat[c]){ byCat[c]={n:0,fix:0}; cats.push(c); }
+    byCat[c].n++; if(i.resolved_at||i.closed_at) byCat[c].fix++; });
+  cats.sort(function(a,b){ return byCat[b].n-byCat[a].n; });
+
+  var kpi=function(v,l){ return '<td class="k"><div class="v">'+v+'</div><div class="l">'+l+'</div></td>'; };
+
+  var html='<!DOCTYPE html><html lang="th"><head><meta charset="utf-8"><title>รายงานสรุปงานติดตั้ง '+esc(period)+'</title>'+
+    '<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700&display=swap" rel="stylesheet">'+
+    '<style>'+
+    '@page{size:A4 portrait;margin:12mm}'+
+    'body{font-family:"Sarabun",sans-serif;color:#111;margin:0;padding:14px;font-size:11px}'+
+    '.hd{display:flex;align-items:flex-end;gap:14px;border-bottom:2px solid #111;padding-bottom:8px;margin-bottom:14px}'+
+    '.hd h1{font-size:17px;margin:0;letter-spacing:-.01em}'+
+    '.hd .p{font-size:12px;color:#444;margin-top:2px}'+
+    '.hd .meta{margin-left:auto;text-align:right;font-size:10px;color:#666;line-height:1.6}'+
+    'h2{font-size:12.5px;margin:18px 0 7px;padding-bottom:4px;border-bottom:1px solid #ccc}'+
+    'table{border-collapse:collapse;width:100%}'+
+    'th,td{border:1px solid #bbb;padding:5px 7px;font-size:10.5px}'+
+    'th{background:#f0f0f3;font-weight:700;text-align:left}'+
+    'td.n{text-align:right;font-variant-numeric:tabular-nums}'+
+    'table.kpi{border:none;margin-bottom:4px}'+
+    'table.kpi td{border:none;border-left:3px solid #007AFF;padding:4px 10px;width:20%}'+
+    'table.kpi .v{font-size:19px;font-weight:700;letter-spacing:-.02em}'+
+    'table.kpi .l{font-size:9.5px;color:#666;margin-top:1px}'+
+    'tr:nth-child(even) td{background:#fafafa}'+
+    '.sig{margin-top:34px;display:flex;gap:30px;page-break-inside:avoid;justify-content:flex-end}'+
+    '.sig .box{width:190px;text-align:center;font-size:10px;line-height:1.9}'+
+    '.sig .space{height:44px}'+
+    '.sig .line{border-bottom:1px dotted #555;margin-bottom:5px}'+
+    '.sig .role{font-weight:700;font-size:10.5px}'+
+    '.sig .date{color:#666;font-size:9.5px;margin-top:3px}'+
+    '</style></head><body>'+
+    '<div class="hd"><div><h1>รายงานสรุปงานติดตั้ง — Install-QA Tracker</h1>'+
+      '<div class="p">'+esc(period)+'</div></div>'+
+      '<div class="meta">พิมพ์เมื่อ '+fmtDT(new Date().toISOString())+'<br>โดย '+esc(meName())+'</div></div>'+
+
+    '<h2>ภาพรวม</h2>'+
+    '<table class="kpi"><tr>'+
+      kpi(A.length,'งานที่มอบหมาย')+
+      kpi(done+(A.length?(' <span style="font-size:11px;color:#666">('+Math.round(done/A.length*100)+'%)</span>'):''),'ปิดงานสำเร็จ')+
+      kpi(part,'ปิดวันแต่ยังค้าง')+
+      kpi(R.length,'รายงานจากหน้างาน')+
+      kpi(I.length,'ปัญหาที่แจ้ง')+
+    '</tr></table>'+
+    '<div style="font-size:10px;color:#666">ไม่เช็คอิน '+noCk+' ครั้ง'+
+      (d.avgFix!=null? (' · เวลาปิดเรื่องเฉลี่ย '+d.avgFix+' ชม.') : '')+'</div>'+
+
+    '<h2>สรุปรายทีม</h2>'+
+    '<table><thead><tr><th>ทีม</th><th style="width:60px">งาน</th><th style="width:60px">ปิดได้</th>'+
+      '<th style="width:78px">ไม่เช็คอิน</th><th style="width:88px">คืบหน้าเฉลี่ย</th><th style="width:60px">ปัญหา</th></tr></thead><tbody>'+
+      (rows.length? rows.map(function(x){
+        return '<tr><td>'+esc(x.team)+'</td><td class="n">'+x.n+'</td><td class="n">'+x.done+'</td>'+
+          '<td class="n">'+x.late+'</td><td class="n">'+x.avg+'%</td><td class="n">'+x.iss+'</td></tr>';
+      }).join('') : '<tr><td colspan="6">ไม่มีข้อมูลในช่วงนี้</td></tr>')+
+    '</tbody></table>'+
+
+    (cats.length? ('<h2>ปัญหาแยกตามประเภท</h2>'+
+      '<table><thead><tr><th>ประเภท</th><th style="width:70px">จำนวน</th><th style="width:80px">แก้แล้ว</th>'+
+      '<th style="width:80px">ยังค้าง</th></tr></thead><tbody>'+
+      cats.map(function(c){
+        return '<tr><td>'+esc(c)+'</td><td class="n">'+byCat[c].n+'</td><td class="n">'+byCat[c].fix+'</td>'+
+          '<td class="n">'+(byCat[c].n-byCat[c].fix)+'</td></tr>';
+      }).join('')+'</tbody></table>') : '')+
+
+    '<div class="sig">'+
+      ['ผู้จัดทำ','ผู้ตรวจสอบ','ผู้อนุมัติ'].map(function(role){
+        return '<div class="box"><div class="space"></div><div class="line"></div>'+
+          '<div>(&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;)</div>'+
+          '<div class="role">'+role+'</div>'+
+          '<div class="date">วันที่ ......... / ......... / .........</div></div>';
+      }).join('')+
+    '</div></body></html>';
+
+  var w=window.open('','_blank');
+  if(!w) return toast('เบราว์เซอร์บล็อกหน้าต่างใหม่ — อนุญาต popup ของเว็บนี้ก่อน', 4500);
+  w.document.write(html); w.document.close();
+  setTimeout(function(){ try{ w.focus(); w.print(); }catch(e){} }, 700);
+}
+
 /* ═════ พิมพ์ตารางแผนงาน ═════ */
 function printSchedule(){
   var d=scheduleData(), days=d.days, teams=d.teams, today=todayISO();
@@ -2275,10 +2371,14 @@ async function openAsg(id){
       iss.map(function(i){ return '<div class="cmt" style="cursor:pointer" onclick="openIssue(\''+i.id+'\')">'+
         '<div class="cmt-h"><span class="chip '+SEV[i.severity].c+'">'+SEV[i.severity].l+'</span><b>#'+i.ref+' '+esc(i.title)+'</b>'+
         '<span style="margin-left:auto" class="chip '+IST[i.status].c+'">'+IST[i.status].l+'</span></div></div>'; }).join('')+'</div>'):'')+
-    '<div class="sec"><div class="sec-h">รายงานจากหน้างาน ('+reps.length+')</div>'+
+    '<div class="sec"><div class="sec-h" style="display:flex;align-items:center;gap:8px">'+
+        '<span style="flex:1">รายงานจากหน้างาน ('+reps.length+')</span>'+
+        ((rank(S.me)>=1 && reps.length>1)? '<button class="tb-btn" id="repWipe">ล้างทั้งหมด</button>':'')+
+      '</div>'+
       (reps.length? reps.map(function(p){
         return '<div class="cmt"><div class="cmt-h"><b>'+esc(p.created_by||'ทีม')+'</b><span>'+fmtDT(p.created_at)+'</span>'+
-          (p.progress!=null?'<span class="chip c-blue">'+pct(p.progress)+'%</span>':'')+'</div>'+
+          (p.progress!=null?'<span class="chip c-blue">'+pct(p.progress)+'%</span>':'')+
+          (rank(S.me)>=1? '<button class="uacc-x" data-rdel="'+p.id+'" style="margin-left:auto" title="ลบรายการนี้">×</button>':'')+'</div>'+
           (p.note?'<div class="cmt-b">'+esc(p.note)+'</div>':'')+photoStrip(p.photos)+'</div>';
       }).join('') : '<div class="empty" style="padding:22px">ยังไม่มีรายงานส่งเข้ามา</div>')+
     '</div>';
@@ -2286,6 +2386,28 @@ async function openAsg(id){
     '<button class="btn sm" id="dwGo">เปิดแผนที่นำทาง</button></div>'+
     '<button class="btn ghost sm" id="dwEdit" style="width:100%">🗓 เปลี่ยนแผน · เลื่อนวัน · ย้ายทีม · ลบงาน</button>';
   $('dwEdit').onclick=function(){ asgActions(a); };
+
+  /* ลบรายงานจากหน้างาน — แอดมินขึ้นไป */
+  $('dwBody').querySelectorAll('[data-rdel]').forEach(function(b){
+    b.onclick=async function(){
+      var rp=reps.filter(function(x){ return x.id===b.dataset.rdel; })[0]; if(!rp) return;
+      var np=(rp.photos||[]).length;
+      if(!confirm('ลบรายงานนี้?\n\n'+fmtDT(rp.created_at)+' โดย '+(rp.created_by||'ทีม')+
+        (rp.note?('\n“'+String(rp.note).slice(0,80)+'”'):'')+
+        (np?('\n\nรูปที่แนบ '+np+' รูปจะไม่แสดงอีก'):'')+
+        '\n\nกู้คืนไม่ได้ และไม่กระทบเปอร์เซ็นต์คืบหน้าปัจจุบัน')) return;
+      var r=await db.from('it_reports').delete().eq('id', rp.id);
+      if(r.error) return toast('ลบไม่สำเร็จ: '+r.error.message, 4000);
+      toast('ลบรายงานแล้ว'); openAsg(a.id); loadMgr();
+    };
+  });
+  if($('repWipe')) $('repWipe').onclick=async function(){
+    if(!confirm('ล้างรายงานทั้งหมด '+reps.length+' รายการของงานนี้?\n\n'+
+      'ใช้ตอนล้างข้อมูลทดสอบ — ประวัติการทำงานจริงจะหายไปด้วย กู้คืนไม่ได้')) return;
+    var r=await db.from('it_reports').delete().eq('assignment_id', a.id);
+    if(r.error) return toast('ลบไม่สำเร็จ: '+r.error.message, 4000);
+    toast('ล้างรายงานแล้ว '+reps.length+' รายการ'); openAsg(a.id); loadMgr();
+  };
   if($('roadGo')) $('roadGo').onclick=async function(){
     if(s.lat==null || a.checkin_lat==null) return toast('ต้องมีทั้งพิกัดไซต์และพิกัดเช็คอินก่อน');
     this.disabled=true; this.textContent='กำลังคำนวณ…';
@@ -2614,16 +2736,17 @@ var HELP_DASH=[
     'คลิกเข้าไปเพื่อพิมพ์คำสั่งการ ระบุผู้รับผิดชอบ และเปลี่ยนสถานะ',
     'ทุกการเปลี่ยนสถานะระบบลงบันทึกว่าใครทำเมื่อไหร่ ตามย้อนได้เสมอ',
     'ลบเรื่องได้ที่ปุ่มแดงท้ายกล่องรายละเอียด หรือคลิกขวาที่แถวในตาราง — เรื่องที่จบแล้วแนะนำให้ปิดเรื่องแทนลบ',
+    'รายงานจากหน้างานลบได้ทีละรายการที่ปุ่ม × ท้ายหัวข้อ หรือกด “ล้างทั้งหมด” ตอนเคลียร์ข้อมูลทดสอบ',
     'หน้างานเห็นคำตอบในมือถือทันทีโดยไม่ต้องรีเฟรช'
   ]},
-  {k:'wk', i:'🗂', t:'Work — ไซต์ หมุด และคลังงาน', b:[
+  {k:'wk', i:'🗂', t:'Work & Site — ไซต์ หมุด และคลังงาน', b:[
     'ไซต์งาน: ปักพิกัดบนแผนที่ได้เลย ลากหมุดปรับละเอียด หรือกดปุ่มตำแหน่งปัจจุบันตอนอยู่หน้างาน',
     'หมุดพิกัดประจำ: ปักที่ไปบ่อยไว้ 1–5 จุด คีย์ไซต์ใหม่กดหมุดเดียวได้พิกัดทันที',
     'เหมาะมากกับคอนโดที่มีหลายห้องในตึกเดียว ปักหมุดตึกไว้แล้วคีย์ห้องได้รัว ๆ',
     'คลังงาน: เพิ่ม/แก้/ลบหมวด รายการงาน และรายการย่อย รายการย่อยคือเช็กลิสต์ที่ทีมจะเห็น',
     'แก้คลังงานไม่กระทบงานที่มอบหมายไปแล้ว เพราะเช็กลิสต์ถูกคัดลอกไว้ในใบงานตั้งแต่ตอนคีย์'
   ]},
-  {k:'tm', i:'👥', t:'Team — ทีมและพนักงาน', b:[
+  {k:'tm', i:'👥', t:'Manage Team — ทีมและพนักงาน', b:[
     'คนใหม่ลงทะเบียนเองด้วยรหัสพนักงาน ชื่อจะโผล่บนสุดพร้อมป้ายแดง “รอกำหนดตำแหน่ง” และตัวเลขบนแท็บ',
     'กดปุ่ม “✅ กำหนดตำแหน่ง” เลือกสิทธิ์ จัดทีม แล้วติ๊กอนุมัติ — ก่อนอนุมัติเขาใช้งานอะไรไม่ได้เลย',
     'พออนุมัติแล้วหน้าจอฝั่งเขาเปลี่ยนเองทันที ไม่ต้องบอกให้ล็อกอินใหม่',
@@ -2633,6 +2756,7 @@ var HELP_DASH=[
   ]},
   {k:'rp', i:'📤', t:'รายงาน / Export', b:[
     'เลือกช่วงวันแล้วกดสรุปข้อมูล ได้สรุปรายทีม: งานที่ได้รับ ปิดได้ ไม่เช็คอินกี่ครั้ง ปัญหากี่เรื่อง',
+    'ปุ่ม 🖨 พิมพ์รายงาน ได้เอกสาร A4 แนวตั้ง — ภาพรวม สรุปรายทีม ปัญหาแยกตามประเภท พร้อมช่องเซ็น',
     'Export CSV ได้สามชุด — งาน ปัญหา และรายงานหน้างาน',
     'ไฟล์เปิดใน Excel ภาษาไทยไม่เพี้ยน มีคอลัมน์ระยะเช็คอินเป็นกิโลเมตรและพิกัดจริง'
   ]},
@@ -2644,11 +2768,12 @@ var HELP_DASH=[
 ];
 var HELP_MGR_EXTRA=[
   {k:'rl', i:'🔑', t:'สิทธิ์ที่คุณมีเพิ่ม (ผู้จัดการ)', b:[
-    'ตั้งสิทธิ์ผู้ใช้ได้ถึงระดับแอดมิน ที่แท็บ Team กดแก้ไขที่ชื่อคนนั้น',
+    'ตั้งสิทธิ์ผู้ใช้ได้ถึงระดับแอดมิน ที่แท็บ Manage Team กดแก้ไขที่ชื่อคนนั้น',
     'แก้ไข ลบ และล้าง PIN ให้บัญชีระดับแอดมินและพนักงานหน้างานได้',
     'จัดการประเภทปัญหาได้ที่ปุ่ม ⚙️ ในแท็บปัญหา — เพิ่มหมวด แก้ชื่อ เรียงลำดับ',
     'เปลี่ยนสิทธิ์ตัวเองไม่ได้ และแตะบัญชีที่สิทธิ์สูงกว่าไม่ได้',
-    'กด “👷 มุมมองหน้างาน” เพื่อดูแอปฝั่งทีม เลือกดูทีมไหนก็ได้ กดกลับมาได้ตลอด',
+    'กด “👷 มุมมองหน้างาน” เพื่อดูแอปฝั่งทีม เลือกดูทีมไหนก็ได้ กดกลับมาได้ตลอด (แอดมินใช้ไม่ได้)',
+    'ระวัง: รายงานหรือปัญหาที่ส่งจากโหมดนี้บันทึกจริงในชื่อคุณ ใช้ดูอย่างเดียวจะปลอดภัยกว่า',
     'เปิดจากคอมจะขึ้นเป็นกรอบมือถือจำลอง สลับทีมได้จากแถบบน กดปุ่ม “🖥 กลับ Dashboard” เพื่อออก',
     'ถ้าเผลออยู่ในหน้ามือถือ ปุ่ม “🖥 Dashboard” อยู่มุมขวาบนของหัวจอเสมอ'
   ]}
@@ -2658,8 +2783,7 @@ var HELP_ADM_EXTRA=[
     'ใช้งาน Dashboard ได้ครบทุกแท็บ วางแผน สั่งการ และจัดการข้อมูลได้ทั้งหมด',
     'แก้ไขและลบได้เฉพาะบัญชีระดับพนักงานหน้างาน',
     'เปลี่ยนสิทธิ์ผู้ใช้ไม่ได้ และแก้ไขประเภทปัญหาไม่ได้ ต้องให้ผู้จัดการขึ้นไปทำ',
-    'กด “👷 มุมมองหน้างาน” เพื่อดูแอปฝั่งทีมได้ เลือกดูทีมไหนก็ได้',
-    'ถ้าเผลออยู่ในหน้ามือถือ ปุ่ม “🖥 Dashboard” อยู่มุมขวาบนของหัวจอเสมอ'
+    'เข้ามุมมองหน้างานไม่ได้ — กันไม่ให้คีย์เช็คอินหรือรายงานแทนช่าง ข้อมูลหน้างานจะได้เชื่อถือได้'
   ]}
 ];
 
@@ -3814,7 +3938,8 @@ $('btnRpRun').onclick=async function(){
       kpi('ปัญหาที่แจ้ง', I.length, avgFix!=null? ('ปิดเรื่องเฉลี่ย '+avgFix+' ชม.') : 'ยังไม่มีเรื่องที่ปิด', I.length>0)+
     '</div>'+
     '<div class="card"><div class="card-h"><span>สรุปรายทีม</span>'+
-      '<span style="display:flex;gap:6px"><button class="tb-btn" id="exA">Export งาน CSV</button>'+
+      '<span style="display:flex;gap:6px"><button class="tb-btn" id="exPrint">🖨 พิมพ์รายงาน</button>'+
+      '<button class="tb-btn" id="exA">Export งาน CSV</button>'+
       '<button class="tb-btn" id="exI">Export ปัญหา CSV</button>'+
       '<button class="tb-btn" id="exR">Export รายงาน CSV</button></span></div>'+
       '<table class="itbl"><thead><tr><th>ทีม</th><th style="width:80px">งาน</th><th style="width:80px">ปิดได้</th>'+
@@ -3825,6 +3950,8 @@ $('btnRpRun').onclick=async function(){
         : '<tr><td colspan="6"><div class="empty">ไม่มีข้อมูลในช่วงนี้</div></td></tr>')+
       '</tbody></table></div>';
 
+  S.rp={from:f, to:t, A:A, I:I, R:R, rows:rows, avgFix:avgFix};
+  $('exPrint').onclick=printReport;
   $('exA').onclick=function(){ csv('assignments_'+f+'_'+t, A.map(function(a){
     var s=siteOf(a.site_id), tm=teamOf(a.team_id);
     return {วันที่:a.work_date, รหัสงาน:s.code, ไซต์:s.name, ลูกค้า:s.customer, ทีม:tm.code+' '+tm.name,
@@ -3986,7 +4113,7 @@ function renderPending(){
 }
 
 function renderNoTeam(){
-  if(isMgr(S.me) && S.teams && S.teams.length){
+  if(canField(S.me) && S.teams && S.teams.length){
     $('tTitle').textContent='เลือกทีมที่จะทดสอบ';
     $('tSub').textContent=meName()+' · '+(ROLES[S.me.role]||'');
     $('tBody').innerHTML='<div class="blk" style="margin-top:14px"><div class="blk-h">โหมดทดสอบ</div>'+
@@ -4682,7 +4809,7 @@ function renderMe(){
       '<div>งานที่ได้รับ: <b>'+wk.length+'</b> งาน</div>'+
       '<div>ปิดงานสำเร็จ: <b>'+done+'</b> งาน</div>'+
       '<div>ปัญหาที่แจ้ง: <b>'+S.issues.length+'</b> เรื่อง</div></div></div>'+
-    (isMgr(S.me)? ('<div class="blk"><div class="blk-h">🧪 โหมดทดสอบ</div><div class="blk-c">'+
+    (canField(S.me)? ('<div class="blk"><div class="blk-h">🧪 โหมดทดสอบ</div><div class="blk-c">'+
       '<label style="font-size:11px;font-weight:600;color:var(--text2);display:block;margin-bottom:5px">ดูมุมมองหน้างานของทีม</label>'+
       '<select id="vtTeam" class="tin" style="width:100%">'+
         S.teams.map(function(t){ return '<option value="'+t.id+'"'+((S.team&&t.id===S.team.id)?' selected':'')+'>'+
