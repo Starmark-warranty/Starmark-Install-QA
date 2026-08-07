@@ -169,6 +169,11 @@ button,input,select,textarea{font-family:inherit;color:inherit}
 .plan th,.plan td{border-bottom:1px solid var(--border);border-right:1px solid var(--border);padding:5px 6px;vertical-align:top}
 .plan thead th{position:sticky;top:0;z-index:3;background:rgba(250,250,252,.97);backdrop-filter:blur(8px);
   font-size:10.5px;font-weight:700;color:var(--text2);text-align:center;letter-spacing:.2px;line-height:1.35;padding:7px 6px}
+body.dragmode .pjob{cursor:grab}
+body.dragmode .pjob:active{cursor:grabbing}
+.pjob.dragging{opacity:.4;transform:scale(.97)}
+.pcell.dropok{outline:2px dashed var(--accent);outline-offset:-2px;background:var(--accent-glow)!important}
+#pnDragHint{font-size:11px;color:var(--text3);white-space:nowrap}
 .pcell.clash{box-shadow:inset 0 0 0 2px var(--orange);background:rgba(255,149,0,.08)}
 .pcell.clash:hover{background:var(--accent-glow)}
 .pclash{display:block;font-size:9.5px;font-weight:700;color:#c26c00;margin-bottom:3px;letter-spacing:.2px}
@@ -445,7 +450,7 @@ body.preview #previewBar{display:flex}
 
 <script>
 /* ── ยามเฝ้า splash: อยู่นอกสคริปต์หลัก ถ้าสคริปต์หลักพัง ตัวนี้ยังทำงาน ── */
-window.APP_VER='4.7';
+window.APP_VER='4.8';
 (function(){
   var fill=function(){
     var a=document.querySelectorAll('.ver');
@@ -534,6 +539,7 @@ window.APP_VER='4.7';
       <label style="font-size:11.5px;color:var(--text2);display:flex;align-items:center;gap:5px">
         <input type="checkbox" id="pnBusy"> เฉพาะทีมที่มีงาน</label>
       <span id="pnNote" style="margin-left:auto;font-size:11.5px;color:var(--text2)">—</span>
+      <span id="pnDragHint" class="hide">⇧ Shift หรือ Ctrl ค้างไว้ = ลากย้ายงาน</span>
       <button class="tb-btn hide" id="pnHol">🏖 วันหยุด</button>
       <button class="tb-btn" id="pnPrint">🖨 พิมพ์</button>
       <button class="tb-btn" id="pnXls">📊 Excel</button>
@@ -990,6 +996,7 @@ function applyRoleUI(){
   set('btnField', canField(S.me));              /* สลับไปมุมมองหน้างาน — ผู้จัดการขึ้นไป */
   set('btnCats',  isAdmin(S.me));               /* ประเภทปัญหา — ผู้จัดการขึ้นไป */
   set('pnHol',    rank(S.me)>=1);               /* วันหยุด — แอดมินขึ้นไป */
+  set('pnDragHint', rank(S.me)>=1);             /* ลากย้ายงาน — แอดมินขึ้นไป */
   set('geoWrap',  rank(S.me)>=2);               /* ตรวจตำแหน่งเช็คอิน — ผู้จัดการขึ้นไป */
   set('btnHelp',  !isOwner(S.me));              /* คู่มือ — ซ่อนของระดับสูงสุด */
 }
@@ -1840,6 +1847,36 @@ function renderSchedule(){
   wrap.querySelectorAll('[data-add]').forEach(function(td){
     td.onclick=function(){ var v=td.dataset.add.split('|'); quickAssign(v[0], v[1]); };
   });
+
+  /* ── ลากย้ายงาน (กด Shift หรือ Ctrl ค้าง) — แอดมินขึ้นไป ── */
+  if(rank(S.me)>=1){
+    wrap.querySelectorAll('[data-job]').forEach(function(el){
+      el.draggable=true;
+      el.ondragstart=function(e){
+        if(!(e.shiftKey||e.ctrlKey||e.metaKey)){ e.preventDefault(); return false; }
+        DRAG_JOB=el.dataset.job;
+        el.classList.add('dragging');
+        try{ e.dataTransfer.setData('text/plain', DRAG_JOB); e.dataTransfer.effectAllowed='move'; }catch(_){}
+      };
+      el.ondragend=function(){
+        el.classList.remove('dragging'); DRAG_JOB=null;
+        wrap.querySelectorAll('.dropok').forEach(function(c){ c.classList.remove('dropok'); });
+      };
+    });
+    wrap.querySelectorAll('[data-add]').forEach(function(td){
+      td.ondragover=function(e){
+        if(!DRAG_JOB) return;
+        e.preventDefault(); try{ e.dataTransfer.dropEffect='move'; }catch(_){}
+        td.classList.add('dropok');
+      };
+      td.ondragleave=function(){ td.classList.remove('dropok'); };
+      td.ondrop=function(e){
+        e.preventDefault(); td.classList.remove('dropok');
+        var v=td.dataset.add.split('|'), id=DRAG_JOB; DRAG_JOB=null;
+        if(id) moveJobTo(id, v[0], v[1]);
+      };
+    });
+  }
 }
 
 /* วันหยุดราชการไทยที่ตรงวันเดิมทุกปี — ใช้เติมชื่อให้อัตโนมัติ
@@ -2203,6 +2240,41 @@ function exportSchedule(){
   }, 900);
 
   toast('ดาวน์โหลด 2 ไฟล์ — ตารางและรายการ', 4200);
+}
+
+/* ── ย้ายงานด้วยการลาก ── */
+var DRAG_JOB=null;
+document.addEventListener('keydown', function(e){
+  if(e.shiftKey||e.ctrlKey||e.metaKey) document.body.classList.add('dragmode');
+});
+document.addEventListener('keyup', function(e){
+  if(!(e.shiftKey||e.ctrlKey||e.metaKey)) document.body.classList.remove('dragmode');
+});
+window.addEventListener('blur', function(){ document.body.classList.remove('dragmode'); });
+
+async function moveJobTo(id, teamId, date){
+  if(rank(S.me)<1) return;
+  var a=(S.plan||[]).filter(function(x){ return x.id===id; })[0]; if(!a) return;
+  if(a.team_id===teamId && a.work_date===date) return;
+  var si=siteOf(a.site_id), from=teamOf(a.team_id), to=teamOf(teamId), hd=isHoliday(date);
+
+  var msg='ย้ายงาน “'+(si.name||'—')+'”\n';
+  if(a.work_date!==date) msg+='\nวัน: '+dayText(a.work_date)+'  →  '+dayText(date);
+  if(a.team_id!==teamId) msg+='\nทีม: '+(from.name||'—')+'  →  '+(to.name||'—');
+  if(hd) msg+='\n\n🏖 วันปลายทางเป็นวันหยุด: '+hd.name;
+  var busy=busyElsewhere(teamId, date, a.site_id);
+  if(busy.length) msg+='\n⚠️ ทีมปลายทางมีงานที่ไซต์อื่นอยู่แล้ว '+busy.length+' งานในวันนั้น';
+  if(a.checkin_at) msg+='\n⚠️ งานนี้เช็คอินไปแล้ว ประวัติจะย้ายตามไปด้วย';
+  if(!confirm(msg+'\n\nยืนยันการย้าย?')) return;
+
+  var r=await db.from('it_assignments').update({team_id:teamId, work_date:date}).eq('id',id);
+  if(r.error){
+    return toast(/duplicate|unique/i.test(r.error.message||'')
+      ? 'ย้ายไม่ได้ — ทีมปลายทางมีงานที่ไซต์เดียวกันในวันนั้นอยู่แล้ว'
+      : ('ย้ายไม่สำเร็จ: '+r.error.message), 5000);
+  }
+  toast('ย้าย “'+(si.name||'')+'” ไป '+(to.name||'')+' · '+dayText(date), 4000);
+  loadMgr();
 }
 
 /* เพิ่มงานลงช่องว่างในตารางได้เลย — เลือกไซต์เดิม หรือคีย์ไซต์ใหม่ตรงนี้ */
@@ -2759,6 +2831,8 @@ var HELP_DASH=[
     'ในกล่องเดียวกันเพิ่มไซต์ใหม่ได้เลย เลือก “＋ เพิ่มไซต์ใหม่” ในช่องไซต์งาน',
     'แต่ละวันกด “กำหนดเอง” เพื่อแบ่งขอบเขตงานคนละอย่างได้ เช่น วันแรกตู้ล่าง วันสองท็อป',
     'คลิกขวาที่ใบงาน = เปิดหน้าเลื่อนวัน ย้ายทีม หรือลบงานทันที',
+    'กด Shift หรือ Ctrl ค้างไว้แล้วลากใบงานไปวางช่องอื่น = ย้ายวันหรือย้ายทีมทันที (แอดมินขึ้นไป)',
+    'ต้องกดปุ่มค้างก่อนถึงจะลากได้ กันลากผิดตอนคลิกดูรายละเอียดตามปกติ',
     'ใบงานที่มีป้าย “↪ งานยกมา” คืองานค้างจากวันก่อนที่ระบบยกมาให้เอง เช็กลิสต์เหลือเฉพาะข้อที่ยังไม่ได้ทำ',
     'ช่องที่มีกรอบส้ม “⚠️ ซ้อน 2 ไซต์” คือทีมถูกจองหลายไซต์ในวันเดียวกัน มักเกิดตอนงานค้างถูกยกมาชนกับงานที่วางไว้แล้ว',
     'จำนวนช่องที่ซ้อนทั้งหมดขึ้นอยู่มุมขวาบนของตาราง คลิกใบงานแล้วกด “เปลี่ยนแผน” เพื่อเลื่อนวันหรือย้ายทีม',
