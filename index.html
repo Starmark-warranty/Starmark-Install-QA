@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
-<title>Install-QA Tracker — ติดตามทีมติดตั้ง</title>
+<title>Install-QA Tracker — ติดตามทีมติดตั้ง-QA</title>
 <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css">
 <style>
@@ -408,7 +408,7 @@ button,input,select,textarea{font-family:inherit;color:inherit}
     <div id="lgTeam">
       <div id="lgUsers"></div>
       <div class="fld"><label>รหัสพนักงาน</label>
-        <input id="inCode" placeholder="เช่น 1009477" autocapitalize="characters" autocomplete="username"></div>
+        <input id="inCode" placeholder="เช่น 1009999" autocapitalize="characters" autocomplete="username"></div>
       <div id="lgDyn"></div>
       <button class="btn" id="btnNext">ถัดไป</button>
       <p class="sub" id="lgHint" style="margin-top:11px;font-size:11.5px">ใช้รหัสพนักงานของคุณเป็นชื่อผู้ใช้ · เข้าครั้งแรกระบบจะให้ตั้งรหัส PIN เอง</p>
@@ -809,9 +809,21 @@ function getPos(){
   });
 }
 function meName(){ return (S.me && (S.me.name || S.me.emp_code)) || 'ทีม'; }
-var ROLES={staff:'พนักงานหน้างาน', manager:'ผู้จัดการ', admin:'แอดมิน'};
-function isMgr(u){ return !!(u && (u.role==='manager' || u.role==='admin')); }
-function isAdmin(u){ return !!(u && u.role==='admin'); }
+var ROLES={staff:'พนักงานหน้างาน', manager:'ผู้จัดการ', admin:'แอดมิน', owner:'เจ้าของระบบ'};
+var RANK ={staff:0, manager:1, admin:2, owner:3};
+function rank(u){ return RANK[(u&&u.role)||'staff'] || 0; }
+function isMgr(u){ return rank(u)>=1; }          /* เข้า Dashboard ได้ */
+function isAdmin(u){ return rank(u)>=2; }
+function isOwner(u){ return rank(u)>=3; }
+/* ตั้งสิทธิ์ได้เฉพาะระดับที่ต่ำกว่าตัวเอง — เจ้าของระบบเท่านั้นที่ตั้งแอดมินได้ */
+function canGrant(me, role){
+  var r=rank(me);
+  if(r>=3) return true;
+  if(r===2) return RANK[role]<=1;
+  return false;
+}
+/* แก้ไข/ลบบัญชีคนอื่นได้เฉพาะคนที่สิทธิ์ต่ำกว่าตัวเอง */
+function canEdit(me, target){ return rank(me) > rank(target); }
 
 /* ═════════════════════════════════════════════════════════
    LOGIN
@@ -2220,6 +2232,274 @@ async function syncTeamLeader(teamId){
 function renderStaff(){
   var un=S.staff.filter(function(x){ return !x.team_id && x.active && !isMgr(x); });
   var noPin=S.staff.filter(function(x){ return !x.pin; }).length;
+  var mgrs=S.staff.filter(function(x){ return rank(x)>=2; }).length;
+  $('staffNote').textContent = S.staff.length+' คน · แอดมินขึ้นไป '+mgrs+
+    (un.length?(' · รอจัดทีม '+un.length):'')+(noPin?(' · ยังไม่ตั้ง PIN '+noPin):'');
+  var tb=$('tabStaffN');
+  if(tb){ tb.textContent=un.length; tb.style.display=un.length?'':'none'; }
+
+  if(!S.staff.length){
+    $('staffList').innerHTML='<div class="empty"><b>ยังไม่มีพนักงานในระบบ</b>'+
+      'ส่งลิงก์แอปให้พนักงานเปิดแล้วลงทะเบียนด้วยรหัสพนักงานของตัวเอง<br>ชื่อจะขึ้นที่นี่ให้จัดเข้าทีมทันที</div>';
+    return;
+  }
+  var order=S.staff.slice().sort(function(a,b){
+    if(isMgr(a)!==isMgr(b)) return isMgr(a)? -1 : 1;             /* ผู้จัดการ/แอดมินขึ้นบนสุด */
+    if(!a.team_id !== !b.team_id) return a.team_id? 1 : -1;      /* รอจัดทีมขึ้นก่อน */
+    return (a.team_id||'').localeCompare(b.team_id||'') || String(a.emp_code).localeCompare(String(b.emp_code));
+  });
+  $('staffList').innerHTML = order.map(function(x){
+    var may = (S.me && x.id===S.me.id)? false : canEdit(S.me, x);
+    var opts='<option value="">— ยังไม่เข้าทีม —</option>'+S.teams.map(function(t){
+      return '<option value="'+t.id+'"'+(x.team_id===t.id?' selected':'')+'>'+esc(t.code+' · '+t.name)+'</option>'; }).join('');
+    return '<div class="brow" style="cursor:default'+
+      (rank(x)>=3?';background:rgba(88,86,214,.07)'
+                 :(isMgr(x)?';background:rgba(0,122,255,.05)':(x.team_id||!x.active?'':';background:rgba(255,149,0,.08)')))+'">'+
+      '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">'+
+        '<div style="flex:1;min-width:170px">'+
+          '<div class="brow-t"><span class="nm">'+esc(x.name||'(ยังไม่ใส่ชื่อ)')+'</span>'+
+            (isMgr(x)?'<span class="chip '+(rank(x)>=3?'c-purple':(rank(x)===2?'c-blue':'c-gray'))+'">'+
+              (rank(x)>=3?'👑 ':'')+esc(ROLES[x.role])+'</span>':'')+
+            (x.is_leader?'<span class="chip c-purple">หัวหน้าทีม</span>':'')+
+            (x.active?'':'<span class="chip c-gray">ปิดใช้งาน</span>')+
+            (x.pin?'':'<span class="chip c-orange">ยังไม่ตั้ง PIN</span>')+'</div>'+
+          '<div class="brow-s"><span class="tm">'+esc(x.emp_code)+'</span>'+
+            (x.phone?'<span>'+esc(x.phone)+'</span>':'')+
+            (x.last_login_at?'<span class="tm">เข้าล่าสุด '+fmtDT(x.last_login_at)+'</span>':'<span>ยังไม่เคยเข้าใช้</span>')+'</div>'+
+        '</div>'+
+        '<select class="tin" data-team="'+x.id+'" style="min-width:180px"'+(may?'':' disabled')+'>'+opts+'</select>'+
+        '<button class="tb-btn" data-lead="'+x.id+'"'+((x.team_id&&may)?'':' disabled style="opacity:.4"')+'>'+
+          (x.is_leader?'★ หัวหน้า':'☆ ตั้งหัวหน้า')+'</button>'+
+        '<button class="tb-btn" data-sedit="'+x.id+'">'+(may?'แก้ไข':'ดู')+'</button>'+
+      '</div></div>';
+  }).join('');
+
+  $('staffList').querySelectorAll('[data-team]').forEach(function(el){
+    el.onchange=async function(){
+      var was=staffOf(el.dataset.team).team_id;
+      await staffPatch(el.dataset.team, {team_id: el.value||null,
+        is_leader: el.value? staffOf(el.dataset.team).is_leader : false}, true);
+      await syncTeamLeader(was); await syncTeamLeader(el.value||null);
+      await loadMgr();
+      if(was && !teamLeader(was) && teamStaff(was).length)
+        toast('ทีม '+(teamOf(was).name||'')+' ไม่มีหัวหน้าทีมแล้ว — ตั้งคนใหม่ด้วย', 5000);
+    };
+  });
+  $('staffList').querySelectorAll('[data-lead]').forEach(function(b){
+    b.onclick=async function(){
+      var x=staffOf(b.dataset.lead); if(!x.team_id) return;
+      if(!x.is_leader){
+        /* ทีมหนึ่งมีหัวหน้าคนเดียว — ปลดคนเดิมก่อน */
+        var old=teamLeader(x.team_id);
+        if(old && old.id!==x.id) await db.from('it_staff').update({is_leader:false}).eq('id',old.id);
+      }
+      await db.from('it_staff').update({is_leader: !x.is_leader}).eq('id',x.id);
+      await syncTeamLeader(x.team_id);
+      toast('บันทึกแล้ว'); loadMgr();
+    };
+  });
+  $('staffList').querySelectorAll('[data-sedit]').forEach(function(b){
+    b.onclick=function(){ staffForm(b.dataset.sedit); };
+  });
+}
+
+async function staffPatch(id, patch, quiet){
+  var r=await db.from('it_staff').update(patch).eq('id',id);
+  if(r.error) return toast('บันทึกไม่สำเร็จ: '+r.error.message, 4000);
+  toast('บันทึกแล้ว'); if(!quiet) loadMgr();
+}
+
+function staffForm(id){
+  var x=staffOf(id);
+  var isSelf = S.me && id===S.me.id;
+  var mayEdit = isSelf ? true : canEdit(S.me, x);
+  var mayRole = mayEdit && !isSelf && rank(S.me)>=2;      /* แก้สิทธิ์ตัวเองไม่ได้เด็ดขาด */
+  var mayDel  = mayEdit && !isSelf && !x.protected && x.role!=='owner';
+
+  /* สิทธิ์ที่ตัวเรามอบให้คนนี้ได้ + สิทธิ์ปัจจุบันของเขา (ไว้แสดงเฉย ๆ) */
+  var opts=Object.keys(ROLES).filter(function(k){ return canGrant(S.me,k) || k===(x.role||'staff'); });
+
+  var notice='';
+  if(!mayEdit){
+    notice='<div style="background:rgba(88,86,214,.09);border:1px solid rgba(88,86,214,.25);border-radius:11px;'+
+      'padding:11px 13px;margin-bottom:14px;font-size:12.5px;line-height:1.65;color:var(--purple)">'+
+      '🔒 <b>บัญชีนี้สิทธิ์สูงกว่าหรือเท่ากับคุณ</b><br>'+
+      'คุณเป็น '+esc(ROLES[S.me.role]||'')+' แก้ไขหรือลบบัญชี '+esc(ROLES[x.role]||'')+' ไม่ได้'+
+      (x.role==='owner'? ' — บัญชีเจ้าของระบบแก้ได้จากฐานข้อมูลเท่านั้น':'')+'</div>';
+  }else if(isSelf){
+    notice='<div style="background:var(--accent-glow);border:1px solid rgba(0,122,255,.22);border-radius:11px;'+
+      'padding:11px 13px;margin-bottom:14px;font-size:12.5px;line-height:1.65;color:var(--accent)">'+
+      'นี่คือบัญชีของคุณเอง — แก้ชื่อ เบอร์ และทีมได้ แต่เปลี่ยนสิทธิ์ตัวเองไม่ได้</div>';
+  }else if(!mayRole && rank(S.me)<2){
+    notice='<div style="background:var(--s1);border:1px solid var(--border);border-radius:11px;'+
+      'padding:11px 13px;margin-bottom:14px;font-size:12.5px;line-height:1.6;color:var(--text2)">'+
+      'ผู้จัดการเปลี่ยนสิทธิ์ผู้ใช้ไม่ได้ ต้องให้แอดมินหรือเจ้าของระบบทำ</div>';
+  }else if(rank(S.me)===2){
+    notice='<div style="background:var(--s1);border:1px solid var(--border);border-radius:11px;'+
+      'padding:11px 13px;margin-bottom:14px;font-size:12.5px;line-height:1.6;color:var(--text2)">'+
+      'คุณตั้งได้ถึงระดับผู้จัดการ — การตั้งแอดมินต้องให้เจ้าของระบบเป็นคนทำ</div>';
+  }
+
+  var dis = mayEdit? '' : ' disabled';
+  sheet(mayEdit? 'แก้ไขพนักงาน' : 'ข้อมูลพนักงาน',
+    notice+
+    '<div class="row"><div class="fld"><label>รหัสพนักงาน</label><input id="p_code" value="'+esc(x.emp_code||'')+'"'+dis+'></div>'+
+    '<div class="fld"><label>เบอร์โทร</label><input id="p_ph" value="'+esc(x.phone||'')+'"'+dis+'></div></div>'+
+    '<div class="fld"><label>ชื่อ–สกุล</label><input id="p_name" value="'+esc(x.name||'')+'"'+dis+'></div>'+
+    '<div class="fld"><label>สิทธิ์การใช้งาน</label><select id="p_role"'+(mayRole?'':' disabled')+'>'+
+      opts.map(function(k){ return '<option value="'+k+'"'+((x.role||'staff')===k?' selected':'')+'>'+ROLES[k]+'</option>'; }).join('')+
+    '</select>'+
+    '<p style="font-size:11px;color:var(--text3);margin-top:5px">ผู้จัดการขึ้นไปจะเข้าหน้า Dashboard แทนหน้างานเมื่อล็อกอิน</p></div>'+
+    '<div class="fld"><label>ทีม</label><select id="p_team"'+dis+'>'+
+      '<option value="">— ยังไม่เข้าทีม —</option>'+
+      S.teams.map(function(t){ return '<option value="'+t.id+'"'+(x.team_id===t.id?' selected':'')+'>'+esc(t.code+' · '+t.name)+'</option>'; }).join('')+
+    '</select></div>'+
+    '<label style="font-size:13.5px;display:flex;align-items:center;gap:9px;margin-bottom:8px">'+
+      '<input type="checkbox" id="p_lead"'+(x.is_leader?' checked':'')+dis+'> เป็นหัวหน้าทีม</label>'+
+    '<label style="font-size:13.5px;display:flex;align-items:center;gap:9px">'+
+      '<input type="checkbox" id="p_act"'+(x.active!==false?' checked':'')+((mayEdit&&!isSelf&&x.role!=='owner')?'':' disabled')+'> เปิดใช้งานบัญชีนี้</label>'+
+    '<div style="margin-top:16px;padding:11px 13px;background:var(--s1);border:1px solid var(--border);border-radius:11px">'+
+      '<div style="font-size:12px;color:var(--text2);line-height:1.6">'+
+        (x.pin? 'ตั้ง PIN แล้ว · เข้าล่าสุด '+ (x.last_login_at?fmtDT(x.last_login_at):'—')
+              : 'ยังไม่เคยตั้ง PIN — ครั้งแรกที่เข้าระบบจะให้ตั้งเอง')+'</div>'+
+      ((x.pin && mayEdit && !isSelf && x.role!=='owner')
+        ? '<button class="btn ghost sm" id="p_reset" style="margin-top:9px">ล้าง PIN (ให้ตั้งใหม่ตอนเข้าครั้งหน้า)</button>'
+        : (x.pin? '<div style="font-size:11.5px;color:var(--text3);margin-top:7px">ล้าง PIN บัญชีนี้ไม่ได้ — เจ้าของบัญชีเปลี่ยนเองที่ปุ่ม “บัญชีของฉัน”</div>':''))+
+    '</div>',
+    mayEdit
+      ? ('<div class="row">'+(mayDel?'<button class="btn ghost sm" id="p_del" style="flex:0 0 90px">ลบ</button>':'')+
+         '<button class="btn sm" id="p_save">บันทึก</button></div>')
+      : '<button class="btn ghost sm" onclick="closeSheet()">ปิด</button>');
+
+  if(!mayEdit) return;
+
+  $('p_save').onclick=async function(){
+    var tid=$('p_team').value||null;
+    var p={emp_code:$('p_code').value.trim().toUpperCase(), name:$('p_name').value.trim()||null,
+      phone:$('p_ph').value.trim()||null, team_id:tid, is_leader: tid? $('p_lead').checked : false,
+      role: mayRole? $('p_role').value : x.role,
+      active: (isSelf||x.role==='owner')? true : $('p_act').checked};
+    if(!p.emp_code) return toast('ต้องมีรหัสพนักงาน');
+    if(mayRole && !canGrant(S.me, p.role)) return toast('คุณไม่มีสิทธิ์ตั้งระดับ '+ROLES[p.role]);
+    this.disabled=true;
+    if(p.is_leader && tid){
+      var old=teamLeader(tid);
+      if(old && old.id!==id) await db.from('it_staff').update({is_leader:false}).eq('id',old.id);
+    }
+    var r=await db.from('it_staff').update(p).eq('id',id);
+    if(r.error){ toast(r.error.message||'บันทึกไม่สำเร็จ', 5000); this.disabled=false; return; }
+    await syncTeamLeader(x.team_id); await syncTeamLeader(tid);
+    closeSheet(); toast('บันทึกแล้ว'); loadMgr();
+  };
+  if($('p_reset')) $('p_reset').onclick=async function(){
+    if(!confirm('ล้าง PIN ของ '+(x.name||x.emp_code)+' ?\nครั้งหน้าที่เข้าระบบเขาจะตั้ง PIN ใหม่เอง')) return;
+    var r=await db.from('it_staff').update({pin:null}).eq('id',id);
+    if(r.error) return toast(r.error.message||'ล้าง PIN ไม่สำเร็จ', 5000);
+    closeSheet(); toast('ล้าง PIN แล้ว'); loadMgr();
+  };
+  if($('p_del')) $('p_del').onclick=async function(){
+    if(!confirm('ลบ '+(x.name||x.emp_code)+' ออกจากระบบ?')) return;
+    var r=await db.from('it_staff').delete().eq('id',id);
+    if(r.error) return toast(r.error.message||'ลบไม่สำเร็จ', 5000);
+    closeSheet(); toast('ลบแล้ว'); loadMgr();
+  };
+}
+
+/* ── บัญชีของฉัน: เปลี่ยนชื่อ เบอร์ และ PIN ที่เคยตั้งไว้ ── */
+function myAccount(){
+  var x=S.me||{};
+  sheet('บัญชีของฉัน',
+    '<div style="background:var(--s1);border:1px solid var(--border);border-radius:11px;padding:11px 13px;margin-bottom:14px;font-size:12.5px;line-height:1.7">'+
+      'รหัสพนักงาน <b style="font-family:var(--mono)">'+esc(x.emp_code||'')+'</b>'+
+      ' <span class="chip '+(isMgr(x)?'c-purple':'c-gray')+'">'+esc(ROLES[x.role]||'พนักงานหน้างาน')+'</span>'+
+      (x.last_login_at? '<div style="color:var(--text3);font-size:11.5px">เข้าใช้ล่าสุด '+fmtDT(x.last_login_at)+'</div>':'')+
+    '</div>'+
+    '<div class="fld"><label>ชื่อ–สกุล</label><input id="m_name" value="'+esc(x.name||'')+'"></div>'+
+    '<div class="fld"><label>เบอร์โทร</label><input id="m_ph" value="'+esc(x.phone||'')+'"></div>'+
+    '<div class="sec-h" style="margin-top:18px">เปลี่ยน PIN (เว้นว่างไว้ถ้าไม่เปลี่ยน)</div>'+
+    '<div class="fld"><label>PIN เดิม</label><input id="m_p0" type="tel" inputmode="numeric" maxlength="6" placeholder="••••"></div>'+
+    '<div class="row"><div class="fld"><label>PIN ใหม่</label><input id="m_p1" type="tel" inputmode="numeric" maxlength="6" placeholder="••••"></div>'+
+    '<div class="fld"><label>ยืนยัน PIN ใหม่</label><input id="m_p2" type="tel" inputmode="numeric" maxlength="6" placeholder="••••"></div></div>'+
+    '<div class="sec-h" style="margin-top:18px">เครื่องนี้</div>'+
+    '<p style="font-size:11.5px;color:var(--text2);line-height:1.6;margin-bottom:9px">จำบัญชีไว้ '+usersGet().length+
+      ' รายการ สำหรับแตะเข้าใช้งานเร็ว — ถ้าจะส่งเครื่องให้คนอื่นควรล้างทิ้งก่อน</p>'+
+    '<button class="btn ghost sm" onclick="forgetAll()">ล้างรายชื่อบัญชีในเครื่องนี้</button>',
+    '<button class="btn sm" id="m_save">บันทึก</button>');
+
+  $('m_save').onclick=async function(){
+    var nm=$('m_name').value.trim(), ph=$('m_ph').value.trim();
+    var p0=$('m_p0').value.trim(), p1=$('m_p1').value.trim(), p2=$('m_p2').value.trim();
+    if(!nm) return toast('ใส่ชื่อ–สกุลก่อน');
+    var patch={name:nm, phone:ph||null};
+    if(p1 || p2 || p0){
+      if(String(S.me.pin)!==p0) return toast('PIN เดิมไม่ถูกต้อง');
+      var bad=pinOK(p1,p2); if(bad) return toast(bad);
+      patch.pin=p1;
+    }
+    this.disabled=true;
+    var r=await db.from('it_staff').update(patch).eq('id',S.me.id).select().single();
+    if(r.error){ toast('บันทึกไม่สำเร็จ: '+r.error.message,4000); this.disabled=false; return; }
+    S.me=r.data;
+    if(patch.pin){ var ss=loadSess()||{}; ss.pin=patch.pin; saveSess(ss); }
+    closeSheet(); toast('บันทึกแล้ว');
+    if(S.role==='mgr'){ S.mgrName=meName(); $('mgrWho').innerHTML=esc(meName())+' · '+esc(ROLES[S.me.role]||'ผู้จัดการ'); loadMgr(); }
+    else loadTeamData();
+  };
+}
+
+/* ───────── Work & Team ───────── */
+function renderPlan(){
+  $('siteList').innerHTML = S.sites.length? S.sites.map(function(s){
+    var todayAsg=S.asgs.filter(function(a){return a.site_id===s.id;}).length;
+    return '<div class="brow" data-sid="'+s.id+'"><div class="brow-t"><span class="nm">'+esc(s.name)+'</span>'+
+      '<span class="chip '+(s.status==='active'?'c-blue':s.status==='done'?'c-green':s.status==='hold'?'c-orange':'c-gray')+'">'+esc(s.status)+'</span></div>'+
+      '<div class="brow-s"><span class="tm">'+esc(s.code)+'</span><span>'+esc(s.customer||'')+'</span>'+
+      (s.lat==null?'<span class="chip c-orange">ยังไม่มีพิกัด</span>':'')+
+      (todayAsg?'<span class="chip c-blue">วันนี้ '+todayAsg+' ทีม</span>':'')+'</div></div>';
+  }).join('') : '<div class="empty"><b>ยังไม่มีไซต์งาน</b>กด “เพิ่มไซต์” เพื่อเริ่ม</div>';
+  $('siteList').querySelectorAll('[data-sid]').forEach(function(r){ r.onclick=function(){ siteForm(r.dataset.sid); }; });
+
+  $('teamList').innerHTML = S.teams.length? S.teams.map(function(t){
+    return '<div class="brow" data-tid="'+t.id+'"><div class="brow-t"><span class="nm">'+esc(t.name)+'</span>'+
+      '<span class="chip '+(t.active?'c-green':'c-gray')+'">'+(t.active?'ใช้งาน':'ปิด')+'</span></div>'+
+      '<div class="brow-s"><span class="tm">'+esc(t.code)+'</span>'+
+      (function(){ var mem=teamStaff(t.id), ld=teamLeader(t.id);
+        return '<span>'+(ld? ('หัวหน้า: '+esc(ld.name||ld.emp_code)) : '<span style="color:var(--orange)">ยังไม่มีหัวหน้าทีม</span>')+'</span>'+
+               '<span class="chip c-gray">'+mem.length+' คน</span>'; })()+
+      '</div></div>';
+  }).join('') : '<div class="empty"><b>ยังไม่มีทีม</b>กด “เพิ่มทีม” เพื่อเริ่ม</div>';
+  $('teamList').querySelectorAll('[data-tid]').forEach(function(r){ r.onclick=function(){ teamForm(r.dataset.tid); }; });
+
+  $('asgSite').innerHTML=S.sites.map(function(s){ return '<option value="'+s.id+'">'+esc(s.code+' — '+s.name)+'</option>'; }).join('');
+  $('asgTeam').innerHTML=S.teams.filter(function(t){return t.active;}).map(function(t){ return '<option value="'+t.id+'">'+esc(t.code+' — '+t.name)+'</option>'; }).join('');
+}
+/* ── พนักงาน: จัดคนเข้าทีม ── */
+function staffOf(id){ return S.staff.filter(function(x){return x.id===id;})[0]||{}; }
+function teamStaff(tid){ return S.staff.filter(function(x){ return x.team_id===tid && x.active; }); }
+function teamLeader(tid){ return teamStaff(tid).filter(function(x){return x.is_leader;})[0]||null; }
+/* ชื่อ/เบอร์หัวหน้าทีมที่ใช้แสดงทุกที่ — เอาจากรายชื่อพนักงานก่อน ค่าเก่าใน it_teams เป็นแค่ตัวสำรอง */
+function leadInfo(t){
+  if(!t) return {name:'', phone:'', emp:''};
+  var ld = t.id? teamLeader(t.id) : null;
+  if(ld) return {name: ld.name||ld.emp_code, phone: ld.phone||'', emp: ld.emp_code||''};
+  return {name: t.leader_name||'', phone: t.phone||'', emp:''};
+}
+/* เขียนชื่อหัวหน้ากลับลง it_teams ให้ตรงกันเสมอ — รายงาน/Export เก่าจะได้ไม่เพี้ยน */
+async function syncTeamLeader(teamId){
+  if(!teamId) return;
+  try{
+    var r=await db.from('it_staff').select('name,phone,emp_code').eq('team_id',teamId).eq('is_leader',true).eq('active',true).limit(1);
+    var ld = r.data && r.data[0];
+    await db.from('it_teams').update({
+      leader_name: ld? (ld.name||ld.emp_code) : null,
+      phone: ld? (ld.phone||null) : null
+    }).eq('id',teamId);
+  }catch(e){}
+}
+
+function renderStaff(){
+  var un=S.staff.filter(function(x){ return !x.team_id && x.active && !isMgr(x); });
+  var noPin=S.staff.filter(function(x){ return !x.pin; }).length;
   var mgrs=S.staff.filter(isMgr).length;
   $('staffNote').textContent = S.staff.length+' คน · ผู้จัดการ '+mgrs+
     (un.length?(' · รอจัดทีม '+un.length):'')+(noPin?(' · ยังไม่ตั้ง PIN '+noPin):'');
@@ -2245,6 +2525,7 @@ function renderStaff(){
         '<div style="flex:1;min-width:170px">'+
           '<div class="brow-t"><span class="nm">'+esc(x.name||'(ยังไม่ใส่ชื่อ)')+'</span>'+
             (isMgr(x)?'<span class="chip c-blue">'+esc(ROLES[x.role])+'</span>':'')+
+            (x.protected?'<span class="chip c-purple">🔒 ล็อกไว้</span>':'')+
             (x.is_leader?'<span class="chip c-purple">หัวหน้าทีม</span>':'')+
             (x.active?'':'<span class="chip c-gray">ปิดใช้งาน</span>')+
             (x.pin?'':'<span class="chip c-orange">ยังไม่ตั้ง PIN</span>')+'</div>'+
@@ -2296,11 +2577,22 @@ async function staffPatch(id, patch, quiet){
 
 function staffForm(id){
   var x=staffOf(id);
+  var locked = !!x.protected;
+  var isSelf = S.me && id===S.me.id;
+  var admins = S.staff.filter(function(y){ return y.role==='admin' && y.active; }).length;
+  var lastAdmin = x.role==='admin' && admins<=1;
+  var noTouch = locked || lastAdmin;
   sheet('แก้ไขพนักงาน',
     '<div class="row"><div class="fld"><label>รหัสพนักงาน</label><input id="p_code" value="'+esc(x.emp_code||'')+'"></div>'+
     '<div class="fld"><label>เบอร์โทร</label><input id="p_ph" value="'+esc(x.phone||'')+'"></div></div>'+
     '<div class="fld"><label>ชื่อ–สกุล</label><input id="p_name" value="'+esc(x.name||'')+'"></div>'+
-    '<div class="fld"><label>สิทธิ์การใช้งาน</label><select id="p_role">'+
+    (noTouch? ('<div style="background:rgba(88,86,214,.09);border:1px solid rgba(88,86,214,.25);border-radius:11px;'+
+      'padding:11px 13px;margin-bottom:14px;font-size:12.5px;line-height:1.65;color:var(--purple)">'+
+      (locked? '🔒 <b>บัญชีนี้ถูกล็อกไว้</b><br>ลบ ปิดใช้งาน เปลี่ยนสิทธิ์ หรือล้าง PIN ไม่ได้ '+
+               'ต้องปลดล็อกที่ฐานข้อมูลเท่านั้น — กันไม่ให้ใครยึดหรือลบบัญชีผู้ดูแลระบบ'
+             : '⚠️ <b>แอดมินคนสุดท้ายที่ใช้งานได้</b><br>ลบหรือลดสิทธิ์ไม่ได้ '+
+               'ต้องตั้งแอดมินคนใหม่ก่อน ไม่งั้นจะไม่มีใครเข้า Dashboard ได้')+'</div>') : '')+
+    '<div class="fld"><label>สิทธิ์การใช้งาน</label><select id="p_role"'+(noTouch?' disabled':'')+'>'+
       Object.keys(ROLES).map(function(k){ return '<option value="'+k+'"'+((x.role||'staff')===k?' selected':'')+'>'+ROLES[k]+'</option>'; }).join('')+
     '</select>'+
     '<p style="font-size:11px;color:var(--text3);margin-top:5px">ผู้จัดการและแอดมินจะเข้าหน้า Dashboard แทนหน้างานเมื่อล็อกอิน</p></div>'+
@@ -2311,22 +2603,24 @@ function staffForm(id){
     '<label style="font-size:13.5px;display:flex;align-items:center;gap:9px;margin-bottom:8px">'+
       '<input type="checkbox" id="p_lead"'+(x.is_leader?' checked':'')+'> เป็นหัวหน้าทีม</label>'+
     '<label style="font-size:13.5px;display:flex;align-items:center;gap:9px">'+
-      '<input type="checkbox" id="p_act"'+(x.active!==false?' checked':'')+'> เปิดใช้งานบัญชีนี้</label>'+
+      '<input type="checkbox" id="p_act"'+(x.active!==false?' checked':'')+(noTouch?' disabled':'')+'> เปิดใช้งานบัญชีนี้</label>'+
     '<div style="margin-top:16px;padding:11px 13px;background:var(--s1);border:1px solid var(--border);border-radius:11px">'+
       '<div style="font-size:12px;color:var(--text2);line-height:1.6">'+
         (x.pin? 'ตั้ง PIN แล้ว · เข้าล่าสุด '+ (x.last_login_at?fmtDT(x.last_login_at):'—')
               : 'ยังไม่เคยตั้ง PIN — ครั้งแรกที่เข้าระบบจะให้ตั้งเอง')+'</div>'+
-      (x.pin?'<button class="btn ghost sm" id="p_reset" style="margin-top:9px">ล้าง PIN (ให้ตั้งใหม่ตอนเข้าครั้งหน้า)</button>':'')+
+      ((x.pin && !locked)?'<button class="btn ghost sm" id="p_reset" style="margin-top:9px">ล้าง PIN (ให้ตั้งใหม่ตอนเข้าครั้งหน้า)</button>':'')+
+      ((x.pin && locked)?'<div style="font-size:11.5px;color:var(--text3);margin-top:7px">ล้าง PIN ไม่ได้ — เจ้าของบัญชีเปลี่ยนเองได้ที่ปุ่ม “บัญชีของฉัน”</div>':'')+
     '</div>',
-    '<div class="row"><button class="btn ghost sm" id="p_del" style="flex:0 0 90px">ลบ</button>'+
+    '<div class="row">'+(noTouch?'':'<button class="btn ghost sm" id="p_del" style="flex:0 0 90px">ลบ</button>')+
     '<button class="btn sm" id="p_save">บันทึก</button></div>');
 
   $('p_save').onclick=async function(){
     var tid=$('p_team').value||null;
     var p={emp_code:$('p_code').value.trim().toUpperCase(), name:$('p_name').value.trim()||null,
       phone:$('p_ph').value.trim()||null, team_id:tid, is_leader: tid? $('p_lead').checked : false,
-      role:$('p_role').value, active:$('p_act').checked};
-    if(S.me && id===S.me.id && p.role==='staff') return toast('เปลี่ยนสิทธิ์ตัวเองเป็นพนักงานไม่ได้ ให้แอดมินคนอื่นทำแทน');
+      role: noTouch? x.role : $('p_role').value,
+      active: noTouch? true : $('p_act').checked};
+    if(isSelf && p.role==='staff') return toast('เปลี่ยนสิทธิ์ตัวเองเป็นพนักงานไม่ได้ ให้แอดมินคนอื่นทำแทน');
     if(!p.emp_code) return toast('ต้องมีรหัสพนักงาน');
     this.disabled=true;
     if(p.is_leader && tid){
@@ -2334,7 +2628,7 @@ function staffForm(id){
       if(old && old.id!==id) await db.from('it_staff').update({is_leader:false}).eq('id',old.id);
     }
     var r=await db.from('it_staff').update(p).eq('id',id);
-    if(r.error){ toast('บันทึกไม่สำเร็จ: '+r.error.message,4000); this.disabled=false; return; }
+    if(r.error){ toast(r.error.message||'บันทึกไม่สำเร็จ', 5000); this.disabled=false; return; }
     await syncTeamLeader(x.team_id); await syncTeamLeader(tid);
     closeSheet(); toast('บันทึกแล้ว'); loadMgr();
   };
@@ -2343,9 +2637,14 @@ function staffForm(id){
     await db.from('it_staff').update({pin:null}).eq('id',id);
     closeSheet(); toast('ล้าง PIN แล้ว'); loadMgr();
   };
-  $('p_del').onclick=async function(){
-    if(!confirm('ลบพนักงานคนนี้?')) return;
-    await db.from('it_staff').delete().eq('id',id); closeSheet(); toast('ลบแล้ว'); loadMgr();
+  if($('p_del')) $('p_del').onclick=async function(){
+    if(isSelf && !confirm('นี่คือบัญชีของคุณเอง ลบแล้วจะออกจากระบบทันที\nยืนยันหรือไม่?')) return;
+    if(!isSelf && !confirm('ลบ '+(x.name||x.emp_code)+' ออกจากระบบ?')) return;
+    var r=await db.from('it_staff').delete().eq('id',id);
+    if(r.error) return toast(r.error.message||'ลบไม่สำเร็จ', 5000);
+    closeSheet(); toast('ลบแล้ว');
+    if(isSelf) return logout();
+    loadMgr();
   };
 }
 
@@ -2524,7 +2823,8 @@ function teamForm(id){
             ((ld&&ld.id===x.id)?' <span class="chip c-purple">หัวหน้า</span>':'')+'</div>'+
             '<div style="font-size:10.5px;color:var(--text3);font-family:var(--mono)">'+esc(x.emp_code)+
             (x.phone?' · '+esc(x.phone):'')+'</div></div>'+
-          '<select class="tin" data-mv="'+x.id+'" style="min-width:150px;font-size:11.5px;padding:5px 8px">'+
+          '<select class="tin" data-mv="'+x.id+'" style="min-width:150px;font-size:11.5px;padding:5px 8px"'+
+            (canEdit(S.me,x)?'':' disabled')+'>'+
             S.teams.filter(function(t){return t.active!==false;}).map(function(t){
               return '<option value="'+t.id+'"'+(t.id===id?' selected':'')+'>'+esc(t.code+' · '+t.name)+'</option>'; }).join('')+
             '<option value="">— ออกจากทีม —</option>'+
