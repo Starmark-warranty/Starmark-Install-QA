@@ -432,7 +432,7 @@ body.preview #previewBar{display:flex}
 
 <script>
 /* ── ยามเฝ้า splash: อยู่นอกสคริปต์หลัก ถ้าสคริปต์หลักพัง ตัวนี้ยังทำงาน ── */
-window.APP_VER='3.2';
+window.APP_VER='3.3';
 (function(){
   var fill=function(){
     var a=document.querySelectorAll('.ver');
@@ -2351,17 +2351,19 @@ var HELP_STAFF=[
     'รูปหน้างานช่วยให้ออฟฟิศตัดสินใจได้เร็วขึ้นมาก ถ่ายไว้เยอะ ๆ ไม่เสียหาย'
   ]},
   {k:'is', i:'⚠️', t:'แจ้งปัญหา', b:[
-    'กดปุ่มแดง “แจ้งปัญหาหน้างาน” เลือกประเภท ความเร่งด่วน ใส่หัวข้อสั้น ๆ',
-    'ติ๊ก “ปัญหานี้ทำให้ทีมทำงานต่อไม่ได้” ถ้าหยุดงานจริง งานจะขึ้นสีแดงเตือนออฟฟิศทันที',
-    'แนบรูปเสมอถ้าเป็นของขาด ของผิดสเปค หรือของเสียหาย',
+    'แจ้งปัญหาอยู่ในหน้าส่งรายงาน ไม่มีปุ่มแยกแล้ว — เพราะปัญหาคือคำตอบว่าทำไมเช็กลิสต์ยังไม่ครบ',
+    'ติ๊กครบ 100% จะไม่มีช่องแจ้งปัญหาขึ้นมาเลย เพราะงานจบแล้ว',
+    'ยังไม่ครบ ระบบจะถามว่า “แค่ทำไม่ทัน” หรือ “ติดปัญหา” เลือกอย่างหลังแล้วค่อยเลือกประเภทกับความเร่งด่วน',
+    'ติ๊ก “ทำงานต่อไม่ได้เลย” ถ้าหยุดงานจริง งานจะขึ้นสีแดงเตือนออฟฟิศทันที',
+    'รูปที่แนบในรายงานจะติดไปกับปัญหาด้วยอัตโนมัติ ไม่ต้องถ่ายซ้ำ',
     'ออฟฟิศตอบกลับได้ในเรื่องนั้น ดูความเคลื่อนไหวได้ที่แท็บ “ปัญหา”',
     'ถ้าแก้ไขได้เองแล้ว เปิดเรื่องนั้นแล้วกด “✅ แก้ไขแล้ว ปิดเรื่อง” · แจ้งผิดหรือแจ้งซ้ำกด “ยกเลิกเรื่อง”',
     'ถ้าเรื่องที่ปิดไปแล้วกลับมาเกิดอีก กด “ปัญหากลับมาอีก — เปิดเรื่องใหม่” ได้เลย'
   ]},
   {k:'end', i:'🏁', t:'ปิดงานประจำวัน', b:[
-    'ติ๊กเช็กลิสต์ครบทุกข้อ → ปิดเป็น “เสร็จ 100%”',
-    'ยังไม่ครบ → ระบบจะถามว่าติดอะไร แล้วบันทึกเป็น “ปิดวัน · ค้างต่อ” ตามเปอร์เซ็นต์จริง',
-    'ค่าเริ่มต้นจะแจ้งเป็นปัญหาให้ออฟฟิศด้วย เพื่อให้จัดแผนวันถัดไปได้ทัน',
+    'ปิดงานอยู่ในหน้าส่งรายงานเช่นกัน ไม่มีปุ่มแยกท้ายหน้าแล้ว',
+    'ติ๊กครบทุกข้อ → ปุ่มเขียว “ส่งรายงาน + ปิดงานเสร็จ 100%”',
+    'ยังไม่ครบ → ปุ่มรอง “ส่งแล้วปิดวันนี้เลย” บันทึกเป็น “ปิดวัน · ค้างต่อ” ตามเปอร์เซ็นต์จริง',
     'ไม่ต้องกลัวว่าตัวเลขไม่ถึง 100% จะดูไม่ดี — ออฟฟิศต้องรู้ของจริงถึงจะช่วยได้ถูก',
     'ปิดวันไปแล้วแต่ทำงานต่อได้ กด “↩️ เปิดงานต่อ / แก้ไข” ติ๊กเช็กลิสต์เพิ่มแล้วปิดใหม่ได้ ระบบบันทึกทุกครั้งที่เปิดต่อ',
     'ปิดวันโดยยังไม่ครบ ระบบยกข้อที่ยังไม่ได้ทำและปัญหาที่ค้าง ไปเป็นเช็กลิสต์ของวันถัดไปให้เอง ข้อที่ทำแล้วจะไม่โผล่ซ้ำ',
@@ -3973,8 +3975,6 @@ function renderJob(){
   /* ส่งรายงาน — อยู่หลังเช็กลิสต์ เพื่อให้ติ๊กก่อนแล้วค่อยส่ง */
   if(working) h+='<div class="mpad"><button class="bigbtn" id="bReport">📝 ส่งรายงานความคืบหน้า</button></div>';
 
-  /* แจ้งปัญหา */
-  h+='<div class="mpad"'+(working?' style="margin-top:-4px"':'')+'><button class="bigbtn red" id="bIssue">⚠️ แจ้งปัญหาหน้างาน</button></div>';
   if(iss.length){
     h+='<div class="blk"><div class="blk-h">ปัญหาของงานนี้</div>'+
       iss.map(function(i){ return '<div class="tl" data-iid="'+i.id+'" style="cursor:pointer">'+
@@ -3989,15 +3989,10 @@ function renderJob(){
 
   /* ประวัติรายงาน */
   h+='<div class="blk" id="repBlk"><div class="blk-h">รายงานที่ส่งไปแล้ว</div><div class="empty" style="padding:20px"><span class="spin"></span></div></div>';
-  if(a.checkin_at && a.status!=='done' && a.status!=='partial' && !isFuture){
-    h+='<div class="mpad"><button class="bigbtn ghost" id="bDone" style="background:var(--s3);color:var(--text);box-shadow:none">✅ ปิดงานวันนี้</button></div>';
-  }
   $('tBody').innerHTML=h;
 
   if($('bCheckin')) $('bCheckin').onclick=function(){ doCheckin(a); };
   if($('bReport')) $('bReport').onclick=function(){ reportSheet(a); };
-  if($('bIssue')) $('bIssue').onclick=function(){ issueSheet(a); };
-  if($('bDone')) $('bDone').onclick=function(){ closeDay(a); };
   if($('bReopen')) $('bReopen').onclick=function(){ reopenDay(a); };
   $('tBody').querySelectorAll('.ck').forEach(function(r){
     r.onclick=function(){
@@ -4073,6 +4068,38 @@ function reportSheet(a){
   var left=ck.length-doneN;
   var full=ck.length>0 && left===0;
   var p = ck.length? Math.round(doneN/ck.length*100) : pct(a.progress);
+  var why='none', cat=(catLib()[0]||{k:'other'}).k, sev='normal';
+
+  var issueUI = full? '' : (
+    '<div class="sec-h" style="margin-top:18px">ยังไม่ครบ '+left+' ข้อ — เพราะอะไร?</div>'+
+    '<div class="opts" id="whyBox" style="grid-template-columns:1fr;gap:7px">'+
+      '<button class="opt on" data-w="none">⏳ ยังไม่มีปัญหา — แค่ทำไม่ทันวันนี้</button>'+
+      '<button class="opt" data-w="issue">⚠️ ติดปัญหา ต้องให้ออฟฟิศช่วย</button>'+
+    '</div>'+
+    '<div id="isBox" class="hide" style="margin-top:14px;background:var(--red-dim);'+
+      'border:1px solid rgba(255,59,48,.22);border-radius:13px;padding:13px 14px">'+
+      '<label style="font-size:11px;font-weight:600;color:var(--text2);display:block;margin-bottom:6px">ปัญหาเรื่องอะไร</label>'+
+      (function(){
+        var lib=catLib(), gs=[], by={};
+        lib.forEach(function(x){ if(!by[x.g]){ by[x.g]=[]; gs.push(x.g); } by[x.g].push(x); });
+        return '<div id="catBox">'+gs.map(function(g){
+          return (gs.length>1? '<div style="font-size:10.5px;font-weight:700;color:var(--text3);margin:9px 0 5px">'+esc(g)+'</div>':'')+
+            '<div class="opts">'+by[g].map(function(x){
+              return '<button class="opt'+(x.k===cat?' on':'')+'" data-v="'+esc(x.k)+'">'+x.i+' '+esc(x.l)+'</button>';
+            }).join('')+'</div>';
+        }).join('')+'</div>';
+      })()+
+      '<label style="font-size:11px;font-weight:600;color:var(--text2);display:block;margin:14px 0 6px">ความเร่งด่วน</label>'+
+      '<div class="sev" id="sevBox">'+
+        Object.keys(SEV).map(function(k){ return '<button data-v="'+k+'"'+(k===sev?' class="on"':'')+'>'+SEV[k].l+'</button>'; }).join('')+
+      '</div>'+
+      '<div class="fld" style="margin:14px 0 8px"><label>หัวข้อปัญหาสั้น ๆ</label>'+
+        '<input id="isTitle" placeholder="เช่น ตู้ล่าง 90 ซม. ยังไม่มาส่ง"></div>'+
+      '<label style="font-size:13px;display:flex;align-items:center;gap:9px">'+
+        '<input type="checkbox" id="isBlock"> ปัญหานี้ทำให้ทีมทำงานต่อไม่ได้เลย</label>'+
+      '<p style="font-size:11px;color:var(--text2);line-height:1.6;margin-top:9px">'+
+        'ข้อความในช่อง “บันทึก” ด้านบนจะถูกใช้เป็นรายละเอียดของปัญหา และรูปที่แนบจะติดไปด้วย</p>'+
+    '</div>');
 
   sheet('ส่งรายงานความคืบหน้า',
     '<div style="background:'+(full?'var(--green-dim)':'var(--s1)')+';border:1px solid '+(full?'rgba(52,199,89,.3)':'var(--border)')+
@@ -4083,27 +4110,45 @@ function reportSheet(a){
           (ck.length? ('ติ๊กแล้ว '+doneN+' จาก '+ck.length+' ข้อ') : 'ค่าคืบหน้าล่าสุด')+'</span></div>'+
       '<div class="bar'+(full?' ok':'')+'" style="height:7px;margin-top:9px"><i style="width:'+p+'%"></i></div>'+
       '<div style="font-size:11.5px;color:'+(full?'#1e8e3e':'var(--text3)')+';line-height:1.6;margin-top:9px">'+
-        (full? '🎉 เช็กลิสต์ครบทุกข้อแล้ว — ส่งรายงานพร้อมปิดงานได้ในปุ่มเดียว'
+        (full? '🎉 เช็กลิสต์ครบทุกข้อแล้ว — ส่งรายงานพร้อมปิดงานได้ในปุ่มเดียว ไม่มีอะไรต้องแจ้งเพิ่ม'
              : (ck.length
                 ? 'เปอร์เซ็นต์คิดจากเช็กลิสต์อย่างเดียว ปรับเองไม่ได้ — ถ้ายังไม่ตรงกับงานจริง ให้ปิดหน้านี้แล้วไปติ๊กเช็กลิสต์ก่อน'
                 : 'งานนี้ไม่มีเช็กลิสต์ ระบบจะใช้ค่าคืบหน้าล่าสุดที่บันทึกไว้'))+
       '</div></div>'+
-    '<div class="fld"><label>บันทึก / สิ่งที่ทำไป'+(full?'':' (ถ้าปิดวัน จะใช้เป็นเหตุผลที่ยังไม่จบ)')+'</label>'+
-      '<textarea id="nt" style="height:92px;resize:none" placeholder="'+
+    '<div class="fld"><label>บันทึก / สิ่งที่ทำไป</label>'+
+      '<textarea id="nt" style="height:88px;resize:none" placeholder="'+
         (full? 'เช่น ติดตั้งครบทุกจุด ลูกค้าตรวจรับแล้ว' : 'เช่น ติดตั้งตู้ล่างครบแล้ว รอท็อปหินมาส่งพรุ่งนี้เช้า')+'"></textarea></div>'+
     '<div class="fld"><label>รูปหน้างาน <span style="color:var(--red)">*</span></label>'+
       '<div class="phs" id="phB"></div>'+
       '<p style="font-size:11.5px;color:var(--text2);line-height:1.6;margin-top:8px">'+
         'ต้องแนบอย่างน้อย 1 รูป — รูปคือหลักฐานว่างานถึงไหนจริง ออฟฟิศตัดสินใจได้เร็วขึ้นมาก</p></div>'+
-    (full? '' :
-      '<label style="font-size:13px;display:flex;align-items:center;gap:9px;color:var(--text2)">'+
-        '<input type="checkbox" id="cdIssue" checked> ถ้าปิดวันทั้งที่ยังไม่ครบ ให้แจ้งเป็นปัญหาให้ออฟฟิศด้วย</label>'),
+    issueUI,
 
     (full
       ? '<button class="btn sm" id="svClose" disabled style="background:var(--green);box-shadow:none;margin-bottom:7px">แนบรูปก่อนถึงจะส่งได้</button>'+
         '<button class="btn ghost sm" id="svOnly" disabled>ส่งรายงานอย่างเดียว ยังไม่ปิดงาน</button>'
       : '<button class="btn sm" id="svOnly" disabled style="margin-bottom:7px">แนบรูปก่อนถึงจะส่งได้</button>'+
-        '<button class="btn ghost sm" id="svClose" disabled>ส่งแล้วปิดวันนี้เลย'+(left?(' · ค้าง '+left+' ข้อ'):'')+'</button>'));
+        '<button class="btn ghost sm" id="svClose" disabled>ส่งแล้วปิดวันนี้เลย · ค้าง '+left+' ข้อ</button>'));
+
+  /* ตัวเลือกเหตุผล */
+  if($('whyBox')){
+    $('whyBox').querySelectorAll('.opt').forEach(function(b){
+      b.onclick=function(){
+        $('whyBox').querySelectorAll('.opt').forEach(function(x){ x.classList.remove('on'); });
+        b.classList.add('on'); why=b.dataset.w;
+        $('isBox').classList.toggle('hide', why!=='issue');
+        if(why==='issue' && $('isTitle')) $('isTitle').focus();
+      };
+    });
+    $('catBox').querySelectorAll('.opt').forEach(function(b){
+      b.onclick=function(){ $('catBox').querySelectorAll('.opt').forEach(function(x){x.classList.remove('on');});
+        b.classList.add('on'); cat=b.dataset.v; };
+    });
+    $('sevBox').querySelectorAll('button').forEach(function(b){
+      b.onclick=function(){ $('sevBox').querySelectorAll('button').forEach(function(x){x.classList.remove('on');});
+        b.classList.add('on'); sev=b.dataset.v; };
+    });
+  }
 
   var syncBtn=function(){
     var ok=photos.length>0;
@@ -4113,7 +4158,7 @@ function reportSheet(a){
       else b1.textContent= ok? ('ส่งรายงาน · '+photos.length+' รูป') : 'แนบรูปก่อนถึงจะส่งได้'; }
     if(b2){ b2.disabled=!ok;
       if(full) b2.textContent= ok? ('✅ ส่งรายงาน + ปิดงานเสร็จ 100% · '+photos.length+' รูป') : 'แนบรูปก่อนถึงจะส่งได้';
-      else b2.textContent='ส่งแล้วปิดวันนี้เลย'+(left?(' · ค้าง '+left+' ข้อ'):''); }
+      else b2.textContent='ส่งแล้วปิดวันนี้เลย · ค้าง '+left+' ข้อ'; }
   };
   photoPicker('phB', photos, syncBtn);
   syncBtn();
@@ -4121,36 +4166,39 @@ function reportSheet(a){
   var send=async function(alsoClose, btn){
     if(!photos.length) return toast('ต้องแนบรูปหน้างานอย่างน้อย 1 รูป', 3200);
     var note=$('nt').value.trim();
-    var reason=note;
-    if(alsoClose && !full && !reason){
-      var ask=prompt('ปิดวันโดยยังค้าง '+left+' ข้อ — ติดอะไร / เหลืออะไร?');
+    var wantIssue = !full && why==='issue';
+    var isTitle = wantIssue? $('isTitle').value.trim() : '';
+    if(wantIssue && !isTitle) return toast('ใส่หัวข้อปัญหาสั้น ๆ ก่อน', 3200);
+    if(alsoClose && !full && !wantIssue && !note){
+      var ask=prompt('ปิดวันโดยยังค้าง '+left+' ข้อ — เหลืออะไร / ทำไมยังไม่จบ?');
       if(ask===null) return;
-      reason=ask.trim();
+      note=ask.trim();
     }
     btn.disabled=true; btn.textContent='กำลังส่ง…';
-    var pos=await getPos();
-    var now=new Date().toISOString();
+    var pos=await getPos(), now=new Date().toISOString();
     var body = alsoClose
-      ? ('ปิดงานวันนี้ที่ '+p+'%'+(reason?(' — '+reason):'')+(left?(' · ค้าง '+left+' ข้อ'):''))
+      ? ('ปิดงานวันนี้ที่ '+p+'%'+(note?(' — '+note):'')+(left?(' · ค้าง '+left+' ข้อ'):''))
       : (note||null);
     var rep={assignment_id:a.id, site_id:a.site_id, team_id:S.team.id,
       kind: alsoClose? 'checkout' : 'progress', progress:p, note:body, photos:photos,
       lat:pos?pos.lat:null, lng:pos?pos.lng:null, acc_m:pos?pos.acc:null,
       created_by:meName(), staff_id:S.me.id};
+    var blocked = wantIssue && $('isBlock') && $('isBlock').checked;
     var upd = alsoClose
       ? {progress:p, status: full? 'done' : 'partial', checkout_at:now}
-      : {progress:p, status: a.status==='assigned'?'working':a.status};
+      : {progress:p, status: blocked? 'blocked' : (a.status==='assigned'?'working':a.status)};
     try{
       await db.from('it_reports').insert(rep);
       await db.from('it_assignments').update(upd).eq('id',a.id);
-      if(alsoClose && !full && $('cdIssue') && $('cdIssue').checked){
+      if(wantIssue){
         await db.from('it_issues').insert({site_id:a.site_id, team_id:S.team.id, assignment_id:a.id,
-          category:(catLib()[0]||{k:'other'}).k, severity:'normal',
-          title:(reason||('งานค้าง '+left+' ข้อ ยังไม่จบวันนี้')).slice(0,120),
-          detail:'แจ้งอัตโนมัติตอนปิดงานวันที่ '+dayText(a.work_date)+' · คืบหน้า '+p+'%',
-          opened_by:meName(), staff_id:S.me.id});
+          category:cat, severity:sev, title:isTitle.slice(0,120),
+          detail:(note||'')+'\n\n(แจ้งพร้อมรายงานวันที่ '+dayText(a.work_date)+' · คืบหน้า '+p+'% · ค้าง '+left+' ข้อ)',
+          photos:photos, opened_by:meName(), staff_id:S.me.id});
       }
-      toast(alsoClose? (full? 'ปิดงานเสร็จ 100% แล้ว' : ('ปิดวันแล้วที่ '+p+'% — ออฟฟิศรับทราบ')) : 'ส่งรายงานแล้ว', 3600);
+      toast(alsoClose
+        ? (full? 'ปิดงานเสร็จ 100% แล้ว' : ('ปิดวันแล้วที่ '+p+'%'+(wantIssue?' · แจ้งปัญหาแล้ว':'')))
+        : ('ส่งรายงานแล้ว'+(wantIssue?' · แจ้งปัญหาแล้ว':'')), 3600);
       if(alsoClose) await rollover(a, full);
     }catch(e){
       qPush({t:'report', p:rep, asg:{id:a.id, v:upd}});
@@ -4161,201 +4209,6 @@ function reportSheet(a){
 
   if($('svOnly'))  $('svOnly').onclick=function(){ send(false, this); };
   if($('svClose')) $('svClose').onclick=function(){ send(true,  this); };
-}
-
-function issueSheet(a){
-  var photos=[], sev='normal';
-  var cat=(catLib()[0]||{k:'other'}).k;
-  sheet('แจ้งปัญหาหน้างาน',
-    '<div class="fld"><label>ปัญหาเรื่องอะไร</label>'+
-      (function(){
-        var lib=catLib(), gs=[], by={};
-        lib.forEach(function(x){ if(!by[x.g]){ by[x.g]=[]; gs.push(x.g); } by[x.g].push(x); });
-        return '<div id="catBox">'+gs.map(function(g){
-          return (gs.length>1? '<div class="sec-h" style="margin:12px 0 6px">'+esc(g)+'</div>':'')+
-            '<div class="opts">'+by[g].map(function(x){
-              return '<button class="opt'+(x.k===cat?' on':'')+'" data-v="'+esc(x.k)+'">'+x.i+' '+esc(x.l)+'</button>';
-            }).join('')+'</div>';
-        }).join('')+'</div>';
-      })()+
-    '</div>'+
-    '<div class="fld"><label>ความเร่งด่วน</label><div class="sev" id="sevBox">'+
-      Object.keys(SEV).map(function(k){ return '<button data-v="'+k+'"'+(k===sev?' class="on"':'')+'>'+SEV[k].l+'</button>'; }).join('')+
-    '</div></div>'+
-    '<div class="fld"><label>หัวข้อสั้น ๆ</label><input id="ti" placeholder="เช่น ตู้ล่าง 90 ซม. ยังไม่มาส่ง"></div>'+
-    '<div class="fld"><label>รายละเอียด</label><textarea id="dt" style="height:88px;resize:none" placeholder="บอกให้ชัดว่าติดตรงไหน ต้องการอะไร ถ้าไม่แก้จะกระทบยังไง"></textarea></div>'+
-    '<div class="fld"><label>รูปประกอบ (ช่วยให้ออฟฟิศตัดสินใจได้เร็วขึ้นมาก)</label><div class="phs" id="phI"></div></div>'+
-    '<label style="font-size:13.5px;display:flex;align-items:center;gap:9px;margin-top:4px">'+
-      '<input type="checkbox" id="blk"> ปัญหานี้ทำให้ทีมทำงานต่อไม่ได้</label>',
-    '<button class="btn danger" id="sendIs">ส่งให้ออฟฟิศ</button>');
-  photoPicker('phI', photos);
-  $('catBox').querySelectorAll('.opt').forEach(function(b){ b.onclick=function(){
-    $('catBox').querySelectorAll('.opt').forEach(function(x){x.classList.remove('on');}); b.classList.add('on'); cat=b.dataset.v; }; });
-  $('sevBox').querySelectorAll('button').forEach(function(b){ b.onclick=function(){
-    $('sevBox').querySelectorAll('button').forEach(function(x){x.classList.remove('on');}); b.classList.add('on'); sev=b.dataset.v; }; });
-  $('sendIs').onclick=async function(){
-    var title=$('ti').value.trim();
-    if(!title) return toast('ใส่หัวข้อปัญหาก่อน');
-    this.disabled=true; this.textContent='กำลังส่ง…';
-    var p={site_id:a.site_id, team_id:S.team.id, assignment_id:a.id, category:cat, severity:sev,
-      title:title, detail:$('dt').value.trim()||null, photos:photos, opened_by:meName(), staff_id:S.me.id};
-    var blocked=$('blk').checked;
-    try{
-      await db.from('it_issues').insert(p);
-      if(blocked) await db.from('it_assignments').update({status:'blocked'}).eq('id',a.id);
-      toast('ส่งแล้ว — ออฟฟิศได้รับทันที');
-    }catch(e){
-      qPush({t:'issue', p:p});
-      toast('ยังไม่มีเน็ต — บันทึกไว้ในเครื่องแล้ว', 3600);
-    }
-    closeSheet(); loadTeamData();
-  };
-}
-
-/* ปิดงานวันนี้ — เปอร์เซ็นต์ตามเช็กลิสต์จริง ไม่บังคับ 100% */
-function closeDay(a){
-  var ck=Array.isArray(a.checklist)?a.checklist:[];
-  var left=ck.filter(function(c){ return !c.done; });
-  var p = ck.length? Math.round((ck.length-left.length)/ck.length*100) : pct(a.progress);
-
-  if(ck.length && !left.length){
-    if(!confirm('ปิดงานวันนี้?\nเช็กลิสต์ครบทุกข้อแล้ว จะบันทึกเป็นเสร็จ 100%')) return;
-    return doCloseDay(a, 100, 'done', 'ปิดงานวันนี้ — เช็กลิสต์ครบทุกข้อ', false);
-  }
-
-  sheet('ปิดงานวันนี้',
-    '<div style="background:var(--orange-dim);border:1px solid rgba(255,149,0,.3);border-radius:12px;padding:13px 14px;margin-bottom:14px">'+
-      '<div style="display:flex;align-items:baseline;gap:9px">'+
-        '<span style="font-size:26px;font-weight:700;letter-spacing:-.02em;color:#c26c00">'+p+'%</span>'+
-        '<span style="font-size:12.5px;color:#c26c00">คืบหน้าที่จะบันทึก</span></div>'+
-      '<div style="font-size:12.5px;color:var(--text2);margin-top:5px;line-height:1.6">'+
-        (ck.length? ('ทำไปแล้ว '+(ck.length-left.length)+' จาก '+ck.length+' ข้อ · ค้างอีก '+left.length+' ข้อ')
-                  : 'งานนี้ไม่มีเช็กลิสต์ ระบบจะใช้ค่าคืบหน้าที่รายงานไว้ล่าสุด')+'</div>'+
-    '</div>'+
-    (left.length? ('<div class="sec-h">ยังไม่ได้ทำ '+left.length+' ข้อ</div>'+
-      '<div style="background:var(--s1);border:1px solid var(--border);border-radius:11px;padding:10px 13px;margin-bottom:14px">'+
-      left.map(function(c){ return '<div style="font-size:13px;padding:3px 0;color:var(--text2)">⬜ '+esc(c.label)+'</div>'; }).join('')+
-      '</div>'):'')+
-    '<div class="fld"><label>ทำไมยังไม่จบ / เหลืออะไร</label>'+
-      '<textarea id="cd_note" style="height:92px;resize:none" placeholder="เช่น ท็อปหินยังไม่มาส่ง รอของพรุ่งนี้เช้า / ลูกค้าขอหยุดก่อน"></textarea></div>'+
-    '<label style="font-size:13.5px;display:flex;align-items:center;gap:9px;margin-bottom:6px">'+
-      '<input type="checkbox" id="cd_issue" checked> แจ้งเป็นปัญหาให้ออฟฟิศด้วย</label>'+
-    '<p style="font-size:11.5px;color:var(--text2);line-height:1.65">'+
-      'ระบบจะบันทึกเป็น “ปิดวัน · ค้างต่อ” ที่ '+p+'% ผู้จัดการจะเห็นทันทีเพื่อจัดแผนวันถัดไปให้</p>',
-    '<button class="btn sm" id="cd_go">ปิดวันนี้'+(left.length?(' · ค้าง '+left.length+' ข้อ'):'')+'</button>');
-
-  $('cd_go').onclick=function(){
-    var note=$('cd_note').value.trim();
-    var wantIssue=$('cd_issue').checked;
-    closeSheet();
-    doCloseDay(a, p, 'partial', 'ปิดวันนี้ที่ '+p+'%'+(note?(' — '+note):'')+
-      (left.length?(' · ค้าง '+left.length+' ข้อ'):''), wantIssue? (note||('งานค้าง '+left.length+' ข้อ ยังไม่จบวันนี้')) : false);
-  };
-}
-
-/* ═════ ปิดวันแล้วจัดการงานที่เหลือ ═════
-   เสร็จ 100%  → ลบวันที่เหลือในแผน + เสนอปิดปัญหาที่ค้าง
-   ยังไม่ครบ  → ยกเช็กลิสต์ที่ยังไม่ได้ทำ + ปัญหาที่ค้าง ไปเป็นงานวันถัดไป */
-async function rollover(a, full){
-  try{
-    var openQ=await db.from('it_issues').select('*')
-      .eq('site_id',a.site_id).neq('status','resolved').neq('status','closed');
-    var open=openQ.data||[];
-
-    var nxtQ=await db.from('it_assignments').select('*')
-      .eq('site_id',a.site_id).eq('team_id',a.team_id).gt('work_date',a.work_date).order('work_date');
-    var future=(nxtQ.data||[]).filter(function(x){ return !x.checkin_at && x.status==='assigned'; });
-
-    if(full){
-      var msg=[];
-      if(future.length){
-        await db.from('it_assignments').delete().in('id', future.map(function(x){ return x.id; }));
-        msg.push('ยกเลิกวันที่เหลืออีก '+future.length+' วัน');
-      }
-      if(open.length){
-        var list=open.slice(0,6).map(function(i){ return '  #'+i.ref+' '+i.title; }).join('\n');
-        var ok=confirm('งานที่ไซต์นี้เสร็จครบ 100% แล้ว\n\nแต่ยังมีปัญหาค้างอยู่ '+open.length+' เรื่อง:\n'+
-          list+(open.length>6?'\n  …':'')+'\n\nปิดเรื่องเหล่านี้ทั้งหมดด้วยหรือไม่?\n'+
-          '(กดยกเลิกถ้ายังต้องให้ออฟฟิศตามต่อ เช่น เคลมของเสียหาย)');
-        if(ok){
-          var now=new Date().toISOString();
-          await db.from('it_issues').update({status:'resolved', resolved_at:now})
-            .in('id', open.map(function(i){ return i.id; }));
-          for(var k=0;k<open.length;k++){
-            await db.from('it_issue_comments').insert({issue_id:open[k].id, author:meName(), role:'team',
-              body:'ปิดพร้อมงาน — งานที่ไซต์นี้เสร็จครบ 100% เมื่อ '+dayText(a.work_date)});
-          }
-          msg.push('ปิดปัญหา '+open.length+' เรื่อง');
-        }
-      }
-      if(msg.length) toast(msg.join(' · '), 5000);
-      return;
-    }
-
-    /* ยังไม่ครบ — ยกของค้างไปวันถัดไป */
-    var ck=Array.isArray(a.checklist)?a.checklist:[];
-    var items=ck.filter(function(c){ return !c.done; }).map(function(c){ return {label:c.label, done:false}; });
-    open.forEach(function(i){
-      var lb='⚠️ แก้ปัญหา #'+i.ref+': '+i.title;
-      if(!items.some(function(x){ return x.label===lb; })) items.push({label:lb, done:false});
-    });
-    if(!items.length) return;
-
-    var scope=(a.scope||'งานค้าง')+' · ต่อจาก '+dayText(a.work_date);
-    if(future.length){
-      await db.from('it_assignments').update({checklist:items, scope:scope, progress:0}).eq('id', future[0].id);
-      toast('ยกงานค้าง '+items.length+' ข้อ ไปวัน '+dayText(future[0].work_date), 5000);
-    }else{
-      var d=planDates(addDays(a.work_date,1), 1, true)[0];
-      var r=await db.from('it_assignments').upsert({site_id:a.site_id, team_id:a.team_id, work_date:d,
-        scope:scope, checklist:items}, {onConflict:'site_id,team_id,work_date'});
-      if(!r.error) toast('สร้างงานต่อวัน '+dayText(d)+' · ค้าง '+items.length+' ข้อ', 5000);
-    }
-  }catch(e){}
-}
-
-/* เปิดงานที่ปิดไปแล้วกลับมาแก้ไข — ทำได้จากหน้างานเอง */
-async function reopenDay(a){
-  var was = a.status==='done'? 'ปิดงานเสร็จ' : ('ปิดวันที่ '+pct(a.progress)+'%');
-  var msg='เปิดงานนี้ต่อเพื่อแก้ไข?\n\nสถานะจะกลับเป็น “กำลังทำ” ติ๊กเช็กลิสต์ ส่งรายงาน และปิดงานใหม่ได้อีกครั้ง';
-  if(a.work_date!==todayISO()) msg+='\n\n⚠️ งานนี้เป็นของวันที่ '+dayText(a.work_date)+' ไม่ใช่วันนี้';
-  if(!confirm(msg)) return;
-
-  var upd={status:'working', checkout_at:null};
-  var rep={assignment_id:a.id, site_id:a.site_id, team_id:S.team.id, kind:'progress', progress:pct(a.progress),
-    note:'เปิดงานต่อเพื่อแก้ไข (จาก '+was+')', created_by:meName(), staff_id:S.me.id};
-  try{
-    await db.from('it_assignments').update(upd).eq('id',a.id);
-    await db.from('it_reports').insert(rep);
-    toast('เปิดงานต่อแล้ว — แก้ไขได้ตามปกติ');
-  }catch(e){
-    qPush({t:'report', p:rep, asg:{id:a.id, v:upd}});
-    toast('ยังไม่มีเน็ต — บันทึกไว้ในเครื่องแล้ว', 3600);
-  }
-  Object.assign(a, upd); renderTeam(); loadTeamData();
-}
-
-async function doCloseDay(a, p, status, note, issueTitle){
-  var now=new Date().toISOString();
-  var upd={status:status, progress:p, checkout_at:now};
-  var rep={assignment_id:a.id, site_id:a.site_id, team_id:S.team.id, kind:'checkout', progress:p,
-    note:note, created_by:meName(), staff_id:S.me.id};
-  try{
-    await db.from('it_assignments').update(upd).eq('id',a.id);
-    await db.from('it_reports').insert(rep);
-    if(issueTitle){
-      await db.from('it_issues').insert({site_id:a.site_id, team_id:S.team.id, assignment_id:a.id,
-        category:'other', severity:'normal', title:String(issueTitle).slice(0,120),
-        detail:'แจ้งอัตโนมัติตอนปิดงานวันที่ '+dayText(a.work_date)+' · คืบหน้า '+p+'%',
-        opened_by:meName(), staff_id:S.me.id});
-    }
-    toast(status==='done'? 'ปิดงานแล้ว' : ('ปิดวันแล้วที่ '+p+'% — ออฟฟิศรับทราบ'), 3600);
-    await rollover(a, status==='done');
-  }catch(e){
-    qPush({t:'report', p:rep, asg:{id:a.id, v:upd}});
-    toast('ยังไม่มีเน็ต — บันทึกไว้ในเครื่องแล้ว',3600);
-  }
-  Object.assign(a, upd); renderTeam(); loadTeamData();
 }
 
 function renderTeamIssues(){
