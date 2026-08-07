@@ -198,11 +198,16 @@ body.dragmode .pjob:active{cursor:grabbing}
 .pcell.sun{background:rgba(0,0,0,.028)}
 .pcell.sun:hover{background:var(--accent-glow)}
 .pcol-today{box-shadow:inset 2px 0 0 var(--accent),inset -2px 0 0 var(--accent)}
-.pjob{border-radius:8px;padding:5px 7px;margin-bottom:4px;border-left:3px solid var(--accent);
+.pjob{border-radius:8px;padding:5px 7px;margin-bottom:4px;border-left:4px solid var(--accent);
   background:rgba(255,255,255,.9);border-top:1px solid var(--border);border-right:1px solid var(--border);
   border-bottom:1px solid var(--border);font-size:10.5px;line-height:1.4;color:var(--text2)}
 .pjob b{display:block;font-weight:600;font-size:11.5px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .pjob .sc{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pjob .st{display:block;font-weight:700;font-size:10px;margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pjob .st i{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:4px;vertical-align:0}
+#pnLegend{display:flex;gap:13px;flex-wrap:wrap;align-items:center;padding:0 14px 10px;font-size:11px;color:var(--text2)}
+#pnLegend i{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:4px;vertical-align:-1px}
+#pnLegend .bx{display:inline-block;width:15px;height:10px;border-radius:3px;margin-right:4px;vertical-align:-1px;border:1px solid var(--border2)}
 .padd{color:var(--text3);font-size:15px;text-align:center;opacity:0;transition:opacity .1s;line-height:1.6}
 .pcell:hover .padd{opacity:1}
 .pfree{font-size:10px;color:var(--text3);text-align:center;padding:2px}
@@ -450,7 +455,7 @@ body.preview #previewBar{display:flex}
 
 <script>
 /* ── ยามเฝ้า splash: อยู่นอกสคริปต์หลัก ถ้าสคริปต์หลักพัง ตัวนี้ยังทำงาน ── */
-window.APP_VER='5.1';
+window.APP_VER='5.2';
 (function(){
   var fill=function(){
     var a=document.querySelectorAll('.ver');
@@ -545,6 +550,7 @@ window.APP_VER='5.1';
       <button class="tb-btn" id="pnPrint">🖨 พิมพ์</button>
       <button class="tb-btn" id="pnXls">📊 Excel</button>
     </div>
+    <div id="pnLegend"></div>
     <div style="padding:0 14px 16px">
       <div class="card"><div class="plan-wrap" id="pnWrap"></div></div>
     </div>
@@ -818,10 +824,14 @@ var SEV = {low:{l:'ไม่เร่ง',c:'c-gray',x:'var(--text3)'}, normal:{
            high:{l:'เร่ง',c:'c-orange',x:'var(--orange)'}, urgent:{l:'ด่วนมาก',c:'c-red',x:'var(--red)'}};
 var IST = {open:{l:'ใหม่',c:'c-red'}, acked:{l:'รับเรื่องแล้ว',c:'c-orange'}, in_progress:{l:'กำลังแก้',c:'c-blue'},
            resolved:{l:'แก้แล้ว',c:'c-green'}, closed:{l:'ปิดเรื่อง',c:'c-gray'}};
-var AST = {assigned:{l:'ยังไม่เข้า',c:'c-gray',x:'#aeaeb2'}, checked_in:{l:'ถึงหน้างาน',c:'c-purple',x:'#5856d6'},
-           working:{l:'กำลังทำ',c:'c-blue',x:'#007AFF'}, done:{l:'เสร็จ',c:'c-green',x:'#34c759'},
-           partial:{l:'ปิดวัน · ค้างต่อ',c:'c-orange',x:'#ff9500'},
-           blocked:{l:'ติดปัญหา',c:'c-red',x:'#ff3b30'}};
+var AST = {
+  assigned  :{l:'ยังไม่เข้า',      c:'c-gray',   x:'#aeaeb2', d:'#6e6e73'},
+  checked_in:{l:'ถึงหน้างาน',      c:'c-purple', x:'#5856d6', d:'#4340b8'},
+  working   :{l:'กำลังทำ',         c:'c-blue',   x:'#007AFF', d:'#0062cc'},
+  done      :{l:'เสร็จ',           c:'c-green',  x:'#34c759', d:'#1e8e3e'},
+  partial   :{l:'ปิดวัน · ค้างต่อ', c:'c-orange', x:'#ff9500', d:'#c26c00'},
+  blocked   :{l:'ติดปัญหา',        c:'c-red',    x:'#ff3b30', d:'#c9251c'}
+};
 
 /* ───────── utils ───────── */
 function $(id){ return document.getElementById(id); }
@@ -1786,6 +1796,18 @@ function renderSchedule(){
     }).join('')+'<option value="custom">⚙️ กำหนดเอง…</option>';
   })();
 
+  (function(){
+    var lg=$('pnLegend'); if(!lg) return;
+    lg.innerHTML='<b style="color:var(--text);font-size:11px">สถานะ</b>'+
+      Object.keys(AST).map(function(k){
+        return '<span><i style="background:'+AST[k].x+'"></i>'+AST[k].l+'</span>';
+      }).join('')+
+      '<span style="width:1px;height:13px;background:var(--border2)"></span>'+
+      '<span><span class="bx" style="background:hsl(205,66%,95%);border-color:hsl(205,42%,84%)"></span>ชุดงานหลายวัน (คนละชุดคนละสี)</span>'+
+      '<span><span class="bx" style="background:rgba(255,149,0,.15);border-color:var(--orange)"></span>งานซ้อน</span>'+
+      '<span><span class="bx" style="background:rgba(255,59,48,.12);border-color:rgba(255,59,48,.4)"></span>วันหยุด</span>';
+  })();
+
   var sel=$('pnTeam');
   if(sel){
     var cur=S.pnTeam;
@@ -1856,8 +1878,8 @@ function renderSchedule(){
             (carry?'<span class="sc" style="color:var(--orange);font-weight:600">↪ งานยกมา</span>':'')+
             '<b>'+esc(si.name||'—')+'</b>'+
             (a.scope?'<span class="sc">'+esc(a.scope)+'</span>':'')+
-            '<span class="sc" style="color:'+st.x+'">'+st.l+(a.progress?' · '+pct(a.progress)+'%':'')+
-            (iss?' · ⚠'+iss:'')+'</span></div>';
+            '<span class="st" style="color:'+(st.d||st.x)+'"><i style="background:'+st.x+'"></i>'+
+              st.l+(a.progress?' · '+pct(a.progress)+'%':'')+(iss?' · ⚠'+iss:'')+'</span></div>';
         }).join('');
         return '<td class="'+cls+'" data-add="'+t.id+'|'+d+'"'+
           (clash?' title="ทีมนี้ถูกจอง '+nSite+' ไซต์ในวันเดียวกัน — ตรวจว่าทำไหวหรือต้องเลื่อน"':'')+'>'+
@@ -2180,8 +2202,8 @@ function printSchedule(){
               (carry? '<span class="ser" style="color:#c26c00">↪ งานยกมา</span>' : '')+
               '<b>'+esc(si.name||'—')+'</b>'+
               (a.scope?'<span class="sc">'+esc(a.scope)+'</span>':'')+
-              '<span class="st" style="color:'+st.x+'">'+st.l+(a.progress?' · '+pct(a.progress)+'%':'')+
-                (iss?' · ⚠'+iss:'')+'</span></div>';
+              '<span class="st" style="color:'+(st.d||st.x)+'"><i style="background:'+st.x+'"></i>'+
+                st.l+(a.progress?' · '+pct(a.progress)+'%':'')+(iss?' · ⚠'+iss:'')+'</span></div>';
           }).join('') : '')+'</td>';
       }).join('')+'</tr>';
   }).join('');
@@ -2214,7 +2236,8 @@ function printSchedule(){
     '.job b{display:block;font-size:9.5px;line-height:1.3}'+
     '.job .ser{display:block;font-size:8px;font-weight:700;line-height:1.4}'+
     '.job .sc{display:block;color:#444;font-size:8.5px;line-height:1.35}'+
-    '.job .st{display:block;font-size:8.5px;font-weight:600;line-height:1.35}'+
+    '.job .st{display:block;font-size:8.5px;font-weight:700;line-height:1.35}'+
+    '.job .st i{display:inline-block;width:6px;height:6px;border-radius:50%;margin-right:3px}'+
     '.hn{font-size:8px;color:#c9251c;font-weight:700}'+
     '.fn{font-size:8px;color:#888;font-weight:400}'+
     '.lg{margin-top:10px;display:flex;gap:14px;flex-wrap:wrap;font-size:9px;color:#444;align-items:center}'+
@@ -3059,10 +3082,13 @@ var HELP_DASH=[
     'Export CSV ได้สามชุด — งาน ปัญหา และรายงานหน้างาน',
     'ไฟล์เปิดใน Excel ภาษาไทยไม่เพี้ยน มีคอลัมน์ระยะเช็คอินเป็นกิโลเมตรและพิกัดจริง'
   ]},
-  {k:'st', i:'🚦', t:'ความหมายของสถานะ', b:[
-    'เทา = ยังไม่เข้า · ม่วง = ถึงหน้างานแล้ว · น้ำเงิน = กำลังทำ',
-    'เขียว = เสร็จครบ 100% · ส้ม = ปิดวันแต่ยังค้างต่อ · แดง = ติดปัญหาจนทำงานต่อไม่ได้',
-    'ส้มกับแดงคือสองสีที่ต้องจัดแผนใหม่ ระบบดันขึ้นบนสุดของรายการให้อัตโนมัติ'
+  {k:'st', i:'🚦', t:'อ่านสีในตารางแผนงาน', b:[
+    '<b>จุดกลมหน้าบรรทัดล่างของใบงาน = สถานะ</b> — ⚪ เทา ยังไม่เข้า · 🟣 ม่วง ถึงหน้างานแล้ว · 🔵 น้ำเงิน กำลังทำ',
+    '🟢 เขียว เสร็จครบ 100% · 🟠 ส้ม ปิดวันแต่ยังค้างต่อ · 🔴 แดง ติดปัญหาจนทำงานต่อไม่ได้',
+    'ส้มกับแดงคือสองสถานะที่ต้องจัดแผนใหม่ ระบบดันขึ้นบนสุดของรายการสถานะรายทีมให้อัตโนมัติ',
+    '<b>พื้นสีอ่อนของใบงาน = ชุดงานหลายวัน</b> ของไซต์+ทีมเดียวกัน แต่ละชุดคนละสี ไม่เกี่ยวกับสถานะ',
+    '<b>กรอบส้มรอบช่อง</b> = ทีมถูกจองหลายไซต์ในวันเดียว · <b>คอลัมน์พื้นแดงอ่อน</b> = วันหยุดโรงงาน',
+    'แถบคำอธิบายสีอยู่ใต้แถบเครื่องมือของแท็บแผนงาน และพิมพ์ติดไปกับกระดาษด้วย'
   ]}
 ];
 var HELP_MGR_EXTRA=[
