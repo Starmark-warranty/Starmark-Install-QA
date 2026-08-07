@@ -442,7 +442,7 @@ body.preview #previewBar{display:flex}
 
 <script>
 /* ── ยามเฝ้า splash: อยู่นอกสคริปต์หลัก ถ้าสคริปต์หลักพัง ตัวนี้ยังทำงาน ── */
-window.APP_VER='4.0';
+window.APP_VER='4.1';
 (function(){
   var fill=function(){
     var a=document.querySelectorAll('.ver');
@@ -4368,6 +4368,18 @@ function reportSheet(a){
       if(ask===null) return;
       note=ask.trim();
     }
+    /* ปิดจบ 100% — ถามเรื่องปัญหาค้างก่อน จะได้ยกเลิกกลับมาแก้ได้ */
+    var pickIssues=null;
+    if(alsoClose && full){
+      var oq=await db.from('it_issues').select('*')
+        .eq('site_id',a.site_id).neq('status','resolved').neq('status','closed');
+      var openNow=oq.data||[];
+      if(openNow.length){
+        pickIssues=await askCloseIssues(openNow, a);
+        if(pickIssues===null){ syncBtn(); return; }   /* กดกากบาท = กลับกล่องเดิม ยังไม่บันทึก */
+      }
+    }
+
     btn.disabled=true; btn.textContent='กำลังส่ง…';
     var pos=await getPos(), now=new Date().toISOString();
     var body = alsoClose
@@ -4393,7 +4405,7 @@ function reportSheet(a){
       toast(alsoClose
         ? (full? 'ปิดงานเสร็จ 100% แล้ว' : ('ปิดวันแล้วที่ '+p+'%'+(wantIssue?' · แจ้งปัญหาแล้ว':'')))
         : ('ส่งรายงานแล้ว'+(wantIssue?' · แจ้งปัญหาแล้ว':'')), 3600);
-      if(alsoClose) await rollover(a, full);
+      if(alsoClose) await rollover(a, full, pickIssues);
     }catch(e){
       qPush({t:'report', p:rep, asg:{id:a.id, v:upd}});
       toast('ยังไม่มีเน็ต — บันทึกไว้ในเครื่องแล้ว', 3600);
@@ -4410,14 +4422,15 @@ function askCloseIssues(list, a){
     var sel={}; list.forEach(function(i){ sel[i.id]=true; });
     var finish=function(ids){
       $('shX2').onclick=closeSheet2; $('shBd2').onclick=closeSheet2;
-      closeSheet2(); res(ids);
+      closeSheet2(); res(ids);          /* null = ยกเลิก กลับไปกล่องก่อนหน้า */
     };
     var count=function(){ return Object.keys(sel).filter(function(k){ return sel[k]; }).length; };
     var draw=function(){
       $('shB2').innerHTML=
         '<p style="font-size:13px;color:var(--text2);line-height:1.7;margin-bottom:12px">'+
           'งานที่ไซต์นี้เสร็จครบ 100% แล้ว แต่ยังมีปัญหาค้างอยู่ <b style="color:var(--text)">'+list.length+' เรื่อง</b><br>'+
-          'ติ๊กไว้ = ปิดเรื่องนี้ไปพร้อมงาน · เอาติ๊กออก = ยังต้องให้ออฟฟิศตามต่อ เช่น เคลมของเสียหาย</p>'+
+          'ติ๊กไว้ = ปิดเรื่องนี้ไปพร้อมงาน · เอาติ๊กออก = ยังต้องให้ออฟฟิศตามต่อ เช่น เคลมของเสียหาย<br>'+
+          '<span style="color:var(--text3)">กดกากบาทมุมขวาบนเพื่อกลับไปหน้าก่อนหน้า — ยังไม่บันทึกอะไรทั้งนั้น</span></p>'+
         list.map(function(i){
           var c=catOf(i.category);
           return '<label style="display:flex;align-items:flex-start;gap:10px;background:'+(sel[i.id]?'var(--green-dim)':'var(--s1)')+
@@ -4441,15 +4454,15 @@ function askCloseIssues(list, a){
       '<button class="btn sm" id="ciGo">ปิดทั้งหมด แล้วจบงาน</button>');
     draw();
     $('ciGo').onclick=function(){ finish(Object.keys(sel).filter(function(k){ return sel[k]; })); };
-    $('shX2').onclick=function(){ finish([]); };
-    $('shBd2').onclick=function(){ finish([]); };
+    $('shX2').onclick=function(){ finish(null); };
+    $('shBd2').onclick=function(){ finish(null); };
   });
 }
 
 /* ═════ ปิดวันแล้วจัดการงานที่เหลือ ═════
    เสร็จ 100%  → ลบวันที่เหลือในแผน + ให้เลือกปิดปัญหาที่ค้าง
    ยังไม่ครบ  → ยกเช็กลิสต์ที่ยังไม่ได้ทำ + ปัญหาที่ค้าง ไปเป็นงานวันถัดไป */
-async function rollover(a, full){
+async function rollover(a, full, pick){
   try{
     var openQ=await db.from('it_issues').select('*')
       .eq('site_id',a.site_id).neq('status','resolved').neq('status','closed');
@@ -4465,17 +4478,14 @@ async function rollover(a, full){
         await db.from('it_assignments').delete().in('id', future.map(function(x){ return x.id; }));
         msg.push('ยกเลิกวันที่เหลืออีก '+future.length+' วัน');
       }
-      if(open.length){
-        var pick=await askCloseIssues(open, a);
-        if(pick.length){
-          var now=new Date().toISOString();
-          await db.from('it_issues').update({status:'resolved', resolved_at:now}).in('id', pick);
-          for(var k=0;k<pick.length;k++){
-            await db.from('it_issue_comments').insert({issue_id:pick[k], author:meName(), role:'team',
-              body:'ปิดพร้อมงาน — งานที่ไซต์นี้เสร็จครบ 100% เมื่อ '+dayText(a.work_date)});
-          }
-          msg.push('ปิดปัญหา '+pick.length+' เรื่อง');
+      if(pick && pick.length){
+        var now=new Date().toISOString();
+        await db.from('it_issues').update({status:'resolved', resolved_at:now}).in('id', pick);
+        for(var k=0;k<pick.length;k++){
+          await db.from('it_issue_comments').insert({issue_id:pick[k], author:meName(), role:'team',
+            body:'ปิดพร้อมงาน — งานที่ไซต์นี้เสร็จครบ 100% เมื่อ '+dayText(a.work_date)});
         }
+        msg.push('ปิดปัญหา '+pick.length+' เรื่อง');
       }
       if(msg.length) toast(msg.join(' · '), 5000);
       return;
