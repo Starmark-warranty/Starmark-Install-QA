@@ -271,10 +271,6 @@ button,input,select,textarea{font-family:inherit;color:inherit}
 .bigbtn.red{background:var(--red);box-shadow:0 4px 14px rgba(255,59,48,.26)}
 .bigbtn:disabled{opacity:.45;box-shadow:none}
 .mpad{padding:12px}
-.slider{width:100%;-webkit-appearance:none;height:34px;background:none;cursor:pointer}
-.slider::-webkit-slider-runnable-track{height:9px;border-radius:5px;background:rgba(0,0,0,.1)}
-.slider::-webkit-slider-thumb{-webkit-appearance:none;width:28px;height:28px;border-radius:50%;background:#fff;
-  border:1px solid var(--border2);box-shadow:0 2px 7px rgba(0,0,0,.22);margin-top:-10px}
 .ph-add{width:56px;height:56px;border-radius:9px;border:1.5px dashed var(--border2);background:var(--s2);
   display:flex;align-items:center;justify-content:center;font-size:21px;color:var(--text3);cursor:pointer;flex-shrink:0}
 .phs{display:flex;gap:7px;flex-wrap:wrap;margin-top:8px}
@@ -436,7 +432,7 @@ body.preview #previewBar{display:flex}
 
 <script>
 /* ── ยามเฝ้า splash: อยู่นอกสคริปต์หลัก ถ้าสคริปต์หลักพัง ตัวนี้ยังทำงาน ── */
-window.APP_VER='2.6';
+window.APP_VER='2.9';
 (function(){
   var fill=function(){
     var a=document.querySelectorAll('.ver');
@@ -528,6 +524,8 @@ window.APP_VER='2.6';
       <label style="font-size:11.5px;color:var(--text2);display:flex;align-items:center;gap:5px">
         <input type="checkbox" id="pnBusy"> เฉพาะทีมที่มีงาน</label>
       <span id="pnNote" style="margin-left:auto;font-size:11.5px;color:var(--text2)">—</span>
+      <button class="tb-btn" id="pnPrint">🖨 พิมพ์</button>
+      <button class="tb-btn" id="pnXls">📊 Excel</button>
     </div>
     <div style="padding:0 14px 16px">
       <div class="card"><div class="plan-wrap" id="pnWrap"></div></div>
@@ -1294,6 +1292,8 @@ $('pnNext').onclick=function(){ S.planFrom=addDays(S.planFrom||todayISO(),  S.pl
 $('pnToday').onclick=function(){ S.planFrom=todayISO(); loadSchedule(); };
 $('pnFrom').onchange=function(){ S.planFrom=this.value||todayISO(); loadSchedule(); };
 $('pnDays').onchange=function(){ S.planDays=+this.value||14; loadSchedule(); };
+$('pnPrint').onclick=printSchedule;
+$('pnXls').onclick=exportSchedule;
 $('pnSearch').oninput=function(){ S.pnQ=this.value.toLowerCase(); renderSchedule(); };
 $('pnBusy').onchange=function(){ S.pnBusy=this.checked; renderSchedule(); };
 $('btnField').onclick=goField;
@@ -1638,14 +1638,11 @@ async function loadSchedule(){
   renderSchedule();
 }
 
-function renderSchedule(){
-  var wrap=$('pnWrap'); if(!wrap) return;
+/* ข้อมูลตารางแผนงานตามตัวกรองปัจจุบัน — ใช้ร่วมกันทั้งหน้าจอ พิมพ์ และ Excel */
+function scheduleData(){
   if(!S.planFrom) S.planFrom=todayISO();
-  $('pnFrom').value=S.planFrom; $('pnDays').value=String(S.planDays);
-
-  var days=[], today=todayISO();
+  var days=[];
   for(var i=0;i<S.planDays;i++) days.push(addDays(S.planFrom,i));
-
   var q=S.pnQ;
   var teams=S.teams.filter(function(t){ return t.active!==false; });
   if(q) teams=teams.filter(function(t){
@@ -1655,6 +1652,24 @@ function renderSchedule(){
       return ((s.name||'')+(s.code||'')+(s.customer||'')).toLowerCase().indexOf(q)>=0; });
   });
   if(S.pnBusy) teams=teams.filter(function(t){ return S.plan.some(function(a){return a.team_id===t.id;}); });
+  return {days:days, teams:teams};
+}
+function jobsAt(teamId, d){
+  return S.plan.filter(function(a){ return a.team_id===teamId && a.work_date===d; });
+}
+function cellText(a){
+  var si=siteOf(a.site_id), st=AST[a.status]||AST.assigned;
+  return (si.code? si.code+' ' : '')+(si.name||'—')+
+    (a.scope? (' — '+a.scope) : '')+
+    ' ['+st.l+(a.progress? ' '+pct(a.progress)+'%' : '')+']';
+}
+
+function renderSchedule(){
+  var wrap=$('pnWrap'); if(!wrap) return;
+  if(!S.planFrom) S.planFrom=todayISO();
+  $('pnFrom').value=S.planFrom; $('pnDays').value=String(S.planDays);
+
+  var _d=scheduleData(), days=_d.days, teams=_d.teams, today=todayISO();
 
   var totalJobs=S.plan.length;
   var busyCells=0;
@@ -1715,6 +1730,120 @@ function renderSchedule(){
   wrap.querySelectorAll('[data-add]').forEach(function(td){
     td.onclick=function(){ var v=td.dataset.add.split('|'); quickAssign(v[0], v[1]); };
   });
+}
+
+/* ═════ พิมพ์ตารางแผนงาน ═════ */
+function printSchedule(){
+  var d=scheduleData(), days=d.days, teams=d.teams, today=todayISO();
+  if(!teams.length) return toast('ไม่มีทีมให้พิมพ์');
+
+  var head='<tr><th class="tc">ทีม</th>'+days.map(function(x){
+    var dt=new Date(x+'T00:00:00');
+    return '<th'+(dt.getDay()===0?' class="sun"':'')+'>'+DW_TH[dt.getDay()]+'<br>'+dt.getDate()+' '+MO_TH[dt.getMonth()]+'</th>';
+  }).join('')+'</tr>';
+
+  var body=teams.map(function(t){
+    var L=leadInfo(t);
+    return '<tr><td class="tc"><b>'+esc(t.name)+'</b><br><span class="sm">'+esc(t.code)+
+      (L.name?' · '+esc(L.name):'')+(L.phone?' · '+esc(L.phone):'')+'</span></td>'+
+      days.map(function(x){
+        var dt=new Date(x+'T00:00:00');
+        var js=jobsAt(t.id, x);
+        return '<td'+(dt.getDay()===0?' class="sun"':'')+'>'+
+          (js.length? js.map(function(a){
+            var si=siteOf(a.site_id), st=AST[a.status]||AST.assigned;
+            return '<div class="job"><b>'+esc(si.name||'—')+'</b>'+
+              (a.scope?'<span class="sc">'+esc(a.scope)+'</span>':'')+
+              '<span class="st">'+st.l+(a.progress?' · '+pct(a.progress)+'%':'')+'</span></div>';
+          }).join('') : '')+'</td>';
+      }).join('')+'</tr>';
+  }).join('');
+
+  var total=days.reduce(function(n,x){ return n+teams.reduce(function(m,t){ return m+jobsAt(t.id,x).length; },0); },0);
+  var dt0=new Date(days[0]+'T00:00:00'), dt1=new Date(days[days.length-1]+'T00:00:00');
+  var period=dt0.getDate()+' '+MO_TH[dt0.getMonth()]+' — '+dt1.getDate()+' '+MO_TH[dt1.getMonth()]+' '+(dt1.getFullYear()+543);
+
+  var html='<!DOCTYPE html><html lang="th"><head><meta charset="utf-8"><title>แผนงานติดตั้ง '+esc(period)+'</title>'+
+    '<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700&display=swap" rel="stylesheet">'+
+    '<style>'+
+    '@page{size:A4 landscape;margin:10mm}'+
+    'body{font-family:"Sarabun",sans-serif;color:#111;margin:0;padding:14px}'+
+    '.hd{display:flex;align-items:flex-end;gap:14px;border-bottom:2px solid #111;padding-bottom:8px;margin-bottom:12px}'+
+    '.hd h1{font-size:17px;margin:0;letter-spacing:-.01em}'+
+    '.hd .p{font-size:12px;color:#444;margin-top:2px}'+
+    '.hd .meta{margin-left:auto;text-align:right;font-size:10.5px;color:#666;line-height:1.6}'+
+    'table{border-collapse:collapse;width:100%;table-layout:fixed}'+
+    'th,td{border:1px solid #bbb;padding:4px 5px;vertical-align:top;font-size:9.5px;word-break:break-word}'+
+    'th{background:#f0f0f3;text-align:center;font-size:9.5px;font-weight:700}'+
+    'th.sun,td.sun{background:#f7f7f9}'+
+    '.tc{width:110px;text-align:left;background:#f0f0f3}'+
+    'td.tc{font-size:10px}'+
+    '.sm{color:#666;font-size:8.5px;font-weight:400}'+
+    '.job{border-left:2.5px solid #007AFF;padding:2px 0 2px 5px;margin-bottom:3px}'+
+    '.job b{display:block;font-size:9.5px}'+
+    '.job .sc{display:block;color:#444;font-size:8.5px}'+
+    '.job .st{display:block;color:#666;font-size:8.5px}'+
+    '.ft{margin-top:16px;display:flex;gap:40px;font-size:10.5px;color:#333}'+
+    '.ft div{flex:1;border-top:1px solid #999;padding-top:5px;text-align:center}'+
+    '@media print{.noprint{display:none}}'+
+    '</style></head><body>'+
+    '<div class="hd"><div><h1>แผนงานติดตั้ง — Install-QA Tracker</h1>'+
+      '<div class="p">'+esc(period)+' · '+teams.length+' ทีม · '+total+' งาน</div></div>'+
+      '<div class="meta">พิมพ์เมื่อ '+fmtDT(new Date().toISOString())+'<br>โดย '+esc(meName())+'</div></div>'+
+    '<table><thead>'+head+'</thead><tbody>'+body+'</tbody></table>'+
+    '<div class="ft"><div>ผู้จัดทำ</div><div>ผู้ตรวจสอบ</div><div>ผู้อนุมัติ</div></div>'+
+    '</body></html>';
+
+  var w=window.open('','_blank');
+  if(!w) return toast('เบราว์เซอร์บล็อกหน้าต่างใหม่ — อนุญาต popup ของเว็บนี้ก่อน', 4500);
+  w.document.write(html); w.document.close();
+  setTimeout(function(){ try{ w.focus(); w.print(); }catch(e){} }, 700);
+}
+
+/* ═════ ส่งออกตารางแผนงานเป็น Excel (CSV) ═════ */
+function exportSchedule(){
+  var d=scheduleData(), days=d.days, teams=d.teams;
+  if(!teams.length) return toast('ไม่มีข้อมูลให้ Export');
+
+  /* แผ่นที่ 1 — ตารางแบบเดียวกับที่เห็นบนจอ */
+  var grid=teams.map(function(t){
+    var L=leadInfo(t);
+    var row={ทีม:t.code+' '+t.name, หัวหน้าทีม:L.name||'', เบอร์โทร:L.phone||''};
+    days.forEach(function(x){
+      var dt=new Date(x+'T00:00:00');
+      var key=DW_TH[dt.getDay()]+' '+dt.getDate()+' '+MO_TH[dt.getMonth()];
+      row[key]=jobsAt(t.id,x).map(cellText).join(' / ');
+    });
+    return row;
+  });
+  csv('แผนงาน_ตาราง_'+days[0]+'_ถึง_'+days[days.length-1], grid);
+
+  /* แผ่นที่ 2 — รายการแบบแถวต่อแถว ไว้กรอง/พิวอตใน Excel */
+  var flat=[];
+  teams.forEach(function(t){
+    var L=leadInfo(t);
+    days.forEach(function(x){
+      jobsAt(t.id,x).forEach(function(a){
+        var si=siteOf(a.site_id), st=AST[a.status]||AST.assigned;
+        var ck=Array.isArray(a.checklist)?a.checklist:[];
+        flat.push({
+          วันที่:x, วัน:DW_TH[new Date(x+'T00:00:00').getDay()],
+          รหัสทีม:t.code, ทีม:t.name, หัวหน้าทีม:L.name||'',
+          รหัสงาน:si.code||'', ไซต์งาน:si.name||'', หมวดไซต์:si.category||'', ลูกค้า:si.customer||'',
+          ที่อยู่:si.address||'', ขอบเขตงาน:a.scope||'',
+          สถานะ:st.l, คืบหน้า:pct(a.progress)+'%',
+          เช็กลิสต์:ck.filter(function(c){return c.done;}).length+'/'+ck.length,
+          เช็คอิน:a.checkin_at?fmtDT(a.checkin_at):'',
+          ระยะถนนกม:a.checkin_road_m!=null?(a.checkin_road_m/1000).toFixed(1):''
+        });
+      });
+    });
+  });
+  if(flat.length) setTimeout(function(){
+    csv('แผนงาน_รายการ_'+days[0]+'_ถึง_'+days[days.length-1], flat);
+  }, 900);
+
+  toast('ดาวน์โหลด 2 ไฟล์ — ตารางและรายการ', 4200);
 }
 
 /* เพิ่มงานลงช่องว่างในตารางได้เลย — เลือกไซต์เดิม หรือคีย์ไซต์ใหม่ตรงนี้ */
@@ -2196,13 +2325,16 @@ var HELP_STAFF=[
     'กดปุ่มแดง “แจ้งปัญหาหน้างาน” เลือกประเภท ความเร่งด่วน ใส่หัวข้อสั้น ๆ',
     'ติ๊ก “ปัญหานี้ทำให้ทีมทำงานต่อไม่ได้” ถ้าหยุดงานจริง งานจะขึ้นสีแดงเตือนออฟฟิศทันที',
     'แนบรูปเสมอถ้าเป็นของขาด ของผิดสเปค หรือของเสียหาย',
-    'ออฟฟิศตอบกลับได้ในเรื่องนั้น ดูความเคลื่อนไหวได้ที่แท็บ “ปัญหา”'
+    'ออฟฟิศตอบกลับได้ในเรื่องนั้น ดูความเคลื่อนไหวได้ที่แท็บ “ปัญหา”',
+    'ถ้าแก้ไขได้เองแล้ว เปิดเรื่องนั้นแล้วกด “✅ แก้ไขแล้ว ปิดเรื่อง” · แจ้งผิดหรือแจ้งซ้ำกด “ยกเลิกเรื่อง”',
+    'ถ้าเรื่องที่ปิดไปแล้วกลับมาเกิดอีก กด “ปัญหากลับมาอีก — เปิดเรื่องใหม่” ได้เลย'
   ]},
   {k:'end', i:'🏁', t:'ปิดงานประจำวัน', b:[
     'ติ๊กเช็กลิสต์ครบทุกข้อ → ปิดเป็น “เสร็จ 100%”',
     'ยังไม่ครบ → ระบบจะถามว่าติดอะไร แล้วบันทึกเป็น “ปิดวัน · ค้างต่อ” ตามเปอร์เซ็นต์จริง',
     'ค่าเริ่มต้นจะแจ้งเป็นปัญหาให้ออฟฟิศด้วย เพื่อให้จัดแผนวันถัดไปได้ทัน',
-    'ไม่ต้องกลัวว่าตัวเลขไม่ถึง 100% จะดูไม่ดี — ออฟฟิศต้องรู้ของจริงถึงจะช่วยได้ถูก'
+    'ไม่ต้องกลัวว่าตัวเลขไม่ถึง 100% จะดูไม่ดี — ออฟฟิศต้องรู้ของจริงถึงจะช่วยได้ถูก',
+    'ปิดวันไปแล้วแต่ทำงานต่อได้ กด “↩️ เปิดงานต่อ / แก้ไข” ติ๊กเช็กลิสต์เพิ่มแล้วปิดใหม่ได้ ระบบบันทึกทุกครั้งที่เปิดต่อ'
   ]},
   {k:'off', i:'📶', t:'เน็ตหลุดหน้างาน', b:[
     'ถ้าไม่มีสัญญาณ ระบบเก็บรายงานและปัญหาไว้ในเครื่องก่อน มีแถบส้มขึ้นบอกจำนวนที่ค้าง',
@@ -2223,7 +2355,9 @@ var HELP_DASH=[
     'งานหลายวัน: ตั้งช่อง “ระยะเวลางาน” ครั้งเดียว ระบบสร้างใบงานแยกรายวันให้ครบ',
     'ในกล่องเดียวกันเพิ่มไซต์ใหม่ได้เลย เลือก “＋ เพิ่มไซต์ใหม่” ในช่องไซต์งาน',
     'แต่ละวันกด “กำหนดเอง” เพื่อแบ่งขอบเขตงานคนละอย่างได้ เช่น วันแรกตู้ล่าง วันสองท็อป',
-    'คลิกขวาที่ใบงาน = เปิดหน้าเลื่อนวัน ย้ายทีม หรือลบงานทันที'
+    'คลิกขวาที่ใบงาน = เปิดหน้าเลื่อนวัน ย้ายทีม หรือลบงานทันที',
+    'ปุ่ม 🖨 พิมพ์ ได้ตารางแนวนอน A4 พร้อมช่องเซ็นผู้จัดทำ/ตรวจสอบ/อนุมัติ — ติดบอร์ดหรือส่งให้ทีมได้เลย',
+    'ปุ่ม 📊 Excel ได้ 2 ไฟล์: ตารางเหมือนบนจอ และรายการแถวต่อแถวไว้กรองหรือทำ Pivot'
   ]},
   {k:'ov', i:'📍', t:'ภาพรวมหน้างาน', b:[
     'หมุดบนแผนที่คือจุดที่ทีมเช็คอินจริง ไม่ใช่พิกัดไซต์ที่ลงทะเบียนไว้',
@@ -3755,7 +3889,9 @@ function renderJob(){
   var h='';
   var isFuture = a.work_date > todayISO();
 
-  /* ปุ่มหลัก */
+  var working = !isFuture && a.checkin_at && a.status!=='done' && a.status!=='partial';
+
+  /* สถานะด้านบน */
   h+='<div class="mpad">';
   if(isFuture){
     h+='<div style="text-align:center;padding:14px;background:var(--orange-dim);border-radius:14px;'+
@@ -3763,14 +3899,21 @@ function renderJob(){
       '<div style="font-size:12px;font-weight:500;margin-top:3px">ดูล่วงหน้าได้ เช็คอินได้เมื่อถึงวันงาน</div></div>';
   }
   else if(!a.checkin_at) h+='<button class="bigbtn green" id="bCheckin">📍 เช็คอินถึงหน้างาน</button>';
-  else if(a.status!=='done') h+='<button class="bigbtn" id="bReport">📝 ส่งรายงานความคืบหน้า</button>';
+  else if(a.status==='done') h+='<div style="text-align:center;padding:14px;background:var(--green-dim);border-radius:14px;color:#1e8e3e;font-weight:700">✅ ปิดงานแล้ว '+fmtT(a.checkout_at)+'</div>';
   else if(a.status==='partial') h+='<div style="text-align:center;padding:14px;background:var(--orange-dim);border-radius:14px;color:#c26c00;font-weight:700;line-height:1.6">⏸ ปิดวันแล้วที่ '+pct(a.progress)+'%'+
     '<div style="font-size:12px;font-weight:500;margin-top:3px">ออฟฟิศจะจัดแผนวันถัดไปให้ · เวลา '+fmtT(a.checkout_at)+'</div></div>';
-  else h+='<div style="text-align:center;padding:14px;background:var(--green-dim);border-radius:14px;color:#1e8e3e;font-weight:700">✅ ปิดงานแล้ว '+fmtT(a.checkout_at)+'</div>';
+  else h+='<div style="text-align:center;padding:11px;background:var(--green-dim);border-radius:12px;color:#1e8e3e;'+
+    'font-weight:600;font-size:13.5px">✅ เช็คอินแล้ว '+fmtT(a.checkin_at)+' · กำลังทำงาน</div>';
   h+='</div>';
 
-  /* ข้อมูลไซต์ */
-  h+='<div class="blk"><div class="blk-h">หน้างาน</div><div class="blk-c" style="font-size:13.5px;line-height:1.65">'+
+  /* ปิดไปแล้วแต่ยังแก้ไขได้ */
+  if(!isFuture && (a.status==='done' || a.status==='partial')){
+    h+='<div class="mpad" style="margin-top:-4px"><button class="bigbtn" id="bReopen" '+
+      'style="background:var(--s3);color:var(--text);box-shadow:none">↩️ เปิดงานต่อ / แก้ไข</button></div>';
+  }
+
+  /* ข้อมูลไซต์ — ยังไม่เช็คอินให้ขึ้นก่อน เพราะต้องใช้นำทาง */
+  var siteBlk='<div class="blk"><div class="blk-h">หน้างาน</div><div class="blk-c" style="font-size:13.5px;line-height:1.65">'+
     (s.address?'<div>'+esc(s.address)+'</div>':'')+
     (s.contact?'<div style="color:var(--text2);margin-top:3px">ติดต่อ: '+esc(s.contact)+'</div>':'')+
     (a.scope?'<div style="margin-top:7px"><b>งานวันนี้:</b> '+esc(a.scope)+'</div>':'')+
@@ -3779,17 +3922,26 @@ function renderJob(){
       (a.checkin_acc_m?' · GPS ±'+a.checkin_acc_m+' ม.':'')+'</div>':'')+
     (s.lat!=null?'<button class="btn ghost sm" style="margin-top:10px" onclick="window.open(\'https://www.google.com/maps/search/?api=1&query='+s.lat+','+s.lng+'\',\'_blank\')">เปิดแผนที่นำทาง</button>':'')+
   '</div></div>';
+  if(!a.checkin_at || isFuture) h+=siteBlk;
 
   /* เช็กลิสต์ */
   if(ck.length){
     h+='<div class="blk"><div class="blk-h"><span>เช็กลิสต์งาน'+(isFuture?' (ดูล่วงหน้า)':'')+'</span><span style="color:var(--text3);font-weight:600">'+
       ck.filter(function(c){return c.done;}).length+'/'+ck.length+'</span></div>'+
+      '<div style="padding:0 14px 12px">'+
+        '<div class="bar'+(pct(a.progress)>=100?' ok':'')+'" style="height:7px"><i style="width:'+pct(a.progress)+'%"></i></div>'+
+        '<div style="font-size:11.5px;color:var(--text3);margin-top:6px;line-height:1.5">'+
+          'ความคืบหน้า <b style="color:var(--accent)">'+pct(a.progress)+'%</b> — คิดจากเช็กลิสต์นี้เท่านั้น '+
+          'ติ๊กให้ตรงกับงานจริง ตัวเลขจะขยับเอง</div></div>'+
       ck.map(function(c,i){ return '<div class="ck'+(c.done?' on':'')+'" data-ci="'+i+'"><div class="ck-box">'+(c.done?'✓':'')+'</div>'+
         '<div class="ck-l">'+esc(c.label)+'</div></div>'; }).join('')+'</div>';
   }
 
+  /* ส่งรายงาน — อยู่หลังเช็กลิสต์ เพื่อให้ติ๊กก่อนแล้วค่อยส่ง */
+  if(working) h+='<div class="mpad"><button class="bigbtn" id="bReport">📝 ส่งรายงานความคืบหน้า</button></div>';
+
   /* แจ้งปัญหา */
-  h+='<div class="mpad"><button class="bigbtn red" id="bIssue">⚠️ แจ้งปัญหาหน้างาน</button></div>';
+  h+='<div class="mpad"'+(working?' style="margin-top:-4px"':'')+'><button class="bigbtn red" id="bIssue">⚠️ แจ้งปัญหาหน้างาน</button></div>';
   if(iss.length){
     h+='<div class="blk"><div class="blk-h">ปัญหาของงานนี้</div>'+
       iss.map(function(i){ return '<div class="tl" data-iid="'+i.id+'" style="cursor:pointer">'+
@@ -3799,6 +3951,8 @@ function renderJob(){
         '<div style="margin-top:4px"><span class="chip '+IST[i.status].c+'">'+IST[i.status].l+'</span>'+
         (i.assignee?' <span class="chip c-gray">'+esc(i.assignee)+'</span>':'')+'</div></div></div>'; }).join('')+'</div>';
   }
+
+  if(a.checkin_at && !isFuture) h+=siteBlk;
 
   /* ประวัติรายงาน */
   h+='<div class="blk" id="repBlk"><div class="blk-h">รายงานที่ส่งไปแล้ว</div><div class="empty" style="padding:20px"><span class="spin"></span></div></div>';
@@ -3811,9 +3965,12 @@ function renderJob(){
   if($('bReport')) $('bReport').onclick=function(){ reportSheet(a); };
   if($('bIssue')) $('bIssue').onclick=function(){ issueSheet(a); };
   if($('bDone')) $('bDone').onclick=function(){ closeDay(a); };
+  if($('bReopen')) $('bReopen').onclick=function(){ reopenDay(a); };
   $('tBody').querySelectorAll('.ck').forEach(function(r){
     r.onclick=function(){
       if(isFuture) return toast('งานนี้ยังไม่ถึงวัน — ติ๊กเช็กลิสต์ได้เมื่อถึงวันงาน', 3200);
+      if(a.status==='done' || a.status==='partial')
+        return toast('งานนี้ปิดไปแล้ว — กด “เปิดงานต่อ / แก้ไข” ด้านบนก่อนถึงจะติ๊กได้', 3800);
       toggleCheck(a, +r.dataset.ci);
     };
   });
@@ -4020,6 +4177,27 @@ function closeDay(a){
   };
 }
 
+/* เปิดงานที่ปิดไปแล้วกลับมาแก้ไข — ทำได้จากหน้างานเอง */
+async function reopenDay(a){
+  var was = a.status==='done'? 'ปิดงานเสร็จ' : ('ปิดวันที่ '+pct(a.progress)+'%');
+  var msg='เปิดงานนี้ต่อเพื่อแก้ไข?\n\nสถานะจะกลับเป็น “กำลังทำ” ติ๊กเช็กลิสต์ ส่งรายงาน และปิดงานใหม่ได้อีกครั้ง';
+  if(a.work_date!==todayISO()) msg+='\n\n⚠️ งานนี้เป็นของวันที่ '+dayText(a.work_date)+' ไม่ใช่วันนี้';
+  if(!confirm(msg)) return;
+
+  var upd={status:'working', checkout_at:null};
+  var rep={assignment_id:a.id, site_id:a.site_id, team_id:S.team.id, kind:'progress', progress:pct(a.progress),
+    note:'เปิดงานต่อเพื่อแก้ไข (จาก '+was+')', created_by:meName(), staff_id:S.me.id};
+  try{
+    await db.from('it_assignments').update(upd).eq('id',a.id);
+    await db.from('it_reports').insert(rep);
+    toast('เปิดงานต่อแล้ว — แก้ไขได้ตามปกติ');
+  }catch(e){
+    qPush({t:'report', p:rep, asg:{id:a.id, v:upd}});
+    toast('ยังไม่มีเน็ต — บันทึกไว้ในเครื่องแล้ว', 3600);
+  }
+  Object.assign(a, upd); renderTeam(); loadTeamData();
+}
+
 async function doCloseDay(a, p, status, note, issueTitle){
   var now=new Date().toISOString();
   var upd={status:status, progress:p, checkout_at:now};
@@ -4083,15 +4261,52 @@ async function teamIssueSheet(id){
         '<span style="margin-left:auto">'+fmtDT(x.created_at)+'</span></div>'+
         (x.body?'<div class="cmt-b">'+esc(x.body)+'</div>':'')+photoStrip(x.photos)+'</div>';
     }).join('') : '<div class="empty" style="padding:18px">ออฟฟิศยังไม่ตอบ</div>');
+  var live = i.status!=='resolved' && i.status!=='closed';
   $('shF').innerHTML='<textarea id="tcm" class="tin" style="width:100%;height:52px;resize:none;margin-bottom:8px" placeholder="เพิ่มข้อมูล / ตอบกลับออฟฟิศ…"></textarea>'+
-    '<button class="btn sm" id="tcs">ส่ง</button>';
+    '<button class="btn sm" id="tcs" style="margin-bottom:8px">ส่งข้อความ</button>'+
+    (live
+      ? '<div class="row"><button class="btn sm" id="tiFix" style="background:var(--green);box-shadow:none">✅ แก้ไขแล้ว ปิดเรื่อง</button>'+
+        '<button class="btn ghost sm" id="tiCancel" style="flex:0 0 118px">ยกเลิกเรื่อง</button></div>'
+      : '<button class="btn ghost sm" id="tiReopen">↩️ ปัญหากลับมาอีก — เปิดเรื่องใหม่</button>');
+
+  var post=async function(patch, body, okMsg){
+    try{
+      await db.from('it_issues').update(patch).eq('id',id);
+      if(body) await db.from('it_issue_comments').insert({issue_id:id, author:meName(), role:'team', body:body});
+      toast(okMsg, 3600);
+    }catch(e){ toast('บันทึกไม่สำเร็จ — ตรวจอินเทอร์เน็ตแล้วลองใหม่', 4000); return; }
+    closeSheet(); loadTeamData();
+  };
+
   $('tcs').onclick=async function(){
-    var b=$('tcm').value.trim(); if(!b) return;
+    var b=$('tcm').value.trim(); if(!b) return toast('พิมพ์ข้อความก่อน');
     this.disabled=true;
     var p={issue_id:id, author:meName(), role:'team', body:b};
     try{ await db.from('it_issue_comments').insert(p); toast('ส่งแล้ว'); }
     catch(e){ qPush({t:'comment', p:p}); toast('ยังไม่มีเน็ต — บันทึกไว้ในเครื่องแล้ว',3600); }
     closeSheet();
+  };
+
+  if($('tiFix')) $('tiFix').onclick=function(){
+    var extra=$('tcm').value.trim();
+    if(!confirm('ยืนยันว่าปัญหานี้แก้ไขเรียบร้อยแล้ว?\nออฟฟิศจะเห็นว่าเรื่องนี้จบแล้ว')) return;
+    post({status:'resolved', resolved_at:new Date().toISOString()},
+      'แก้ไขเรียบร้อยแล้วที่หน้างาน'+(extra?(' — '+extra):''),
+      'ปิดเรื่อง #'+i.ref+' แล้ว');
+  };
+  if($('tiCancel')) $('tiCancel').onclick=function(){
+    var why=prompt('ยกเลิกเรื่องนี้เพราะอะไร?\n(เช่น แจ้งซ้ำ · แจ้งผิดงาน · เข้าใจผิด)');
+    if(why==null) return;
+    post({status:'closed', closed_at:new Date().toISOString()},
+      'ยกเลิกเรื่องโดยหน้างาน'+(why.trim()?(' — '+why.trim()):''),
+      'ยกเลิกเรื่อง #'+i.ref+' แล้ว');
+  };
+  if($('tiReopen')) $('tiReopen').onclick=function(){
+    var why=prompt('ปัญหากลับมาอีกครั้ง — เกิดอะไรขึ้น?');
+    if(why==null) return;
+    post({status:'open', resolved_at:null, closed_at:null},
+      'เปิดเรื่องใหม่'+(why.trim()?(' — '+why.trim()):''),
+      'เปิดเรื่อง #'+i.ref+' ใหม่แล้ว');
   };
 }
 
