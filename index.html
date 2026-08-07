@@ -488,6 +488,7 @@ button,input,select,textarea{font-family:inherit;color:inherit}
       <div id="isChips" style="display:flex;gap:6px;flex-wrap:wrap"></div>
       <label style="font-size:11.5px;color:var(--text2);display:flex;align-items:center;gap:5px;margin-left:auto">
         <input type="checkbox" id="isAllDates" checked> ดูทุกวัน ไม่ใช่เฉพาะวันที่เลือก</label>
+      <button class="tb-btn hide" id="btnCats">⚙️ ประเภทปัญหา</button>
     </div>
     <div style="padding:0 14px 16px"><div class="card"><div id="isTblWrap"></div></div></div>
   </div>
@@ -619,7 +620,7 @@ var S = {
   role:'team', mgrName:'', team:null, me:null, staff:[],
   date: todayISO(),
   sites:[], teams:[], asgs:[], issues:[],
-  work:[], pins:[], plan:[], asTeam:null, planFrom:null, planDays:14, pnQ:'', pnBusy:false,
+  work:[], pins:[], icats:[], plan:[], asTeam:null, planFrom:null, planDays:14, pnQ:'', pnBusy:false,
   ovFilter:'all', ovQ:'', isFilter:'open', isQ:'', isAllDates:true,
   tView:'jobs', tJob:null, map:null, markers:[], mapLayer:null
 };
@@ -684,6 +685,22 @@ function scopeChecklist(keys, extra){
   });
   (extra||[]).forEach(function(t){ t=String(t).trim(); if(t && !seen[t]){ seen[t]=1; out.push({label:t, done:false}); } });
   return out;
+}
+
+/* ประเภทปัญหา — ของจริงมาจากตาราง it_issue_cats ถ้าโหลดไม่ได้ใช้ชุดสำรองด้านบน */
+function catLib(){
+  if(S.icats && S.icats.length){
+    return S.icats.map(function(x){
+      return {k:x.code, l:x.label, i:x.icon||'❓', g:x.grp||'อื่น ๆ', sort:x.sort, row:x};
+    });
+  }
+  return Object.keys(CAT).map(function(k){ return {k:k, l:CAT[k].l, i:CAT[k].i, g:'ทั้งหมด', sort:0}; });
+}
+function catOf(code){
+  var f=catLib().filter(function(x){ return x.k===code; })[0];
+  if(f) return f;
+  if(CAT[code]) return {k:code, l:CAT[code].l, i:CAT[code].i, g:''};
+  return {k:code, l:code||'อื่น ๆ', i:'❓', g:''};
 }
 
 var SEV = {low:{l:'ไม่เร่ง',c:'c-gray',x:'var(--text3)'}, normal:{l:'ปกติ',c:'c-blue',x:'var(--accent)'},
@@ -809,8 +826,8 @@ function getPos(){
   });
 }
 function meName(){ return (S.me && (S.me.name || S.me.emp_code)) || 'ทีม'; }
-var ROLES={staff:'พนักงานหน้างาน', manager:'ผู้จัดการ', admin:'แอดมิน', owner:'เจ้าของระบบ'};
-var RANK ={staff:0, manager:1, admin:2, owner:3};
+var ROLES={staff:'พนักงานหน้างาน', admin:'แอดมิน', manager:'ผู้จัดการ', owner:'เจ้าของระบบ'};
+var RANK ={staff:0, admin:1, manager:2, owner:3};
 function rank(u){ return RANK[(u&&u.role)||'staff'] || 0; }
 function isMgr(u){ return rank(u)>=1; }          /* เข้า Dashboard ได้ */
 function isAdmin(u){ return rank(u)>=2; }
@@ -1063,6 +1080,7 @@ function startMgr(){
   $('login').classList.add('hide'); $('mgr').classList.remove('hide'); $('team').classList.add('hide');
   S.mgrName=meName();
   $('btnField').classList.toggle('hide', !isMgr(S.me));
+  $('btnCats').classList.toggle('hide', !isAdmin(S.me));
   $('mgrWho').innerHTML=esc(meName())+' · '+esc(ROLES[S.me.role]||'ผู้จัดการ');
   $('mgrWho').title='รหัสพนักงาน '+(S.me.emp_code||'');
   $('dtPick').value=S.date; $('asgDate').value=S.date;
@@ -1111,6 +1129,7 @@ async function loadMgr(){
     ['พนักงาน (it_staff)', db.from('it_staff').select('*').order('emp_code')],
     ['คลังงาน (it_work_items)', db.from('it_work_items').select('*').eq('active',true).order('sort')],
     ['หมุดพิกัด (it_pins)', db.from('it_pins').select('*').eq('active',true).order('sort')],
+    ['ประเภทปัญหา (it_issue_cats)', db.from('it_issue_cats').select('*').eq('active',true).order('sort')],
     ['ปัญหา (it_issues)', S.isAllDates
         ? db.from('it_issues').select('*').neq('status','closed').order('opened_at',{ascending:false}).limit(400)
         : db.from('it_issues').select('*').gte('opened_at',S.date+'T00:00:00').lte('opened_at',S.date+'T23:59:59').order('opened_at',{ascending:false})]
@@ -1121,7 +1140,7 @@ async function loadMgr(){
          else res.push(r.data||[]); }
     catch(e){ errs.push(jobs[i][0]+' → '+(e.message||e)); res.push([]); }
   }
-  S.sites=res[0]; S.teams=res[1]; S.asgs=res[2]; S.staff=res[3]; S.work=res[4]; S.pins=res[5]; S.issues=res[6];
+  S.sites=res[0]; S.teams=res[1]; S.asgs=res[2]; S.staff=res[3]; S.work=res[4]; S.pins=res[5]; S.icats=res[6]; S.issues=res[7];
 
   try{ renderAll(); }
   catch(e){ errs.push('แสดงผลหน้าจอ → '+(e.message||e)); }
@@ -1141,7 +1160,7 @@ async function loadMgr(){
 /* ───────── ตรวจระบบ: บอกให้ชัดว่าติดตรงไหน ───────── */
 async function diag(){
   sheet('ตรวจระบบ','<div class="empty"><span class="spin"></span> กำลังตรวจ…','');
-  var tabs=['it_staff','it_teams','it_work_items','it_pins','it_sites','it_assignments','it_reports','it_issues','it_issue_comments'];
+  var tabs=['it_staff','it_teams','it_work_items','it_pins','it_issue_cats','it_sites','it_assignments','it_reports','it_issues','it_issue_comments'];
   var out=[];
   for(var i=0;i<tabs.length;i++){
     var r;
@@ -1347,7 +1366,7 @@ function renderIssues(){
         '<td><span class="sevbar" style="background:'+SEV[i.severity].x+'"></span></td>'+
         '<td><div class="ttl">'+esc(i.title)+'</div><div style="font-size:10.5px;color:var(--text3)">'+fmtDT(i.opened_at)+' · '+esc(i.opened_by||'')+'</div></td>'+
         '<td style="font-size:11.5px"><div style="font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(s.name||'—')+'</div><div style="color:var(--text3)">'+esc(t.name||'')+'</div></td>'+
-        '<td style="font-size:11.5px">'+(CAT[i.category]||CAT.other).i+' '+esc((CAT[i.category]||CAT.other).l)+'</td>'+
+        '<td style="font-size:11.5px">'+catOf(i.category).i+' '+esc(catOf(i.category).l)+'</td>'+
         '<td><span class="chip '+IST[i.status].c+'">'+IST[i.status].l+'</span></td>'+
         '<td><span class="age '+(done?'':ac)+'">'+ago(i.opened_at)+'</span></td>'+
         '<td style="font-size:11.5px;color:'+(i.assignee?'var(--text)':'var(--text3)')+'">'+esc(i.assignee||'ยังไม่มอบหมาย')+'</td>'+
@@ -1847,7 +1866,7 @@ async function openIssue(id){
       '<dt>ไซต์</dt><dd>'+esc(s.name||'—')+' <span style="color:var(--text3)">'+esc(s.code||'')+'</span></dd>'+
       '<dt>ทีม</dt><dd>'+esc(t.name||'—')+(function(){ var L=leadInfo(t);
         return (L.name?' · '+esc(L.name):'')+(L.phone?' · <a href="tel:'+esc(L.phone)+'">'+esc(L.phone)+'</a>':''); })()+'</dd>'+
-      '<dt>ประเภท</dt><dd>'+(CAT[i.category]||CAT.other).i+' '+esc((CAT[i.category]||CAT.other).l)+'</dd>'+
+      '<dt>ประเภท</dt><dd>'+catOf(i.category).i+' '+esc(catOf(i.category).l)+'</dd>'+
       '<dt>แจ้งเมื่อ</dt><dd>'+fmtDT(i.opened_at)+' โดย '+esc(i.opened_by||'—')+'</dd>'+
       '<dt>ผู้รับผิดชอบ</dt><dd>'+esc(i.assignee||'ยังไม่มอบหมาย')+'</dd>'+
     '</dl></div>'+
@@ -1884,6 +1903,135 @@ async function openIssue(id){
       toast('บันทึกแล้ว — หน้างานจะเห็นทันที');
       await loadMgr(); openIssue(id);
     }catch(e){ toast('บันทึกไม่สำเร็จ: '+(e.message||e),4000); this.disabled=false; this.textContent='บันทึกและส่งกลับหน้างาน'; }
+  };
+}
+
+/* ═════ ประเภทปัญหา: แอดมินขึ้นไปแก้ไข/เพิ่ม/ลบได้ ═════ */
+function issueCatManager(){
+  if(!isAdmin(S.me)) return toast('ต้องเป็นผู้จัดการขึ้นไปถึงจะแก้ไขประเภทปัญหาได้');
+  var lib=catLib().slice().sort(function(a,b){ return (a.sort||0)-(b.sort||0); });
+  var gs=[], by={};
+  lib.forEach(function(x){ if(!by[x.g]){ by[x.g]=[]; gs.push(x.g); } by[x.g].push(x); });
+
+  var body;
+  if(!S.icats || !S.icats.length){
+    body='<div class="empty"><b>ยังไม่ได้สร้างตารางประเภทปัญหา</b>'+
+      'รันไฟล์ install_tracker_issuecats.sql ใน Supabase ก่อน<br>'+
+      'ตอนนี้ระบบใช้ประเภทสำรองในโค้ดซึ่งแก้ไขไม่ได้</div>';
+  }else{
+    body=gs.map(function(g){
+      return '<div style="display:flex;align-items:center;gap:8px;margin:16px 0 7px">'+
+        '<span class="sec-h" style="margin:0;flex:1">'+esc(g)+' <span style="color:var(--text3);font-weight:500">('+by[g].length+')</span></span>'+
+        '<button class="tb-btn" data-gren="'+esc(g)+'">เปลี่ยนชื่อหมวด</button>'+
+        '<button class="tb-btn" data-gadd="'+esc(g)+'">+ ประเภท</button></div>'+
+        by[g].map(function(x){
+          var gi=lib.indexOf(x);
+          return '<div style="display:flex;align-items:center;gap:9px;background:var(--s1);border:1px solid var(--border);'+
+            'border-radius:11px;padding:9px 11px;margin-bottom:6px">'+
+            '<span style="font-size:19px;width:24px;text-align:center">'+x.i+'</span>'+
+            '<div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:600">'+esc(x.l)+'</div>'+
+              '<div style="font-size:10.5px;color:var(--text3);font-family:var(--mono)">'+esc(x.k)+'</div></div>'+
+            '<button class="tb-btn" data-cu="'+gi+'"'+(gi===0?' disabled style="opacity:.3"':'')+'>↑</button>'+
+            '<button class="tb-btn" data-cd="'+gi+'"'+(gi===lib.length-1?' disabled style="opacity:.3"':'')+'>↓</button>'+
+            '<button class="tb-btn" data-ce="'+esc(x.k)+'">แก้ไข</button></div>';
+        }).join('');
+    }).join('');
+  }
+
+  sheet('ประเภทปัญหา',
+    '<p style="font-size:12px;color:var(--text2);line-height:1.65;margin-bottom:4px">'+
+      'ประเภทที่แก้ไขตรงนี้จะไปขึ้นในกล่องแจ้งปัญหาของทีมหน้างานทันที '+
+      'ปัญหาที่แจ้งไว้แล้วไม่กระทบ</p>'+body,
+    (S.icats && S.icats.length)? '<button class="btn sm" id="ic_add">+ เพิ่มประเภทปัญหา</button>' : '');
+
+  if($('ic_add')) $('ic_add').onclick=function(){ issueCatForm(null); };
+  document.querySelectorAll('[data-ce]').forEach(function(b){ b.onclick=function(){ issueCatForm(b.dataset.ce); }; });
+  document.querySelectorAll('[data-gadd]').forEach(function(b){ b.onclick=function(){ issueCatForm(null, b.dataset.gadd); }; });
+  document.querySelectorAll('[data-gren]').forEach(function(b){ b.onclick=function(){ renameIssueGrp(b.dataset.gren); }; });
+  document.querySelectorAll('[data-cu]').forEach(function(b){ b.onclick=function(){ moveIssueCat(lib, +b.dataset.cu, -1); }; });
+  document.querySelectorAll('[data-cd]').forEach(function(b){ b.onclick=function(){ moveIssueCat(lib, +b.dataset.cd, 1); }; });
+}
+
+async function moveIssueCat(lib, i, dir){
+  var j=i+dir; if(j<0||j>=lib.length) return;
+  var a=lib[i], b=lib[j];
+  var sa=a.sort||0, sb=b.sort||0; if(sa===sb) sb = sa+(dir>0?1:-1);
+  await db.from('it_issue_cats').update({sort:sb, grp:b.g}).eq('code',a.k);
+  await db.from('it_issue_cats').update({sort:sa, grp:a.g}).eq('code',b.k);
+  await loadMgr(); issueCatManager();
+}
+
+async function renameIssueGrp(oldName){
+  var n=prompt('เปลี่ยนชื่อหมวด "'+oldName+'" เป็น', oldName);
+  if(n==null) return;
+  n=n.trim(); if(!n || n===oldName) return;
+  var r=await db.from('it_issue_cats').update({grp:n}).eq('grp',oldName);
+  if(r.error) return toast('เปลี่ยนชื่อไม่สำเร็จ: '+r.error.message,4000);
+  await loadMgr(); toast('เปลี่ยนชื่อหมวดแล้ว'); issueCatManager();
+}
+
+function issueCatForm(code, presetGrp){
+  var lib=catLib(), cur = code? catOf(code) : null;
+  var grps=[]; lib.forEach(function(x){ if(grps.indexOf(x.g)<0) grps.push(x.g); });
+  var curG = cur? cur.g : (presetGrp || grps[0] || 'อื่น ๆ');
+  var used = lib.filter(function(x){ return x.k===code; }).length>0;
+
+  sheet2(code?'แก้ไขประเภทปัญหา':'เพิ่มประเภทปัญหา',
+    '<div class="fld"><label>หมวด</label><select id="ic_grp">'+
+      grps.map(function(g){ return '<option value="'+esc(g)+'"'+(g===curG?' selected':'')+'>'+esc(g)+'</option>'; }).join('')+
+      '<option value="__new">＋ สร้างหมวดใหม่…</option></select>'+
+      '<input id="ic_grpnew" class="hide" placeholder="ชื่อหมวดใหม่" style="margin-top:7px"></div>'+
+    '<div class="fld"><label>ชื่อประเภทปัญหา</label><input id="ic_label" value="'+esc(cur?cur.l:'')+'" placeholder="เช่น ไฟฟ้ายังไม่เข้า"></div>'+
+    '<div class="fld"><label>ไอคอน</label>'+
+      '<div style="display:flex;align-items:center;gap:10px">'+
+        '<div id="ic_view" style="width:46px;height:46px;border-radius:12px;border:1px solid var(--border2);background:#fff;'+
+          'display:flex;align-items:center;justify-content:center;font-size:24px;flex-shrink:0">'+(cur?cur.i:'❓')+'</div>'+
+        '<input id="ic_icon" value="'+esc(cur?cur.i:'❓')+'" maxlength="4" style="flex:1"></div>'+
+      '<div class="icongrid" id="ic_icons"></div></div>'+
+    (used? '<p style="font-size:11.5px;color:var(--text3);line-height:1.6">รหัสอ้างอิง <code>'+esc(code)+'</code> '+
+           'เปลี่ยนไม่ได้ เพราะปัญหาที่แจ้งไว้แล้วอ้างถึงรหัสนี้อยู่</p>':''),
+    '<div class="row">'+(code?'<button class="btn ghost sm" id="ic_del" style="flex:0 0 90px">ลบ</button>':'')+
+      '<button class="btn sm" id="ic_save">บันทึก</button></div>');
+
+  var draw=function(){
+    var v=$('ic_icon').value.trim();
+    $('ic_view').textContent=v||'❓';
+    $('ic_icons').innerHTML=ICONS.map(function(ic){
+      return '<button type="button" class="icg'+(ic===v?' on':'')+'" data-ic="'+ic+'">'+ic+'</button>'; }).join('');
+    $('ic_icons').querySelectorAll('[data-ic]').forEach(function(b){
+      b.onclick=function(){ $('ic_icon').value=b.dataset.ic; draw(); };
+    });
+  };
+  draw();
+  $('ic_icon').oninput=draw;
+  $('ic_grp').onchange=function(){ $('ic_grpnew').classList.toggle('hide', this.value!=='__new'); };
+
+  $('ic_save').onclick=async function(){
+    var g = $('ic_grp').value==='__new' ? $('ic_grpnew').value.trim() : $('ic_grp').value;
+    var label=$('ic_label').value.trim();
+    if(!g) return toast('ใส่ชื่อหมวดก่อน');
+    if(!label) return toast('ใส่ชื่อประเภทปัญหาก่อน');
+    var p={grp:g, label:label, icon:$('ic_icon').value.trim()||'❓'};
+    this.disabled=true;
+    var r;
+    if(code){ r=await db.from('it_issue_cats').update(p).eq('code',code); }
+    else{
+      p.code='c_'+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+      var same=lib.filter(function(x){ return x.g===g; });
+      p.sort = same.length? Math.max.apply(null, same.map(function(x){return x.sort||0;}))+1
+                          : (lib.reduce(function(n,x){ return Math.max(n,x.sort||0); },0)+10);
+      p.active=true;
+      r=await db.from('it_issue_cats').insert(p);
+    }
+    if(r.error){ toast('บันทึกไม่สำเร็จ: '+r.error.message,4000); this.disabled=false; return; }
+    closeSheet2(); await loadMgr(); toast('บันทึกแล้ว'); issueCatManager();
+  };
+  if(code) $('ic_del').onclick=async function(){
+    var n=S.issues.filter(function(i){ return i.category===code; }).length;
+    if(!confirm('ลบประเภท "'+cur.l+'" ?'+(n? ('\n\nมีปัญหาที่ใช้ประเภทนี้อยู่ '+n+' เรื่อง จะยังแสดงชื่อเดิมได้ตามปกติ') : ''))) return;
+    var r=await db.from('it_issue_cats').delete().eq('code',code);
+    if(r.error) return toast('ลบไม่สำเร็จ: '+r.error.message,4000);
+    closeSheet2(); await loadMgr(); toast('ลบแล้ว'); issueCatManager();
   };
 }
 
@@ -2233,7 +2381,7 @@ function renderStaff(){
   var un=S.staff.filter(function(x){ return !x.team_id && x.active && !isMgr(x); });
   var noPin=S.staff.filter(function(x){ return !x.pin; }).length;
   var mgrs=S.staff.filter(function(x){ return rank(x)>=2; }).length;
-  $('staffNote').textContent = S.staff.length+' คน · แอดมินขึ้นไป '+mgrs+
+  $('staffNote').textContent = S.staff.length+' คน · ผู้จัดการขึ้นไป '+mgrs+
     (un.length?(' · รอจัดทีม '+un.length):'')+(noPin?(' · ยังไม่ตั้ง PIN '+noPin):'');
   var tb=$('tabStaffN');
   if(tb){ tb.textContent=un.length; tb.style.display=un.length?'':'none'; }
@@ -2244,7 +2392,7 @@ function renderStaff(){
     return;
   }
   var order=S.staff.slice().sort(function(a,b){
-    if(isMgr(a)!==isMgr(b)) return isMgr(a)? -1 : 1;             /* ผู้จัดการ/แอดมินขึ้นบนสุด */
+    if(rank(a)!==rank(b)) return rank(b)-rank(a);                /* สิทธิ์สูงขึ้นบนสุด */
     if(!a.team_id !== !b.team_id) return a.team_id? 1 : -1;      /* รอจัดทีมขึ้นก่อน */
     return (a.team_id||'').localeCompare(b.team_id||'') || String(a.emp_code).localeCompare(String(b.emp_code));
   });
@@ -2333,11 +2481,13 @@ function staffForm(id){
   }else if(!mayRole && rank(S.me)<2){
     notice='<div style="background:var(--s1);border:1px solid var(--border);border-radius:11px;'+
       'padding:11px 13px;margin-bottom:14px;font-size:12.5px;line-height:1.6;color:var(--text2)">'+
-      'ผู้จัดการเปลี่ยนสิทธิ์ผู้ใช้ไม่ได้ ต้องให้แอดมินหรือเจ้าของระบบทำ</div>';
+      esc(ROLES[S.me.role]||'')+'เปลี่ยนสิทธิ์ผู้ใช้ไม่ได้ ต้องให้ระดับสูงกว่านี้เป็นคนทำ</div>';
   }else if(rank(S.me)===2){
+    var top=Object.keys(ROLES).filter(function(k){ return canGrant(S.me,k); })
+      .sort(function(a,b){ return RANK[b]-RANK[a]; })[0];
     notice='<div style="background:var(--s1);border:1px solid var(--border);border-radius:11px;'+
       'padding:11px 13px;margin-bottom:14px;font-size:12.5px;line-height:1.6;color:var(--text2)">'+
-      'คุณตั้งได้ถึงระดับผู้จัดการ — การตั้งแอดมินต้องให้เจ้าของระบบเป็นคนทำ</div>';
+      'คุณตั้งได้ถึงระดับ'+esc(ROLES[top]||'')+' — ระดับที่สูงกว่านี้ต้องให้เจ้าของระบบเป็นคนทำ</div>';
   }
 
   var dis = mayEdit? '' : ' disabled';
@@ -2651,6 +2801,7 @@ function staffForm(id){
 $('btnAddSite').onclick=function(){ siteForm(null); };
 $('btnAddWork').onclick=function(){ workForm(null); };
 $('btnAddPin').onclick=function(){ pinForm(null); };
+$('btnCats').onclick=issueCatManager;
 $('btnAddTeam').onclick=function(){ teamForm(null); };
 
 function sheet(title, bodyHTML, footHTML){
@@ -3013,7 +3164,7 @@ $('btnRpRun').onclick=async function(){
   })); };
   $('exI').onclick=function(){ csv('issues_'+f+'_'+t, I.map(function(i){
     var s=siteOf(i.site_id), tm=teamOf(i.team_id);
-    return {อ้างอิง:'#'+i.ref, แจ้งเมื่อ:fmtDT(i.opened_at), ไซต์:s.name, ทีม:tm.name, ประเภท:(CAT[i.category]||CAT.other).l,
+    return {อ้างอิง:'#'+i.ref, แจ้งเมื่อ:fmtDT(i.opened_at), ไซต์:s.name, ทีม:tm.name, ประเภท:catOf(i.category).l,
       ความเร่งด่วน:SEV[i.severity].l, เรื่อง:i.title, รายละเอียด:i.detail, สถานะ:IST[i.status].l,
       ผู้รับผิดชอบ:i.assignee, ปิดเมื่อ:i.resolved_at?fmtDT(i.resolved_at):'', ชมที่ใช้แก้:(i.resolved_at?Math.round((new Date(i.resolved_at)-new Date(i.opened_at))/36e5*10)/10:'')};
   })); };
@@ -3086,10 +3237,11 @@ async function loadTeamData(){
     db.from('it_sites').select('*'),
     db.from('it_issues').select('*').eq('team_id',tid).order('opened_at',{ascending:false}).limit(80),
     db.from('it_teams').select('*').eq('id',tid).single(),
-    db.from('it_staff').select('*').eq('team_id',tid)
+    db.from('it_staff').select('*').eq('team_id',tid),
+    db.from('it_issue_cats').select('*').eq('active',true).order('sort')
   ]);
   S.asgs=r[0].data||[]; S.sites=r[1].data||[]; S.issues=r[2].data||[];
-  S.team=r[3].data||null; S.staff=r[4].data||[];
+  S.team=r[3].data||null; S.staff=r[4].data||[]; S.icats=r[5].data||[];
   var openN=S.issues.filter(function(i){ return i.status!=='closed'&&i.status!=='resolved'; }).length;
   var e=$('tIssN'); e.textContent=openN; e.classList.toggle('hide', !openN);
   var openToday=S.asgs.filter(function(a){ return a.work_date===todayISO() && a.status!=='done'; }).length;
@@ -3399,11 +3551,21 @@ function reportSheet(a){
 }
 
 function issueSheet(a){
-  var photos=[], cat='material_missing', sev='normal';
+  var photos=[], sev='normal';
+  var cat=(catLib()[0]||{k:'other'}).k;
   sheet('แจ้งปัญหาหน้างาน',
-    '<div class="fld"><label>ปัญหาเรื่องอะไร</label><div class="opts" id="catBox">'+
-      Object.keys(CAT).map(function(k){ return '<button class="opt'+(k===cat?' on':'')+'" data-v="'+k+'">'+CAT[k].i+' '+CAT[k].l+'</button>'; }).join('')+
-    '</div></div>'+
+    '<div class="fld"><label>ปัญหาเรื่องอะไร</label>'+
+      (function(){
+        var lib=catLib(), gs=[], by={};
+        lib.forEach(function(x){ if(!by[x.g]){ by[x.g]=[]; gs.push(x.g); } by[x.g].push(x); });
+        return '<div id="catBox">'+gs.map(function(g){
+          return (gs.length>1? '<div class="sec-h" style="margin:12px 0 6px">'+esc(g)+'</div>':'')+
+            '<div class="opts">'+by[g].map(function(x){
+              return '<button class="opt'+(x.k===cat?' on':'')+'" data-v="'+esc(x.k)+'">'+x.i+' '+esc(x.l)+'</button>';
+            }).join('')+'</div>';
+        }).join('')+'</div>';
+      })()+
+    '</div>'+
     '<div class="fld"><label>ความเร่งด่วน</label><div class="sev" id="sevBox">'+
       Object.keys(SEV).map(function(k){ return '<button data-v="'+k+'"'+(k===sev?' class="on"':'')+'>'+SEV[k].l+'</button>'; }).join('')+
     '</div></div>'+
@@ -3510,7 +3672,7 @@ function renderTeamIssues(){
       '<span class="chip '+IST[i.status].c+'">'+IST[i.status].l+'</span></div>'+
       '<div class="jcard-s">#'+i.ref+' · '+esc(s.name||'')+' · '+fmtDT(i.opened_at)+
       '<br><span class="chip '+SEV[i.severity].c+'">'+SEV[i.severity].l+'</span> '+
-      '<span class="chip c-gray">'+(CAT[i.category]||CAT.other).l+'</span>'+
+      '<span class="chip c-gray">'+esc(catOf(i.category).l)+'</span>'+
       (i.assignee?'<br>ผู้รับผิดชอบ: <b style="color:var(--text)">'+esc(i.assignee)+'</b>':'')+'</div></div>';
   };
   $('tBody').innerHTML =
@@ -3529,7 +3691,7 @@ async function teamIssueSheet(id){
     '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:11px">'+
       '<span class="chip '+IST[i.status].c+'">'+IST[i.status].l+'</span>'+
       '<span class="chip '+SEV[i.severity].c+'">'+SEV[i.severity].l+'</span>'+
-      '<span class="chip c-gray">'+(CAT[i.category]||CAT.other).l+'</span></div>'+
+      '<span class="chip c-gray">'+esc(catOf(i.category).l)+'</span></div>'+
     '<div style="font-size:12px;color:var(--text2);margin-bottom:10px">'+esc(s.name||'')+' · แจ้ง '+fmtDT(i.opened_at)+
       (i.assignee?'<br>ออฟฟิศมอบให้: <b style="color:var(--text)">'+esc(i.assignee)+'</b>':'<br>ยังไม่มีผู้รับผิดชอบ')+'</div>'+
     (i.detail?'<div style="font-size:13.5px;line-height:1.6;white-space:pre-wrap;margin-bottom:10px">'+esc(i.detail)+'</div>':'')+
