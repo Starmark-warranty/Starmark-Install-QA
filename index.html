@@ -436,7 +436,7 @@ body.preview #previewBar{display:flex}
 
 <script>
 /* ── ยามเฝ้า splash: อยู่นอกสคริปต์หลัก ถ้าสคริปต์หลักพัง ตัวนี้ยังทำงาน ── */
-window.APP_VER='3.7';
+window.APP_VER='3.9';
 (function(){
   var fill=function(){
     var a=document.querySelectorAll('.ver');
@@ -969,6 +969,14 @@ function rank(u){
 /* สิทธิ์ที่ไฟล์แอปเวอร์ชันนี้ยังไม่รู้จัก — เกิดตอนอัปฐานข้อมูลแล้วแต่ยังใช้ไฟล์เก่า */
 function unknownRole(u){ return !!(u && u.role && RANK[u.role]===undefined); }
 function isMgr(u){ return rank(u)>=1; }          /* เข้า Dashboard ได้ */
+/* ซ่อน/แสดงปุ่มบน Dashboard ตามสิทธิ์ — เรียกจากทุกทางที่เข้าหน้า Dashboard */
+function applyRoleUI(){
+  var set=function(id, show){ var e=$(id); if(e) e.classList.toggle('hide', !show); };
+  set('btnField', isMgr(S.me));                 /* สลับไปมุมมองหน้างาน */
+  set('btnCats',  isAdmin(S.me));               /* ประเภทปัญหา — ผู้จัดการขึ้นไป */
+  set('pnHol',    rank(S.me)>=1);               /* วันหยุด — แอดมินขึ้นไป */
+  set('btnHelp',  !isOwner(S.me));              /* คู่มือ — ซ่อนของระดับสูงสุด */
+}
 function isAdmin(u){ return rank(u)>=2; }
 function isOwner(u){ return rank(u)>=3; }
 function isSuper(u){ return rank(u)>=4; }
@@ -1213,10 +1221,7 @@ function goDash(){
   $('team').classList.add('hide'); $('mgr').classList.remove('hide');
   $('testbar').classList.remove('on');
   $('mgrWho').innerHTML=esc(meName())+' · '+esc(ROLES[S.me.role]||'');
-  $('btnField').classList.toggle('hide', !isMgr(S.me));
-  $('btnCats').classList.toggle('hide', !isAdmin(S.me));
-  $('pnHol').classList.toggle('hide', rank(S.me)<1);
-  $('btnHelp').classList.toggle('hide', isOwner(S.me));
+  applyRoleUI();
   if(!$('dtPick').value){ $('dtPick').value=S.date; $('asgDate').value=S.date; S.planFrom=todayISO(); }
   loadMgr(); mobileHint();
 }
@@ -1282,9 +1287,7 @@ function forgetAll(){
 function startMgr(){
   $('login').classList.add('hide'); $('mgr').classList.remove('hide'); $('team').classList.add('hide');
   S.mgrName=meName();
-  $('btnField').classList.toggle('hide', !isMgr(S.me));
-  $('btnCats').classList.toggle('hide', !isAdmin(S.me));
-  $('btnHelp').classList.toggle('hide', isOwner(S.me));
+  applyRoleUI();
   $('mgrWho').innerHTML=esc(meName())+' · '+esc(ROLES[S.me.role]||'ผู้จัดการ');
   $('mgrWho').title='รหัสพนักงาน '+(S.me.emp_code||'');
   $('dtPick').value=S.date; $('asgDate').value=S.date;
@@ -1757,6 +1760,52 @@ function renderSchedule(){
   });
 }
 
+/* วันหยุดราชการไทยที่ตรงวันเดิมทุกปี — ใช้เติมชื่อให้อัตโนมัติ
+   ไม่รวมวันพระ (มาฆบูชา วิสาขบูชา อาสาฬหบูชา เข้าพรรษา) เพราะเลื่อนตามจันทรคติทุกปี
+   และไม่รวมวันหยุดชดเชย เพราะขึ้นกับประกาศแต่ละปี */
+var TH_HOLIDAYS=[
+  {m:1,  d:1,  n:'วันขึ้นปีใหม่'},
+  {m:4,  d:6,  n:'วันจักรี'},
+  {m:4,  d:13, n:'วันสงกรานต์'},
+  {m:4,  d:14, n:'วันสงกรานต์'},
+  {m:4,  d:15, n:'วันสงกรานต์'},
+  {m:5,  d:1,  n:'วันแรงงานแห่งชาติ'},
+  {m:5,  d:4,  n:'วันฉัตรมงคล'},
+  {m:6,  d:3,  n:'วันเฉลิมพระชนมพรรษา สมเด็จพระนางเจ้าฯ พระบรมราชินี'},
+  {m:7,  d:28, n:'วันเฉลิมพระชนมพรรษา พระบาทสมเด็จพระเจ้าอยู่หัว'},
+  {m:8,  d:12, n:'วันแม่แห่งชาติ'},
+  {m:10, d:13, n:'วันนวมินทรมหาราช'},
+  {m:10, d:23, n:'วันปิยมหาราช'},
+  {m:12, d:5,  n:'วันพ่อแห่งชาติ · วันชาติ'},
+  {m:12, d:10, n:'วันรัฐธรรมนูญ'},
+  {m:12, d:31, n:'วันสิ้นปี'}
+];
+function thHolidayName(d){
+  if(!d) return '';
+  var dt=new Date(d+'T00:00:00');
+  var f=TH_HOLIDAYS.filter(function(x){ return x.m===dt.getMonth()+1 && x.d===dt.getDate(); })[0];
+  return f? f.n : '';
+}
+
+/* เพิ่มวันหยุดราชการทั้งปีทีเดียว */
+async function addYearHolidays(){
+  var y=prompt('เพิ่มวันหยุดราชการที่ตรงวันเดิมทุกปี — ใส่ปี ค.ศ.\n\n'+
+    'ไม่รวมวันพระ (มาฆบูชา วิสาขบูชา อาสาฬหบูชา เข้าพรรษา) และวันหยุดชดเชย\n'+
+    'เพราะเลื่อนทุกปี ต้องเพิ่มเองตามประกาศ', String(new Date().getFullYear()));
+  if(y===null) return;
+  y=parseInt(y,10);
+  if(!y || y<2020 || y>2100) return toast('ปีไม่ถูกต้อง');
+  var rows=TH_HOLIDAYS.map(function(x){
+    return {hday: y+'-'+String(x.m).padStart(2,'0')+'-'+String(x.d).padStart(2,'0'),
+            name: x.n, created_by: meName()};
+  });
+  var r=await db.from('it_holidays').upsert(rows,{onConflict:'hday'});
+  if(r.error) return toast('เพิ่มไม่สำเร็จ: '+r.error.message, 4500);
+  await loadMgr();
+  toast('เพิ่มวันหยุดราชการปี '+y+' แล้ว '+rows.length+' วัน · อย่าลืมเพิ่มวันพระกับวันหยุดชดเชยเอง', 6000);
+  holidayManager();
+}
+
 /* ═════ วันหยุดที่โรงงานประกาศ — แอดมินขึ้นไปจัดการได้ ═════ */
 function holidayManager(){
   if(rank(S.me)<1) return toast('ต้องเป็นแอดมินขึ้นไปถึงจะจัดการวันหยุดได้');
@@ -1788,9 +1837,11 @@ function holidayManager(){
   sheet('🏖 วันหยุดโรงงาน',
     '<p style="font-size:12px;color:var(--text2);line-height:1.65;margin-bottom:12px">'+
       'วันที่อยู่ในรายการนี้จะขึ้นสีแดงในตารางแผนงาน และระบบจะข้ามให้อัตโนมัติเวลาคีย์งานหลายวันหรือยกงานค้างไปวันถัดไป</p>'+body,
-    '<button class="btn sm" id="hAdd">+ เพิ่มวันหยุด</button>');
+    '<button class="btn sm" id="hAdd" style="margin-bottom:7px">+ เพิ่มวันหยุด</button>'+
+    '<button class="btn ghost sm" id="hYear">📅 เพิ่มวันหยุดราชการทั้งปี</button>');
 
   $('hAdd').onclick=function(){ holidayForm(null); };
+  $('hYear').onclick=addYearHolidays;
   document.querySelectorAll('[data-he]').forEach(function(b){
     b.onclick=function(){ holidayForm(b.dataset.he); };
   });
@@ -1802,10 +1853,27 @@ function holidayForm(id){
     '<div class="fld"><label>วันที่</label><input type="date" id="h_date" value="'+(h.hday||'')+'"></div>'+
     '<div class="fld"><label>ชื่อวันหยุด</label><input id="h_name" value="'+esc(h.name||'')+'" placeholder="เช่น วันแม่แห่งชาติ / หยุดประจำปีโรงงาน"></div>'+
     '<div class="fld"><label>หมายเหตุ (ไม่บังคับ)</label><input id="h_note" value="'+esc(h.note||'')+'" placeholder="เช่น หยุดเฉพาะโรงงาน ทีมติดตั้งยังทำงาน"></div>'+
-    '<p style="font-size:11.5px;color:var(--text2);line-height:1.65">'+
-      'ถ้ามีงานที่มอบหมายไว้ในวันนี้อยู่แล้ว ระบบจะไม่ลบให้ ต้องเลื่อนเองในตารางแผนงาน</p>',
+    '<div id="h_hint" style="font-size:11.5px;color:var(--text2);line-height:1.65"></div>',
     '<div class="row">'+(id?'<button class="btn ghost sm" id="h_del" style="flex:0 0 90px">ลบ</button>':'')+
       '<button class="btn sm" id="h_save">บันทึก</button></div>');
+
+  var lastSuggest='';
+  var suggest=function(){
+    var d=$('h_date').value, dt=d? new Date(d+'T00:00:00') : null;
+    var sug=thHolidayName(d);
+    var cur=$('h_name').value.trim();
+    if(sug && (!cur || cur===lastSuggest)){ $('h_name').value=sug; lastSuggest=sug; }
+    var busy=(S.plan||[]).filter(function(a){ return a.work_date===d; }).length;
+    $('h_hint').innerHTML=
+      (dt? ('วัน'+({0:'อาทิตย์',1:'จันทร์',2:'อังคาร',3:'พุธ',4:'พฤหัสบดี',5:'ศุกร์',6:'เสาร์'}[dt.getDay()])+
+            ' ที่ '+dt.getDate()+' '+MO_TH[dt.getMonth()]+' '+(dt.getFullYear()+543)) : '')+
+      (sug? '<br><span style="color:var(--accent)">เติมชื่อให้อัตโนมัติจากวันหยุดราชการ — แก้ได้</span>' : '')+
+      (busy? '<br><span style="color:var(--orange)">⚠️ วันนี้มีงานที่มอบหมายไว้แล้ว '+busy+' ใบ ต้องเลื่อนเองในตารางแผนงาน</span>' : '')+
+      '<br>ถ้าเป็นวันพระหรือวันหยุดชดเชย ให้พิมพ์ชื่อเองได้เลย';
+  };
+  $('h_date').onchange=suggest;
+  $('h_date').oninput=suggest;
+  suggest();
 
   $('h_save').onclick=async function(){
     var p={hday:$('h_date').value, name:$('h_name').value.trim(), note:$('h_note').value.trim()||null,
