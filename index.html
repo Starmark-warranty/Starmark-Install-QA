@@ -432,7 +432,7 @@ body.preview #previewBar{display:flex}
 
 <script>
 /* ── ยามเฝ้า splash: อยู่นอกสคริปต์หลัก ถ้าสคริปต์หลักพัง ตัวนี้ยังทำงาน ── */
-window.APP_VER='2.9';
+window.APP_VER='3.2';
 (function(){
   var fill=function(){
     var a=document.querySelectorAll('.ver');
@@ -515,6 +515,7 @@ window.APP_VER='2.9';
       <button class="tb-btn" id="pnToday">วันนี้</button>
       <button class="tb-btn" id="pnNext">ถัดไป ›</button>
       <input type="date" id="pnFrom" class="tin" style="height:28px;padding:4px 9px">
+      <select id="pnTeam" class="tin" style="height:28px;padding:4px 8px;max-width:190px"></select>
       <select id="pnDays" class="tin" style="height:28px;padding:4px 8px">
         <option value="7">7 วัน</option>
         <option value="14" selected>14 วัน</option>
@@ -1292,6 +1293,7 @@ $('pnNext').onclick=function(){ S.planFrom=addDays(S.planFrom||todayISO(),  S.pl
 $('pnToday').onclick=function(){ S.planFrom=todayISO(); loadSchedule(); };
 $('pnFrom').onchange=function(){ S.planFrom=this.value||todayISO(); loadSchedule(); };
 $('pnDays').onchange=function(){ S.planDays=+this.value||14; loadSchedule(); };
+$('pnTeam').onchange=function(){ S.pnTeam=this.value; renderSchedule(); };
 $('pnPrint').onclick=printSchedule;
 $('pnXls').onclick=exportSchedule;
 $('pnSearch').oninput=function(){ S.pnQ=this.value.toLowerCase(); renderSchedule(); };
@@ -1651,6 +1653,7 @@ function scheduleData(){
     return hit || mine.some(function(a){ var s=siteOf(a.site_id);
       return ((s.name||'')+(s.code||'')+(s.customer||'')).toLowerCase().indexOf(q)>=0; });
   });
+  if(S.pnTeam) teams=teams.filter(function(t){ return t.id===S.pnTeam; });
   if(S.pnBusy) teams=teams.filter(function(t){ return S.plan.some(function(a){return a.team_id===t.id;}); });
   return {days:days, teams:teams};
 }
@@ -1669,6 +1672,16 @@ function renderSchedule(){
   if(!S.planFrom) S.planFrom=todayISO();
   $('pnFrom').value=S.planFrom; $('pnDays').value=String(S.planDays);
 
+  var sel=$('pnTeam');
+  if(sel){
+    var cur=S.pnTeam;
+    sel.innerHTML='<option value="">ทุกทีม</option>'+
+      S.teams.filter(function(t){ return t.active!==false; }).map(function(t){
+        var n=S.plan.filter(function(a){ return a.team_id===t.id; }).length;
+        return '<option value="'+t.id+'"'+(cur===t.id?' selected':'')+'>'+esc(t.code+' · '+t.name)+(n?(' ('+n+')'):'')+'</option>';
+      }).join('');
+    sel.style.borderColor = cur? 'var(--accent)' : 'var(--border2)';
+  }
   var _d=scheduleData(), days=_d.days, teams=_d.teams, today=todayISO();
 
   var totalJobs=S.plan.length;
@@ -1705,7 +1718,9 @@ function renderSchedule(){
         var inner=jobs.map(function(a){
           var st=AST[a.status]||AST.assigned, si=siteOf(a.site_id);
           var iss=S.issues.filter(function(x){ return x.site_id===a.site_id && x.status!=='closed' && x.status!=='resolved'; }).length;
+          var carry=/ต่อจาก /.test(a.scope||'');
           return '<div class="pjob" data-job="'+a.id+'" style="border-left-color:'+st.x+'" title="'+esc((si.name||'')+' — '+(a.scope||''))+'">'+
+            (carry?'<span class="sc" style="color:var(--orange);font-weight:600">↪ งานยกมา</span>':'')+
             '<b>'+esc(si.name||'—')+'</b>'+
             (a.scope?'<span class="sc">'+esc(a.scope)+'</span>':'')+
             '<span class="sc" style="color:'+st.x+'">'+st.l+(a.progress?' · '+pct(a.progress)+'%':'')+
@@ -1783,15 +1798,28 @@ function printSchedule(){
     '.job b{display:block;font-size:9.5px}'+
     '.job .sc{display:block;color:#444;font-size:8.5px}'+
     '.job .st{display:block;color:#666;font-size:8.5px}'+
-    '.ft{margin-top:16px;display:flex;gap:40px;font-size:10.5px;color:#333}'+
-    '.ft div{flex:1;border-top:1px solid #999;padding-top:5px;text-align:center}'+
+    '.sig{margin-top:30px;display:flex;gap:34px;page-break-inside:avoid;justify-content:flex-end}'+
+    '.sig .box{width:210px;text-align:center;font-size:10px;color:#222;line-height:1.9}'+
+    '.sig .space{height:46px}'+
+    '.sig .line{border-bottom:1px dotted #555;margin-bottom:5px}'+
+    '.sig .role{font-weight:700;font-size:10.5px}'+
+    '.sig .date{color:#666;font-size:9.5px;margin-top:3px}'+
     '@media print{.noprint{display:none}}'+
     '</style></head><body>'+
     '<div class="hd"><div><h1>แผนงานติดตั้ง — Install-QA Tracker</h1>'+
-      '<div class="p">'+esc(period)+' · '+teams.length+' ทีม · '+total+' งาน</div></div>'+
+      '<div class="p">'+esc(period)+' · '+teams.length+' ทีม · '+total+' งาน'+
+        (S.pnTeam? (' · เฉพาะทีม '+esc((teamOf(S.pnTeam).name)||'')) : '')+
+        (S.pnQ? (' · ค้นหา “'+esc(S.pnQ)+'”') : '')+'</div></div>'+
       '<div class="meta">พิมพ์เมื่อ '+fmtDT(new Date().toISOString())+'<br>โดย '+esc(meName())+'</div></div>'+
     '<table><thead>'+head+'</thead><tbody>'+body+'</tbody></table>'+
-    '<div class="ft"><div>ผู้จัดทำ</div><div>ผู้ตรวจสอบ</div><div>ผู้อนุมัติ</div></div>'+
+    '<div class="sig">'+
+      ['ผู้จัดทำ','ผู้ตรวจสอบ','ผู้อนุมัติ'].map(function(role){
+        return '<div class="box"><div class="space"></div><div class="line"></div>'+
+          '<div>(&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;)</div>'+
+          '<div class="role">'+role+'</div>'+
+          '<div class="date">วันที่ ......... / ......... / .........</div></div>';
+      }).join('')+
+    '</div>'+
     '</body></html>';
 
   var w=window.open('','_blank');
@@ -2317,6 +2345,7 @@ var HELP_STAFF=[
   {k:'ck', i:'✅', t:'เช็กลิสต์และรายงาน', b:[
     'ติ๊กเช็กลิสต์ทีละข้อตามงานที่ทำจริง เปอร์เซ็นต์คืบหน้าจะขยับเอง ไม่ต้องกรอกเลข',
     'ปุ่ม “ส่งรายงานความคืบหน้า” ต้องแนบรูปอย่างน้อย 1 รูปเสมอ ไม่งั้นปุ่มส่งจะกดไม่ได้',
+    'ติ๊กเช็กลิสต์ครบทุกข้อแล้ว ในหน้าส่งรายงานจะมีปุ่มเขียว “ส่งรายงาน + ปิดงานเสร็จ 100%” จบในปุ่มเดียว',
     'เปอร์เซ็นต์ในรายงานคิดจากเช็กลิสต์อย่างเดียว แก้เองไม่ได้ — อยากให้ตัวเลขขยับต้องไปติ๊กเช็กลิสต์',
     'แนบรูปได้หลายรูป ระบบย่อรูปให้ก่อนอัปเพื่อประหยัดเน็ต',
     'รูปหน้างานช่วยให้ออฟฟิศตัดสินใจได้เร็วขึ้นมาก ถ่ายไว้เยอะ ๆ ไม่เสียหาย'
@@ -2334,7 +2363,9 @@ var HELP_STAFF=[
     'ยังไม่ครบ → ระบบจะถามว่าติดอะไร แล้วบันทึกเป็น “ปิดวัน · ค้างต่อ” ตามเปอร์เซ็นต์จริง',
     'ค่าเริ่มต้นจะแจ้งเป็นปัญหาให้ออฟฟิศด้วย เพื่อให้จัดแผนวันถัดไปได้ทัน',
     'ไม่ต้องกลัวว่าตัวเลขไม่ถึง 100% จะดูไม่ดี — ออฟฟิศต้องรู้ของจริงถึงจะช่วยได้ถูก',
-    'ปิดวันไปแล้วแต่ทำงานต่อได้ กด “↩️ เปิดงานต่อ / แก้ไข” ติ๊กเช็กลิสต์เพิ่มแล้วปิดใหม่ได้ ระบบบันทึกทุกครั้งที่เปิดต่อ'
+    'ปิดวันไปแล้วแต่ทำงานต่อได้ กด “↩️ เปิดงานต่อ / แก้ไข” ติ๊กเช็กลิสต์เพิ่มแล้วปิดใหม่ได้ ระบบบันทึกทุกครั้งที่เปิดต่อ',
+    'ปิดวันโดยยังไม่ครบ ระบบยกข้อที่ยังไม่ได้ทำและปัญหาที่ค้าง ไปเป็นเช็กลิสต์ของวันถัดไปให้เอง ข้อที่ทำแล้วจะไม่โผล่ซ้ำ',
+    'ทำครบ 100% ก่อนกำหนด วันที่เหลือในแผนจะถูกยกเลิกให้อัตโนมัติ และระบบจะถามว่าจะปิดปัญหาที่ค้างด้วยหรือไม่'
   ]},
   {k:'off', i:'📶', t:'เน็ตหลุดหน้างาน', b:[
     'ถ้าไม่มีสัญญาณ ระบบเก็บรายงานและปัญหาไว้ในเครื่องก่อน มีแถบส้มขึ้นบอกจำนวนที่ค้าง',
@@ -2356,6 +2387,8 @@ var HELP_DASH=[
     'ในกล่องเดียวกันเพิ่มไซต์ใหม่ได้เลย เลือก “＋ เพิ่มไซต์ใหม่” ในช่องไซต์งาน',
     'แต่ละวันกด “กำหนดเอง” เพื่อแบ่งขอบเขตงานคนละอย่างได้ เช่น วันแรกตู้ล่าง วันสองท็อป',
     'คลิกขวาที่ใบงาน = เปิดหน้าเลื่อนวัน ย้ายทีม หรือลบงานทันที',
+    'ใบงานที่มีป้าย “↪ งานยกมา” คืองานค้างจากวันก่อนที่ระบบยกมาให้เอง เช็กลิสต์เหลือเฉพาะข้อที่ยังไม่ได้ทำ',
+    'ถ้าทีมทำเสร็จก่อนกำหนด วันที่เหลือในแผนจะหายไปเอง ไม่ต้องมาลบทีละใบ',
     'ปุ่ม 🖨 พิมพ์ ได้ตารางแนวนอน A4 พร้อมช่องเซ็นผู้จัดทำ/ตรวจสอบ/อนุมัติ — ติดบอร์ดหรือส่งให้ทีมได้เลย',
     'ปุ่ม 📊 Excel ได้ 2 ไฟล์: ตารางเหมือนบนจอ และรายการแถวต่อแถวไว้กรองหรือทำ Pivot'
   ]},
@@ -4037,54 +4070,97 @@ function reportSheet(a){
   var photos=[];
   var ck=Array.isArray(a.checklist)?a.checklist:[];
   var doneN=ck.filter(function(c){ return c.done; }).length;
+  var left=ck.length-doneN;
+  var full=ck.length>0 && left===0;
   var p = ck.length? Math.round(doneN/ck.length*100) : pct(a.progress);
 
   sheet('ส่งรายงานความคืบหน้า',
-    '<div style="background:var(--s1);border:1px solid var(--border);border-radius:13px;padding:13px 15px;margin-bottom:14px">'+
+    '<div style="background:'+(full?'var(--green-dim)':'var(--s1)')+';border:1px solid '+(full?'rgba(52,199,89,.3)':'var(--border)')+
+      ';border-radius:13px;padding:13px 15px;margin-bottom:14px">'+
       '<div style="display:flex;align-items:baseline;gap:10px">'+
-        '<span style="font-size:30px;font-weight:700;letter-spacing:-.03em;color:'+(p>=100?'var(--green)':'var(--accent)')+'">'+p+'%</span>'+
+        '<span style="font-size:30px;font-weight:700;letter-spacing:-.03em;color:'+(full?'#1e8e3e':'var(--accent)')+'">'+p+'%</span>'+
         '<span style="font-size:12.5px;color:var(--text2)">'+
           (ck.length? ('ติ๊กแล้ว '+doneN+' จาก '+ck.length+' ข้อ') : 'ค่าคืบหน้าล่าสุด')+'</span></div>'+
-      '<div class="bar'+(p>=100?' ok':'')+'" style="height:7px;margin-top:9px"><i style="width:'+p+'%"></i></div>'+
-      '<div style="font-size:11.5px;color:var(--text3);line-height:1.6;margin-top:9px">'+
-        (ck.length
-          ? 'เปอร์เซ็นต์คิดจากเช็กลิสต์อย่างเดียว ปรับเองไม่ได้ — ถ้ายังไม่ตรงกับงานจริง ให้ปิดหน้านี้แล้วไปติ๊กเช็กลิสต์ให้ครบก่อน'
-          : 'งานนี้ไม่มีเช็กลิสต์ ระบบจะใช้ค่าคืบหน้าล่าสุดที่บันทึกไว้')+
+      '<div class="bar'+(full?' ok':'')+'" style="height:7px;margin-top:9px"><i style="width:'+p+'%"></i></div>'+
+      '<div style="font-size:11.5px;color:'+(full?'#1e8e3e':'var(--text3)')+';line-height:1.6;margin-top:9px">'+
+        (full? '🎉 เช็กลิสต์ครบทุกข้อแล้ว — ส่งรายงานพร้อมปิดงานได้ในปุ่มเดียว'
+             : (ck.length
+                ? 'เปอร์เซ็นต์คิดจากเช็กลิสต์อย่างเดียว ปรับเองไม่ได้ — ถ้ายังไม่ตรงกับงานจริง ให้ปิดหน้านี้แล้วไปติ๊กเช็กลิสต์ก่อน'
+                : 'งานนี้ไม่มีเช็กลิสต์ ระบบจะใช้ค่าคืบหน้าล่าสุดที่บันทึกไว้'))+
       '</div></div>'+
-    '<div class="fld"><label>บันทึก / สิ่งที่ทำไป</label><textarea id="nt" style="height:96px;resize:none" placeholder="เช่น ติดตั้งตู้ล่างครบแล้ว รอท็อปหินมาส่งพรุ่งนี้เช้า"></textarea></div>'+
+    '<div class="fld"><label>บันทึก / สิ่งที่ทำไป'+(full?'':' (ถ้าปิดวัน จะใช้เป็นเหตุผลที่ยังไม่จบ)')+'</label>'+
+      '<textarea id="nt" style="height:92px;resize:none" placeholder="'+
+        (full? 'เช่น ติดตั้งครบทุกจุด ลูกค้าตรวจรับแล้ว' : 'เช่น ติดตั้งตู้ล่างครบแล้ว รอท็อปหินมาส่งพรุ่งนี้เช้า')+'"></textarea></div>'+
     '<div class="fld"><label>รูปหน้างาน <span style="color:var(--red)">*</span></label>'+
       '<div class="phs" id="phB"></div>'+
       '<p style="font-size:11.5px;color:var(--text2);line-height:1.6;margin-top:8px">'+
-        'ต้องแนบอย่างน้อย 1 รูป — รูปคือหลักฐานว่างานถึงไหนจริง ออฟฟิศตัดสินใจได้เร็วขึ้นมาก</p></div>',
-    '<button class="btn" id="sv" disabled>แนบรูปก่อนถึงจะส่งได้</button>');
+        'ต้องแนบอย่างน้อย 1 รูป — รูปคือหลักฐานว่างานถึงไหนจริง ออฟฟิศตัดสินใจได้เร็วขึ้นมาก</p></div>'+
+    (full? '' :
+      '<label style="font-size:13px;display:flex;align-items:center;gap:9px;color:var(--text2)">'+
+        '<input type="checkbox" id="cdIssue" checked> ถ้าปิดวันทั้งที่ยังไม่ครบ ให้แจ้งเป็นปัญหาให้ออฟฟิศด้วย</label>'),
+
+    (full
+      ? '<button class="btn sm" id="svClose" disabled style="background:var(--green);box-shadow:none;margin-bottom:7px">แนบรูปก่อนถึงจะส่งได้</button>'+
+        '<button class="btn ghost sm" id="svOnly" disabled>ส่งรายงานอย่างเดียว ยังไม่ปิดงาน</button>'
+      : '<button class="btn sm" id="svOnly" disabled style="margin-bottom:7px">แนบรูปก่อนถึงจะส่งได้</button>'+
+        '<button class="btn ghost sm" id="svClose" disabled>ส่งแล้วปิดวันนี้เลย'+(left?(' · ค้าง '+left+' ข้อ'):'')+'</button>'));
 
   var syncBtn=function(){
-    var b=$('sv'); if(!b) return;
-    b.disabled = photos.length===0;
-    b.textContent = photos.length? ('ส่งรายงาน · '+photos.length+' รูป') : 'แนบรูปก่อนถึงจะส่งได้';
+    var ok=photos.length>0;
+    var b1=$('svOnly'), b2=$('svClose');
+    if(b1){ b1.disabled=!ok;
+      if(full) b1.textContent='ส่งรายงานอย่างเดียว ยังไม่ปิดงาน';
+      else b1.textContent= ok? ('ส่งรายงาน · '+photos.length+' รูป') : 'แนบรูปก่อนถึงจะส่งได้'; }
+    if(b2){ b2.disabled=!ok;
+      if(full) b2.textContent= ok? ('✅ ส่งรายงาน + ปิดงานเสร็จ 100% · '+photos.length+' รูป') : 'แนบรูปก่อนถึงจะส่งได้';
+      else b2.textContent='ส่งแล้วปิดวันนี้เลย'+(left?(' · ค้าง '+left+' ข้อ'):''); }
   };
   photoPicker('phB', photos, syncBtn);
   syncBtn();
 
-  $('sv').onclick=async function(){
+  var send=async function(alsoClose, btn){
     if(!photos.length) return toast('ต้องแนบรูปหน้างานอย่างน้อย 1 รูป', 3200);
     var note=$('nt').value.trim();
-    this.disabled=true; this.textContent='กำลังส่ง…';
+    var reason=note;
+    if(alsoClose && !full && !reason){
+      var ask=prompt('ปิดวันโดยยังค้าง '+left+' ข้อ — ติดอะไร / เหลืออะไร?');
+      if(ask===null) return;
+      reason=ask.trim();
+    }
+    btn.disabled=true; btn.textContent='กำลังส่ง…';
     var pos=await getPos();
-    var rep={assignment_id:a.id, site_id:a.site_id, team_id:S.team.id, kind:'progress', progress:p, note:note||null,
-      photos:photos, lat:pos?pos.lat:null, lng:pos?pos.lng:null, acc_m:pos?pos.acc:null,
+    var now=new Date().toISOString();
+    var body = alsoClose
+      ? ('ปิดงานวันนี้ที่ '+p+'%'+(reason?(' — '+reason):'')+(left?(' · ค้าง '+left+' ข้อ'):''))
+      : (note||null);
+    var rep={assignment_id:a.id, site_id:a.site_id, team_id:S.team.id,
+      kind: alsoClose? 'checkout' : 'progress', progress:p, note:body, photos:photos,
+      lat:pos?pos.lat:null, lng:pos?pos.lng:null, acc_m:pos?pos.acc:null,
       created_by:meName(), staff_id:S.me.id};
-    var upd={progress:p, status: a.status==='assigned'?'working':a.status};
+    var upd = alsoClose
+      ? {progress:p, status: full? 'done' : 'partial', checkout_at:now}
+      : {progress:p, status: a.status==='assigned'?'working':a.status};
     try{
       await db.from('it_reports').insert(rep);
       await db.from('it_assignments').update(upd).eq('id',a.id);
-      toast('ส่งรายงานแล้ว');
+      if(alsoClose && !full && $('cdIssue') && $('cdIssue').checked){
+        await db.from('it_issues').insert({site_id:a.site_id, team_id:S.team.id, assignment_id:a.id,
+          category:(catLib()[0]||{k:'other'}).k, severity:'normal',
+          title:(reason||('งานค้าง '+left+' ข้อ ยังไม่จบวันนี้')).slice(0,120),
+          detail:'แจ้งอัตโนมัติตอนปิดงานวันที่ '+dayText(a.work_date)+' · คืบหน้า '+p+'%',
+          opened_by:meName(), staff_id:S.me.id});
+      }
+      toast(alsoClose? (full? 'ปิดงานเสร็จ 100% แล้ว' : ('ปิดวันแล้วที่ '+p+'% — ออฟฟิศรับทราบ')) : 'ส่งรายงานแล้ว', 3600);
+      if(alsoClose) await rollover(a, full);
     }catch(e){
       qPush({t:'report', p:rep, asg:{id:a.id, v:upd}});
       toast('ยังไม่มีเน็ต — บันทึกไว้ในเครื่องแล้ว', 3600);
     }
     Object.assign(a, upd); closeSheet(); renderTeam(); loadTeamData();
   };
+
+  if($('svOnly'))  $('svOnly').onclick=function(){ send(false, this); };
+  if($('svClose')) $('svClose').onclick=function(){ send(true,  this); };
 }
 
 function issueSheet(a){
@@ -4177,6 +4253,67 @@ function closeDay(a){
   };
 }
 
+/* ═════ ปิดวันแล้วจัดการงานที่เหลือ ═════
+   เสร็จ 100%  → ลบวันที่เหลือในแผน + เสนอปิดปัญหาที่ค้าง
+   ยังไม่ครบ  → ยกเช็กลิสต์ที่ยังไม่ได้ทำ + ปัญหาที่ค้าง ไปเป็นงานวันถัดไป */
+async function rollover(a, full){
+  try{
+    var openQ=await db.from('it_issues').select('*')
+      .eq('site_id',a.site_id).neq('status','resolved').neq('status','closed');
+    var open=openQ.data||[];
+
+    var nxtQ=await db.from('it_assignments').select('*')
+      .eq('site_id',a.site_id).eq('team_id',a.team_id).gt('work_date',a.work_date).order('work_date');
+    var future=(nxtQ.data||[]).filter(function(x){ return !x.checkin_at && x.status==='assigned'; });
+
+    if(full){
+      var msg=[];
+      if(future.length){
+        await db.from('it_assignments').delete().in('id', future.map(function(x){ return x.id; }));
+        msg.push('ยกเลิกวันที่เหลืออีก '+future.length+' วัน');
+      }
+      if(open.length){
+        var list=open.slice(0,6).map(function(i){ return '  #'+i.ref+' '+i.title; }).join('\n');
+        var ok=confirm('งานที่ไซต์นี้เสร็จครบ 100% แล้ว\n\nแต่ยังมีปัญหาค้างอยู่ '+open.length+' เรื่อง:\n'+
+          list+(open.length>6?'\n  …':'')+'\n\nปิดเรื่องเหล่านี้ทั้งหมดด้วยหรือไม่?\n'+
+          '(กดยกเลิกถ้ายังต้องให้ออฟฟิศตามต่อ เช่น เคลมของเสียหาย)');
+        if(ok){
+          var now=new Date().toISOString();
+          await db.from('it_issues').update({status:'resolved', resolved_at:now})
+            .in('id', open.map(function(i){ return i.id; }));
+          for(var k=0;k<open.length;k++){
+            await db.from('it_issue_comments').insert({issue_id:open[k].id, author:meName(), role:'team',
+              body:'ปิดพร้อมงาน — งานที่ไซต์นี้เสร็จครบ 100% เมื่อ '+dayText(a.work_date)});
+          }
+          msg.push('ปิดปัญหา '+open.length+' เรื่อง');
+        }
+      }
+      if(msg.length) toast(msg.join(' · '), 5000);
+      return;
+    }
+
+    /* ยังไม่ครบ — ยกของค้างไปวันถัดไป */
+    var ck=Array.isArray(a.checklist)?a.checklist:[];
+    var items=ck.filter(function(c){ return !c.done; }).map(function(c){ return {label:c.label, done:false}; });
+    open.forEach(function(i){
+      var lb='⚠️ แก้ปัญหา #'+i.ref+': '+i.title;
+      if(!items.some(function(x){ return x.label===lb; })) items.push({label:lb, done:false});
+    });
+    if(!items.length) return;
+
+    var scope=(a.scope||'งานค้าง')+' · ต่อจาก '+dayText(a.work_date);
+    if(future.length){
+      await db.from('it_assignments').update({checklist:items, scope:scope, progress:0}).eq('id', future[0].id);
+      toast('ยกงานค้าง '+items.length+' ข้อ ไปวัน '+dayText(future[0].work_date), 5000);
+    }else{
+      var d=planDates(addDays(a.work_date,1), 1, true)[0];
+      var r=await db.from('it_assignments').upsert({site_id:a.site_id, team_id:a.team_id, work_date:d,
+        scope:scope, checklist:items}, {onConflict:'site_id,team_id,work_date'});
+      if(!r.error) toast('สร้างงานต่อวัน '+dayText(d)+' · ค้าง '+items.length+' ข้อ', 5000);
+    }
+  }catch(e){}
+}
+
 /* เปิดงานที่ปิดไปแล้วกลับมาแก้ไข — ทำได้จากหน้างานเอง */
 async function reopenDay(a){
   var was = a.status==='done'? 'ปิดงานเสร็จ' : ('ปิดวันที่ '+pct(a.progress)+'%');
@@ -4213,6 +4350,7 @@ async function doCloseDay(a, p, status, note, issueTitle){
         opened_by:meName(), staff_id:S.me.id});
     }
     toast(status==='done'? 'ปิดงานแล้ว' : ('ปิดวันแล้วที่ '+p+'% — ออฟฟิศรับทราบ'), 3600);
+    await rollover(a, status==='done');
   }catch(e){
     qPush({t:'report', p:rep, asg:{id:a.id, v:upd}});
     toast('ยังไม่มีเน็ต — บันทึกไว้ในเครื่องแล้ว',3600);
