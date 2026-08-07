@@ -450,7 +450,7 @@ body.preview #previewBar{display:flex}
 
 <script>
 /* ── ยามเฝ้า splash: อยู่นอกสคริปต์หลัก ถ้าสคริปต์หลักพัง ตัวนี้ยังทำงาน ── */
-window.APP_VER='4.8';
+window.APP_VER='4.9';
 (function(){
   var fill=function(){
     var a=document.querySelectorAll('.ver');
@@ -540,6 +540,7 @@ window.APP_VER='4.8';
         <input type="checkbox" id="pnBusy"> เฉพาะทีมที่มีงาน</label>
       <span id="pnNote" style="margin-left:auto;font-size:11.5px;color:var(--text2)">—</span>
       <span id="pnDragHint" class="hide">⇧ Shift หรือ Ctrl ค้างไว้ = ลากย้ายงาน</span>
+      <button class="tb-btn hide" id="pnShift">⏩ เลื่อนงานยกชุด</button>
       <button class="tb-btn hide" id="pnHol">🏖 วันหยุด</button>
       <button class="tb-btn" id="pnPrint">🖨 พิมพ์</button>
       <button class="tb-btn" id="pnXls">📊 Excel</button>
@@ -997,6 +998,7 @@ function applyRoleUI(){
   set('btnCats',  isAdmin(S.me));               /* ประเภทปัญหา — ผู้จัดการขึ้นไป */
   set('pnHol',    rank(S.me)>=1);               /* วันหยุด — แอดมินขึ้นไป */
   set('pnDragHint', rank(S.me)>=1);             /* ลากย้ายงาน — แอดมินขึ้นไป */
+  set('pnShift',  rank(S.me)>=1);               /* เลื่อนงานยกชุด — แอดมินขึ้นไป */
   set('geoWrap',  rank(S.me)>=2);               /* ตรวจตำแหน่งเช็คอิน — ผู้จัดการขึ้นไป */
   set('btnHelp',  !isOwner(S.me));              /* คู่มือ — ซ่อนของระดับสูงสุด */
 }
@@ -1338,6 +1340,7 @@ $('pnDays').onchange=function(){
 };
 $('pnTeam').onchange=function(){ S.pnTeam=this.value; renderSchedule(); };
 $('pnHol').onclick=holidayManager;
+$('pnShift').onclick=shiftTool;
 $('pnPrint').onclick=printSchedule;
 $('pnXls').onclick=exportSchedule;
 $('pnSearch').oninput=function(){ S.pnQ=this.value.toLowerCase(); renderSchedule(); };
@@ -1739,6 +1742,26 @@ function scheduleData(){
   if(S.pnBusy) teams=teams.filter(function(t){ return S.plan.some(function(a){return a.team_id===t.id;}); });
   return {days:days, teams:teams};
 }
+/* สีอ่อนประจำชุดงาน — คิดจากไซต์+ทีม งานไซต์เดียวกันแต่คนละทีมจึงได้คนละสี
+   ใช้โทนฟ้า-เขียว-ม่วง-ชมพู เลี่ยงแดงส้มที่ระบบใช้เตือนงานซ้อนกับวันหยุด */
+var SERIES_HUE=[205,190,160,140,265,285,320,240,175,120,300,225];
+function seriesKey(a){ return a.site_id+'|'+a.team_id; }
+function seriesHue(k){
+  var h=0; for(var i=0;i<k.length;i++) h=(h*31+k.charCodeAt(i))>>>0;
+  return SERIES_HUE[h%SERIES_HUE.length];
+}
+/* แผนที่ชุดงานในช่วงที่กำลังดู: กี่วัน และแต่ละวันเป็นวันที่เท่าไหร่ของชุด */
+function seriesMap(){
+  var m={};
+  (S.plan||[]).forEach(function(a){
+    var k=seriesKey(a);
+    if(!m[k]) m[k]={dates:[]};
+    if(m[k].dates.indexOf(a.work_date)<0) m[k].dates.push(a.work_date);
+  });
+  Object.keys(m).forEach(function(k){ m[k].dates.sort(); });
+  return m;
+}
+
 function jobsAt(teamId, d){
   return S.plan.filter(function(a){ return a.team_id===teamId && a.work_date===d; });
 }
@@ -1801,7 +1824,7 @@ function renderSchedule(){
     '</th>';
   }).join('')+'</tr>';
 
-  var nClash=0;
+  var nClash=0, SM=seriesMap();
   var body=teams.map(function(t){
     var L=leadInfo(t);
     return '<tr><td class="tcol">'+esc(t.name)+
@@ -1818,7 +1841,18 @@ function renderSchedule(){
           var st=AST[a.status]||AST.assigned, si=siteOf(a.site_id);
           var iss=S.issues.filter(function(x){ return x.site_id===a.site_id && x.status!=='closed' && x.status!=='resolved'; }).length;
           var carry=/ต่อจาก /.test(a.scope||'');
-          return '<div class="pjob" data-job="'+a.id+'" style="border-left-color:'+st.x+'" title="'+esc((si.name||'')+' — '+(a.scope||''))+'">'+
+          var sk=seriesKey(a), ser=SM[sk], nDay=ser? ser.dates.length : 1;
+          var tint='', dayTag='';
+          if(nDay>1){
+            var hue=seriesHue(sk);
+            tint=';background:hsl('+hue+',66%,95%);border-top-color:hsl('+hue+',42%,86%)'+
+                 ';border-right-color:hsl('+hue+',42%,86%);border-bottom-color:hsl('+hue+',42%,86%)';
+            dayTag='<span class="sc" style="color:hsl('+hue+',45%,38%);font-weight:600">'+
+                   'ชุด '+(ser.dates.indexOf(d)+1)+'/'+nDay+' วัน</span>';
+          }
+          return '<div class="pjob" data-job="'+a.id+'" style="border-left-color:'+st.x+tint+'" title="'+
+            esc((si.name||'')+' — '+(a.scope||'')+(nDay>1?(' · ชุด '+nDay+' วัน'):''))+'">'+
+            dayTag+
             (carry?'<span class="sc" style="color:var(--orange);font-weight:600">↪ งานยกมา</span>':'')+
             '<b>'+esc(si.name||'—')+'</b>'+
             (a.scope?'<span class="sc">'+esc(a.scope)+'</span>':'')+
@@ -2240,6 +2274,75 @@ function exportSchedule(){
   }, 900);
 
   toast('ดาวน์โหลด 2 ไฟล์ — ตารางและรายการ', 4200);
+}
+
+/* ═════ เลื่อนงานยกชุด — ใช้ตอนโรงงานประกาศหยุดเพิ่มหรือแผนเลื่อนทั้งก้อน ═════ */
+function shiftTool(){
+  if(rank(S.me)<1) return toast('ต้องเป็นแอดมินขึ้นไป');
+  var teams=S.teams.filter(function(t){ return t.active!==false; });
+  sheet('⏩ เลื่อนงานยกชุด',
+    '<p style="font-size:12.5px;color:var(--text2);line-height:1.7;margin-bottom:14px">'+
+      'เลื่อนงานที่คีย์ไว้แล้วทั้งก้อนไปข้างหน้าหรือถอยหลัง เหมาะกับตอนประกาศวันหยุดเพิ่ม '+
+      'หรือของเข้าช้าจนต้องเลื่อนทั้งแผน</p>'+
+    '<div class="fld"><label>ทีม</label><select id="sf_team">'+
+      '<option value="">ทุกทีม</option>'+
+      teams.map(function(t){ return '<option value="'+t.id+'">'+esc(t.code+' · '+t.name)+'</option>'; }).join('')+
+    '</select></div>'+
+    '<div class="fld"><label>เลื่อนงานตั้งแต่วันที่ (รวมวันนี้ด้วย)</label>'+
+      '<input type="date" id="sf_from" value="'+(S.planFrom||todayISO())+'"></div>'+
+    '<div class="fld"><label>ถึงวันที่ (เว้นว่าง = ไปจนสุด)</label><input type="date" id="sf_to"></div>'+
+    '<div class="fld"><label>เลื่อนไปกี่วัน</label>'+
+      '<div class="row"><select id="sf_dir"><option value="1">เลื่อนไปข้างหน้า →</option>'+
+        '<option value="-1">ถอยกลับ ←</option></select>'+
+      '<input type="number" id="sf_n" value="1" min="1" max="60" style="max-width:110px"></div></div>'+
+    '<div id="sf_prev" style="background:var(--s1);border:1px solid var(--border);border-radius:11px;'+
+      'padding:11px 13px;font-size:12.5px;line-height:1.7;color:var(--text2)"></div>',
+    '<button class="btn sm" id="sf_go">ดูรายการก่อน</button>');
+
+  var pick=function(){
+    var tid=$('sf_team').value||null, f=$('sf_from').value, t=$('sf_to').value;
+    return (S.plan||[]).filter(function(a){
+      if(tid && a.team_id!==tid) return false;
+      if(f && a.work_date<f) return false;
+      if(t && a.work_date>t) return false;
+      return true;
+    });
+  };
+  var delta=function(){ return (+$('sf_dir').value) * Math.max(1, Math.min(60, +$('sf_n').value||1)); };
+  var prev=function(){
+    var list=pick(), dd=delta();
+    var offDays=list.filter(function(a){ return isOff(addDays(a.work_date, dd)); }).length;
+    var ckd=list.filter(function(a){ return a.checkin_at; }).length;
+    $('sf_prev').innerHTML= !list.length
+      ? '<span style="color:var(--orange)">ไม่มีงานตรงเงื่อนไขนี้ในช่วงที่โหลดไว้ ('+(S.planFrom||'')+' เป็นต้นไป '+S.planDays+' วัน)</span>'
+      : ('จะเลื่อน <b style="color:var(--text)">'+list.length+' ใบงาน</b> '+(dd>0?('ไปข้างหน้า '+dd+' วัน'):('ถอยกลับ '+Math.abs(dd)+' วัน'))+
+         (offDays? ('<br><span style="color:#c9251c">⚠️ '+offDays+' ใบจะไปตกวันอาทิตย์หรือวันหยุด — ต้องมาปรับเองทีหลัง</span>') : '')+
+         (ckd? ('<br><span style="color:var(--orange)">⚠️ '+ckd+' ใบเช็คอินไปแล้ว ประวัติจะย้ายตามไปด้วย</span>') : '')+
+         '<br><span style="font-size:11.5px">เลื่อนเฉพาะงานที่โหลดอยู่ในช่วงที่ดูตอนนี้เท่านั้น</span>');
+    $('sf_go').textContent = list.length? ('เลื่อน '+list.length+' ใบงาน') : 'ไม่มีงานให้เลื่อน';
+    $('sf_go').disabled = !list.length;
+  };
+  ['sf_team','sf_from','sf_to','sf_dir','sf_n'].forEach(function(id){
+    $(id).onchange=prev; $(id).oninput=prev;
+  });
+  prev();
+
+  $('sf_go').onclick=async function(){
+    var list=pick(), dd=delta();
+    if(!list.length) return;
+    if(!confirm('ยืนยันเลื่อน '+list.length+' ใบงาน '+(dd>0?('ไปข้างหน้า '+dd+' วัน'):('ถอยกลับ '+Math.abs(dd)+' วัน'))+' ?')) return;
+    this.disabled=true; this.textContent='กำลังเลื่อน…';
+    /* เลื่อนไปข้างหน้าให้เริ่มจากวันท้ายสุด ถอยหลังให้เริ่มจากวันแรก กันชนกันเองระหว่างทาง */
+    list.sort(function(a,b){ return dd>0? (a.work_date<b.work_date?1:-1) : (a.work_date>b.work_date?1:-1); });
+    var ok=0, fail=0;
+    for(var i=0;i<list.length;i++){
+      var r=await db.from('it_assignments').update({work_date: addDays(list[i].work_date, dd)}).eq('id', list[i].id);
+      if(r.error) fail++; else ok++;
+    }
+    closeSheet();
+    toast('เลื่อนแล้ว '+ok+' ใบงาน'+(fail? (' · ไม่สำเร็จ '+fail+' ใบ (ชนกับงานเดิม)') : ''), fail?6000:4000);
+    loadMgr();
+  };
 }
 
 /* ── ย้ายงานด้วยการลาก ── */
@@ -2832,6 +2935,8 @@ var HELP_DASH=[
     'แต่ละวันกด “กำหนดเอง” เพื่อแบ่งขอบเขตงานคนละอย่างได้ เช่น วันแรกตู้ล่าง วันสองท็อป',
     'คลิกขวาที่ใบงาน = เปิดหน้าเลื่อนวัน ย้ายทีม หรือลบงานทันที',
     'กด Shift หรือ Ctrl ค้างไว้แล้วลากใบงานไปวางช่องอื่น = ย้ายวันหรือย้ายทีมทันที (แอดมินขึ้นไป)',
+    'ปุ่ม ⏩ เลื่อนงานยกชุด ใช้ตอนต้องเลื่อนทั้งแผน เช่นประกาศหยุดเพิ่ม เลือกทีม ช่วงวัน แล้วเลื่อนทีเดียวทั้งก้อน',
+    'ใบงานที่มีพื้นสีอ่อนคือชุดงานหลายวันของไซต์+ทีมเดียวกัน แต่ละชุดคนละสี บนใบบอกว่าเป็นวันที่เท่าไหร่ของชุด',
     'ต้องกดปุ่มค้างก่อนถึงจะลากได้ กันลากผิดตอนคลิกดูรายละเอียดตามปกติ',
     'ใบงานที่มีป้าย “↪ งานยกมา” คืองานค้างจากวันก่อนที่ระบบยกมาให้เอง เช็กลิสต์เหลือเฉพาะข้อที่ยังไม่ได้ทำ',
     'ช่องที่มีกรอบส้ม “⚠️ ซ้อน 2 ไซต์” คือทีมถูกจองหลายไซต์ในวันเดียวกัน มักเกิดตอนงานค้างถูกยกมาชนกับงานที่วางไว้แล้ว',
