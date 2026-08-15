@@ -884,29 +884,97 @@ window.addEventListener('online', function(){ qShow(); qFlush(); });
 window.addEventListener('offline', qShow);
 
 /* ───────── photos ───────── */
-function compress(file, max){
-  max = max||1400;
-  return new Promise(function(res,rej){
-    var img=new Image(), url=URL.createObjectURL(file);
-    img.onload=function(){
-      var w=img.width,h=img.height,r=Math.min(1,max/Math.max(w,h));
-      var cv=document.createElement('canvas'); cv.width=Math.round(w*r); cv.height=Math.round(h*r);
-      cv.getContext('2d').drawImage(img,0,0,cv.width,cv.height);
-      cv.toBlob(function(b){ URL.revokeObjectURL(url); b?res(b):rej(new Error('compress failed')); },'image/jpeg',.78);
-    };
-    img.onerror=function(){ URL.revokeObjectURL(url); rej(new Error('อ่านรูปไม่ได้')); };
-    img.src=url;
-  });
+/* บีบรูปให้เล็กลง — ปรับค่าได้ที่ 4 ตัวนี้ตัวเดียว
+   PHOTO_MAX_PX  ด้านยาวสุดของรูป (px)  — 1024 พออ่านป้าย/เสา/รอยตำหนิชัด
+   PHOTO_MAX_KB  เพดานขนาดไฟล์ต่อรูป (KB) — โค้ดจะลดคุณภาพอัตโนมัติจนกว่าจะไม่เกิน
+   ถ้าอยากได้รูปชัดขึ้น  → PHOTO_MAX_PX=1280, PHOTO_MAX_KB=200
+   ถ้าอยากประหยัดที่สุด → PHOTO_MAX_PX=900,  PHOTO_MAX_KB=80  */
+var PHOTO_MAX_PX = 1024;
+var PHOTO_MAX_KB = 120;
+var PHOTO_Q0     = 0.62;   /* คุณภาพเริ่มต้น */
+var PHOTO_Q_MIN  = 0.40;   /* ต่ำสุดที่ยอมลดได้ */
+var PHOTO_LAST_BYTES = 0;  /* ขนาดรวมที่อัปโหลดครั้งล่าสุด ไว้โชว์ใน toast */
+
+/* WebP เล็กกว่า JPEG ประมาณ 25–35% ที่ความชัดเท่ากัน — เช็คก่อนว่าเครื่องรองรับไหม */
+var _phFmt=null;
+function photoFmt(){
+  if(_phFmt) return _phFmt;
+  var ok=false;
+  try{ var c=document.createElement('canvas'); c.width=c.height=1;
+       ok = c.toDataURL('image/webp').indexOf('data:image/webp')===0; }catch(e){ ok=false; }
+  _phFmt = ok ? {mime:'image/webp', ext:'webp'} : {mime:'image/jpeg', ext:'jpg'};
+  return _phFmt;
+}
+function cvBlob(cv,mime,q){
+  return new Promise(function(res){ cv.toBlob(function(b){ res(b); }, mime, q); });
+}
+function shrinkCv(cv,ratio){
+  var n=document.createElement('canvas');
+  n.width=Math.max(1,Math.round(cv.width*ratio));
+  n.height=Math.max(1,Math.round(cv.height*ratio));
+  var x=n.getContext('2d'); x.fillStyle='#fff'; x.fillRect(0,0,n.width,n.height);
+  x.drawImage(cv,0,0,n.width,n.height);
+  return n;
+}
+async function compress(file, max){
+  max = max||PHOTO_MAX_PX;
+  var fmt=photoFmt(), src=null, url=null, w=0, h=0;
+
+  /* createImageBitmap หมุนรูปตาม EXIF ให้เอง (รูปจากมือถือไม่ตะแคง) */
+  try{
+    if(window.createImageBitmap){
+      src=await createImageBitmap(file,{imageOrientation:'from-image'});
+      w=src.width; h=src.height;
+    }
+  }catch(e){ src=null; }
+  if(!src){
+    url=URL.createObjectURL(file);
+    src=await new Promise(function(res,rej){
+      var im=new Image();
+      im.onload=function(){ res(im); };
+      im.onerror=function(){ rej(new Error('อ่านรูปไม่ได้')); };
+      im.src=url;
+    });
+    w=src.naturalWidth||src.width; h=src.naturalHeight||src.height;
+  }
+
+  var r=Math.min(1, max/Math.max(w,h));
+  var cv=document.createElement('canvas');
+  cv.width=Math.max(1,Math.round(w*r)); cv.height=Math.max(1,Math.round(h*r));
+  var cx=cv.getContext('2d');
+  cx.fillStyle='#fff'; cx.fillRect(0,0,cv.width,cv.height);   /* กันพื้นดำถ้าต้นฉบับเป็น PNG โปร่งใส */
+  cx.drawImage(src,0,0,cv.width,cv.height);
+  if(src.close) src.close();
+  if(url) URL.revokeObjectURL(url);
+
+  var cap=PHOTO_MAX_KB*1024;
+  var q=PHOTO_Q0, blob=await cvBlob(cv,fmt.mime,q);
+
+  /* รอบ 1 — ลดคุณภาพทีละขั้นจนไม่เกินเพดาน */
+  while(blob && blob.size>cap && q>PHOTO_Q_MIN){
+    q=Math.max(PHOTO_Q_MIN, q-0.08);
+    blob=await cvBlob(cv,fmt.mime,q);
+  }
+  /* รอบ 2 — ยังใหญ่อยู่ ย่อด้านลงอีก 20% (ไม่เกิน 3 รอบ และไม่ต่ำกว่า 560px) */
+  var guard=0;
+  while(blob && blob.size>cap && guard<3 && Math.max(cv.width,cv.height)>560){
+    guard++; cv=shrinkCv(cv,0.8);
+    blob=await cvBlob(cv,fmt.mime,PHOTO_Q0);
+  }
+  if(!blob) throw new Error('compress failed');
+  return {blob:blob, ext:fmt.ext, mime:fmt.mime, w:cv.width, h:cv.height};
 }
 async function uploadPhotos(files, folder){
-  var out=[];
+  var out=[], total=0;
   for(var i=0;i<files.length;i++){
-    var blob=await compress(files[i]);
-    var name=folder+'/'+Date.now()+'_'+Math.random().toString(36).slice(2,8)+'.jpg';
-    var up=await db.storage.from(BUCKET).upload(name, blob, {contentType:'image/jpeg'});
+    var c=await compress(files[i]);
+    total+=c.blob.size;
+    var name=folder+'/'+Date.now()+'_'+Math.random().toString(36).slice(2,8)+'.'+c.ext;
+    var up=await db.storage.from(BUCKET).upload(name, c.blob, {contentType:c.mime, cacheControl:'31536000'});
     if(up.error) throw up.error;
     out.push(db.storage.from(BUCKET).getPublicUrl(name).data.publicUrl);
   }
+  PHOTO_LAST_BYTES=total;
   return out;
 }
 function photoPicker(hostId, store, onChange){
@@ -922,7 +990,8 @@ function photoPicker(hostId, store, onChange){
       try{
         var urls=await uploadPhotos(Array.prototype.slice.call(f.files,0,6),'p'+(S.me?S.me.emp_code:'mgr'));
         urls.forEach(function(u){ store.push(u); });
-        photoPicker(hostId, store, onChange); fire(); toast('อัปโหลดรูปแล้ว '+urls.length+' รูป');
+        photoPicker(hostId, store, onChange); fire();
+        toast('อัปโหลดรูปแล้ว '+urls.length+' รูป · รวม '+Math.round(PHOTO_LAST_BYTES/1024)+' KB');
       }catch(e){ toast('อัปโหลดรูปไม่สำเร็จ — ลองใหม่เมื่อสัญญาณดีขึ้น', 3600); }
     };
     f.click();
