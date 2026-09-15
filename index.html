@@ -459,7 +459,7 @@ body.preview #previewBar{display:flex}
 
 <script>
 /* ── ยามเฝ้า splash: อยู่นอกสคริปต์หลัก ถ้าสคริปต์หลักพัง ตัวนี้ยังทำงาน ── */
-window.APP_VER='5.3';
+window.APP_VER='5.4';
 (function(){
   var fill=function(){
     var a=document.querySelectorAll('.ver');
@@ -1088,7 +1088,7 @@ function applyRoleUI(){
   set('pnDragHint', rank(S.me)>=1);             /* ลากย้ายงาน — แอดมินขึ้นไป */
   set('pnShift',  rank(S.me)>=1);               /* เลื่อนงานยกชุด — แอดมินขึ้นไป */
   set('geoWrap',  rank(S.me)>=2);               /* ตรวจตำแหน่งเช็คอิน — ผู้จัดการขึ้นไป */
-  set('btnHelp',  !isOwner(S.me));              /* คู่มือ — ซ่อนของระดับสูงสุด */
+  set('btnHelp',  true);                        /* คู่มือ — เปิดให้ทุกระดับ */
 }
 function isAdmin(u){ return rank(u)>=2; }
 function isOwner(u){ return rank(u)>=3; }
@@ -3212,15 +3212,28 @@ var HELP_ADM_EXTRA=[
   ]}
 ];
 
+var HELP_OWN_EXTRA=[
+  {k:'rl', i:'🔑', t:'สิทธิ์ที่คุณมีเพิ่ม (เจ้าของระบบ / ผู้ควบคุมระบบ)', b:[
+    'ทำได้ทุกอย่างที่ผู้จัดการทำได้ ทั้งวางแผน สั่งการ จัดการข้อมูล และเข้ามุมมองหน้างาน',
+    'เจ้าของระบบตั้งสิทธิ์ให้คนอื่นได้ถึงระดับผู้จัดการ · ผู้ควบคุมระบบตั้งได้ทุกระดับรวมระดับเดียวกัน',
+    'แก้ไข ลบ และล้าง PIN ได้ทุกบัญชีที่สิทธิ์ต่ำกว่าตัวเอง ระดับเท่ากันหรือสูงกว่าเปิดดูได้อย่างเดียว',
+    'เปลี่ยนสิทธิ์ตัวเองไม่ได้เหมือนทุกระดับ ต้องให้คนที่สูงกว่าเป็นคนเปลี่ยนให้',
+    'บัญชีผู้ควบคุมระบบถูกซ่อนจากรายชื่อพนักงาน ลบหรือแก้จากหน้าจอไม่ได้ ต้องแก้ที่ฐานข้อมูลโดยตรง',
+    'ระดับผู้ควบคุมระบบคือกุญแจสำรอง เอาไว้กู้ตอนบัญชีระดับบนถูกลบหรือถูกลดสิทธิ์จนไม่เหลือใครเข้า Manage Team ได้',
+    'ระวัง: รายงานหรือปัญหาที่ส่งจากมุมมองหน้างานบันทึกจริงในชื่อคุณ ใช้ดูอย่างเดียวจะปลอดภัยกว่า'
+  ]}
+];
+
 function helpSections(){
   var r=rank(S.me);
   if(r===0) return HELP_STAFF;
+  if(r>=3)  return HELP_DASH.concat(HELP_OWN_EXTRA);
   if(r>=2)  return HELP_DASH.concat(HELP_MGR_EXTRA);
   return HELP_DASH.concat(HELP_ADM_EXTRA);
 }
 
 function showHelp(focus){
-  if(isOwner(S.me)) return;
+  if(!S.me) return;
   var list=helpSections().slice();
   if(focus){
     var hit=list.filter(function(x){ return x.k===focus; })[0];
@@ -3246,7 +3259,7 @@ function showHelp(focus){
   try{ localStorage.setItem('it_help_'+(S.me.emp_code||''), '1'); }catch(e){}
 }
 function helpFirstTime(){
-  if(isOwner(S.me) || !S.me) return;
+  if(!S.me) return;
   try{ if(localStorage.getItem('it_help_'+(S.me.emp_code||''))) return; }catch(e){ return; }
   setTimeout(function(){ showHelp(); }, 900);
 }
@@ -4510,7 +4523,7 @@ async function loadTeamData(){
   var openToday=S.asgs.filter(function(a){ return a.work_date===todayISO() && a.status!=='done'; }).length;
   var pn=$('tPlanN'); pn.textContent=openToday; pn.classList.toggle('hide', !openToday);
   testBar();
-  $('tHelp').classList.toggle('hide', isOwner(S.me));
+  $('tHelp').classList.toggle('hide', false);
   $('tDash').classList.toggle('hide', !(isMgr(S.me) && approved(S.me)));
   pvTeams();
   renderTeam();
@@ -5269,7 +5282,7 @@ function renderMe(){
         'รายงานหรือปัญหาที่ส่งจากโหมดนี้จะบันทึกในชื่อคุณและผูกกับทีมที่เลือก — ระวังข้อมูลทดสอบปนของจริง</p>'+
       '<button class="btn ghost sm" id="vtDash" style="margin-top:9px">🖥 กลับไป Dashboard</button>'+
       '</div></div>') : '')+
-    (isOwner(S.me)?'':'<div class="mpad" style="margin-top:8px"><button class="bigbtn" id="bHelp" '+
+    ('<div class="mpad" style="margin-top:8px"><button class="bigbtn" id="bHelp" '+
       'style="background:var(--s3);color:var(--text);box-shadow:none">❓ วิธีใช้งานแอปนี้</button></div>')+
     '<div class="mpad" style="margin-top:8px"><button class="bigbtn" id="bEdit">✏️ แก้ไขชื่อ / เบอร์ / PIN</button></div>'+
     '<div class="mpad" style="margin-top:-4px"><button class="bigbtn" style="background:var(--s3);color:var(--text);box-shadow:none" id="bOut">ออกจากระบบ</button></div>'+
