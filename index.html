@@ -392,6 +392,33 @@ body.dragmode .pjob:active{cursor:grabbing}
   .itbl th,.itbl td{padding:7px 9px}
   .itbl .ttl{max-width:180px}
 }
+/* ── ย่อแถบด้านบนบนจอแคบ ── */
+.pn-more{display:none}
+@media(max-width:820px){
+  .pn-more{display:inline-flex}
+  body:not(.pn-open) .pn-x{display:none !important}
+  body.pn-open .pn-x{display:inline-flex}
+  body.pn-open label.pn-x{display:flex}
+  body.pn-open #pnLegend.pn-x{display:flex}
+  #pnMore.on{background:var(--accent);color:#fff;border-color:var(--accent)}
+  /* ซ่อนแถบเครื่องมือหลักเมื่อกดย่อ เหลือแค่ชื่อกับปุ่มคลี่ */
+  body.hdr-min .tb-btn:not(#hdrToggle){display:none}
+  body.hdr-min .tb-live{display:none}
+  .tb{position:relative}
+  #hdrToggle{margin-left:auto}
+  /* โหมดตารางบนมือถือ — บีบให้เห็นได้มากขึ้นต่อหนึ่งหน้าจอ */
+  .plan.mobile .tcol{min-width:104px;max-width:104px}
+  .plan.mobile tbody .tcol{font-size:11px}
+  .plan.mobile tbody .tcol small{font-size:9px}
+  .plan.mobile tbody .tcol small.crew{display:none}
+  .plan.mobile .pcell{min-width:112px}
+  .plan.mobile th,.plan.mobile td{padding:3px 4px}
+  .plan.mobile thead th{font-size:9.5px;padding:5px 3px}
+  .plan.mobile .pjob b{font-size:10px}
+  .plan.mobile .pjob .sc:not(.st){display:none}
+  .plan-wrap{max-height:none}
+}
+
 /* ── มุมมองรายวัน สำหรับจอแคบ ── */
 .agenda{padding:2px 0 10px}
 .aday{border:1px solid var(--border);border-radius:14px;margin-bottom:10px;overflow:hidden;background:var(--card)}
@@ -483,7 +510,7 @@ body.preview #previewBar{display:flex}
 
 <script>
 /* ── ยามเฝ้า splash: อยู่นอกสคริปต์หลัก ถ้าสคริปต์หลักพัง ตัวนี้ยังทำงาน ── */
-window.APP_VER='5.9';
+window.APP_VER='6.0';
 (function(){
   var fill=function(){
     var a=document.querySelectorAll('.ver');
@@ -545,6 +572,7 @@ window.APP_VER='5.9';
     <button class="tb-btn" id="btnReload">↻ โหลดใหม่</button>
     <button class="tb-btn" id="btnDiag">🩺 ตรวจระบบ</button>
     <button class="tb-btn hide" id="btnDb">🗄 ฐานข้อมูล</button>
+    <button class="tb-btn" id="hdrToggle" title="ย่อหรือคลี่แถบด้านบน">▴ ย่อแถบ</button>
     <button class="tb-btn hide" id="btnHelp">❓ วิธีใช้</button>
     <button class="tb-btn" id="btnField">👷 มุมมองหน้างาน</button>
     <button class="tb-btn" id="btnMe">บัญชีของฉัน</button>
@@ -562,25 +590,26 @@ window.APP_VER='5.9';
 
   <!-- แผนงานล่วงหน้า -->
   <div class="pane on" id="pPn">
-    <div class="toolbar">
+    <div class="toolbar" id="pnBar">
       <button class="tb-btn" id="pnPrev">‹ ก่อนหน้า</button>
       <button class="tb-btn" id="pnToday">วันนี้</button>
       <button class="tb-btn" id="pnNext">ถัดไป ›</button>
       <input type="date" id="pnFrom" class="tin" style="height:28px;padding:4px 9px">
-      <select id="pnTeam" class="tin" style="height:28px;padding:4px 8px;max-width:190px"></select>
-      <select id="pnDays" class="tin" style="height:28px;padding:4px 8px"></select>
-      <input id="pnSearch" class="tin" style="min-width:180px" placeholder="ค้นหาทีม / ไซต์…">
-      <label style="font-size:11.5px;color:var(--text2);display:flex;align-items:center;gap:5px">
+      <button class="tb-btn pn-more" id="pnMore">⚙ ตัวกรอง</button>
+      <span class="pn-x"><select id="pnTeam" class="tin" style="height:28px;padding:4px 8px;max-width:190px"></select></span>
+      <span class="pn-x"><select id="pnDays" class="tin" style="height:28px;padding:4px 8px"></select></span>
+      <span class="pn-x"><input id="pnSearch" class="tin" style="min-width:180px" placeholder="ค้นหาทีม / ไซต์…"></span>
+      <label class="pn-x" style="font-size:11.5px;color:var(--text2);align-items:center;gap:5px">
         <input type="checkbox" id="pnBusy"> เฉพาะทีมที่มีงาน</label>
       <span id="pnNote" style="margin-left:auto;font-size:11.5px;color:var(--text2)">—</span>
       <span id="pnDragHint" class="hide">⇧ Shift หรือ Ctrl ค้างไว้ = ลากย้ายงาน</span>
-      <button class="tb-btn hide" id="pnShift">⏩ เลื่อนงานยกชุด</button>
-      <button class="tb-btn hide" id="pnHol">🏖 วันหยุด</button>
+      <button class="tb-btn hide pn-x" id="pnShift">⏩ เลื่อนงานยกชุด</button>
+      <button class="tb-btn hide pn-x" id="pnHol">🏖 วันหยุด</button>
       <button class="tb-btn" id="pnView">📋 รายวัน</button>
-      <button class="tb-btn" id="pnPrint">🖨 พิมพ์</button>
-      <button class="tb-btn" id="pnXls">📊 Excel</button>
+      <button class="tb-btn pn-x" id="pnPrint">🖨 พิมพ์</button>
+      <button class="tb-btn pn-x" id="pnXls">📊 Excel</button>
     </div>
-    <div id="pnLegend"></div>
+    <div id="pnLegend" class="pn-x"></div>
     <div style="padding:0 14px 16px">
       <div class="card"><div class="plan-wrap" id="pnWrap"></div></div>
     </div>
@@ -1527,6 +1556,27 @@ $('pnTeam').onchange=function(){ S.pnTeam=this.value; renderSchedule(); };
 $('pnHol').onclick=holidayManager;
 $('pnShift').onclick=shiftTool;
 $('pnView').onclick=function(){ setPlanView(!planListMode()); };
+/* ย่อ/คลี่แถบเครื่องมือของแผนงาน — จำค่าไว้ในเครื่อง */
+$('pnMore').onclick=function(){
+  document.body.classList.toggle('pn-open');
+  this.classList.toggle('on', document.body.classList.contains('pn-open'));
+  try{ localStorage.setItem('it_pn_open', document.body.classList.contains('pn-open')?'1':'0'); }catch(e){}
+};
+$('hdrToggle').onclick=function(){
+  var min=document.body.classList.toggle('hdr-min');
+  this.textContent = min? '▾ คลี่แถบ' : '▴ ย่อแถบ';
+  try{ localStorage.setItem('it_hdr_min', min?'1':'0'); }catch(e){}
+};
+(function(){
+  try{
+    if(localStorage.getItem('it_pn_open')==='1'){
+      document.body.classList.add('pn-open'); $('pnMore').classList.add('on');
+    }
+    if(localStorage.getItem('it_hdr_min')==='1'){
+      document.body.classList.add('hdr-min'); $('hdrToggle').textContent='▾ คลี่แถบ';
+    }
+  }catch(e){}
+})();
 $('pnPrint').onclick=printSchedule;
 $('pnXls').onclick=exportSchedule;
 $('pnSearch').oninput=function(){ S.pnQ=this.value.toLowerCase(); renderSchedule(); };
@@ -2320,7 +2370,8 @@ function renderSchedule(){
         '</div></div>';
     }).join('')+'</div>';
   } else {
-    wrap.innerHTML='<table class="plan'+(days.length>45?' compact':'')+'"><thead>'+head+'</thead><tbody>'+body+'</tbody></table>';
+    wrap.innerHTML='<table class="plan'+(days.length>45?' compact':'')+
+      (window.innerWidth<820?' mobile':'')+'"><thead>'+head+'</thead><tbody>'+body+'</tbody></table>';
   }
   if(nClash) $('pnNote').innerHTML += ' · <b style="color:#c26c00">⚠️ งานซ้อน '+nClash+' ช่อง</b>';
 
