@@ -143,6 +143,10 @@ button,input,select,textarea{font-family:inherit;color:inherit}
   letter-spacing:.4px;text-transform:uppercase;display:flex;align-items:center;justify-content:space-between;gap:8px;background:rgba(255,255,255,.5)}
 #map{height:430px;width:100%;background:var(--s3)}
 .leaflet-container{font-family:inherit}
+#mapNotice{background:rgba(255,149,0,.12);border-bottom:1px solid var(--orange);color:#8a4b00;
+  padding:8px 12px;font-size:11.5px;line-height:1.65}
+#mapNotice a{color:#8a4b00;font-weight:700}
+#mapNotice .btn{padding:3px 9px;font-size:11px;vertical-align:middle}
 .mk{width:26px;height:26px;border-radius:50%;border:2.5px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,.3);
   display:flex;align-items:center;justify-content:center;color:#fff;font-size:10px;font-weight:700}
 
@@ -385,38 +389,61 @@ body.dragmode .pjob:active{cursor:grabbing}
   .split{grid-template-columns:1fr !important;padding:0 10px 12px;gap:10px}
   #map{height:270px}
   .board{max-height:340px}
-  .plan-wrap{max-height:58vh}
   #drawer{width:100%}
-  .toolbar{padding:9px 10px;gap:6px}
   .tin{font-size:12px}
   .itbl th,.itbl td{padding:7px 9px}
   .itbl .ttl{max-width:180px}
 }
 /* ── ย่อแถบด้านบนบนจอแคบ ── */
 .pn-more{display:none}
-@media(max-width:820px){
+/* มุมมองรายวันเลื่อนไปกับหน้า ส่วนตารางเลื่อนในกรอบตัวเองเพื่อให้หัววันที่ตรึงอยู่ได้ */
+.plan-wrap.list{max-height:none;overflow:visible}
+@media(max-width:900px){
   .pn-more{display:inline-flex}
   body:not(.pn-open) .pn-x{display:none !important}
   body.pn-open .pn-x{display:inline-flex}
   body.pn-open label.pn-x{display:flex}
   body.pn-open #pnLegend.pn-x{display:flex}
   #pnMore.on{background:var(--accent);color:#fff;border-color:var(--accent)}
-  /* ซ่อนแถบเครื่องมือหลักเมื่อกดย่อ เหลือแค่ชื่อกับปุ่มคลี่ */
-  body.hdr-min .tb-btn:not(#hdrToggle){display:none}
-  body.hdr-min .tb-live{display:none}
+
+  /* ย่อเฉพาะปุ่มบนแถบหัวสุด ไม่ไปโดนปุ่มเลื่อนวันของแท็บแผนงาน */
+  body.hdr-min .tb .tb-btn:not(#hdrToggle){display:none}
+  body.hdr-min .tb .tb-live{display:none}
+  body.hdr-min .tb{padding:5px 10px;gap:5px}
+  body.hdr-min .tb-title{font-size:11.5px}
   .tb{position:relative}
   #hdrToggle{margin-left:auto}
+
+  /* บีบแถบหัวข้อและแถบเครื่องมือให้เตี้ยลง เหลือที่ให้ตารางมากขึ้น */
+  .tabs{padding:4px 8px 0;gap:0}
+  .tab{padding:6px 8px 7px;font-size:11.5px}
+  .toolbar{padding:6px 8px;gap:5px}
+  .tin{height:26px !important;font-size:11.5px}
+  #pnNote{font-size:10.5px}
+
   /* โหมดตารางบนมือถือ — บีบให้เห็นได้มากขึ้นต่อหนึ่งหน้าจอ */
-  .plan.mobile .tcol{min-width:104px;max-width:104px}
-  .plan.mobile tbody .tcol{font-size:11px}
+  .plan.mobile .tcol{min-width:96px;max-width:96px}
+  .plan.mobile tbody .tcol{font-size:10.5px}
   .plan.mobile tbody .tcol small{font-size:9px}
   .plan.mobile tbody .tcol small.crew{display:none}
   .plan.mobile .pcell{min-width:112px}
   .plan.mobile th,.plan.mobile td{padding:3px 4px}
-  .plan.mobile thead th{font-size:9.5px;padding:5px 3px}
+  .plan.mobile thead th{font-size:9.5px;padding:4px 3px;line-height:1.35}
+  .plan.mobile thead th .dw{font-size:8.5px}
   .plan.mobile .pjob b{font-size:10px}
   .plan.mobile .pjob .sc:not(.st){display:none}
-  .plan-wrap{max-height:none}
+
+  /* กรอบตารางสูงเท่าที่เหลือจริง หัววันที่จึงตรึงอยู่ได้ตอนไถลง */
+  .plan-wrap{max-height:calc(100vh - 210px)}
+  body.hdr-min .plan-wrap{max-height:calc(100vh - 160px)}
+}
+/* จอเตี้ยแบบมือถือแนวนอน — แถบหัวกินที่มากเป็นพิเศษ จึงบีบเพิ่มอีกชั้น */
+@media(max-height:620px){
+  .tabs{padding:3px 8px 0}
+  .tab{padding:5px 8px 6px;font-size:11px}
+  .toolbar{padding:5px 8px}
+  .plan-wrap{max-height:calc(100vh - 168px)}
+  body.hdr-min .plan-wrap{max-height:calc(100vh - 124px)}
 }
 
 /* ── มุมมองรายวัน สำหรับจอแคบ ── */
@@ -510,7 +537,7 @@ body.preview #previewBar{display:flex}
 
 <script>
 /* ── ยามเฝ้า splash: อยู่นอกสคริปต์หลัก ถ้าสคริปต์หลักพัง ตัวนี้ยังทำงาน ── */
-window.APP_VER='6.0';
+window.APP_VER='6.5';
 (function(){
   var fill=function(){
     var a=document.querySelectorAll('.ver');
@@ -632,6 +659,7 @@ window.APP_VER='6.0';
             <label style="text-transform:none;letter-spacing:0;font-weight:500;font-size:11px;display:flex;align-items:center;gap:5px;cursor:pointer">
               <input type="checkbox" id="mapRoute" checked> 🚗 เส้นทางถนน</label>
             <span id="mapNote" style="text-transform:none;letter-spacing:0;font-weight:500">—</span></span></div>
+        <div id="mapNotice" class="hide"></div>
         <div id="map"></div>
       </div>
       <div class="card">
@@ -807,6 +835,10 @@ function dbRef(u){ var m=String(u||'').match(/^https:\/\/([a-z0-9]+)\.supabase\.
    เว้นเป็นค่าว่างไว้ ระบบจะย้อนไปใช้ที่อยู่ของหน้าที่เปิดอยู่แทน */
 var APP_URL = 'https://starmark-warranty.github.io/Starmark-Install-QA/';
 function appUrl(){ return APP_URL || location.href.split('?')[0]; }
+/* กุญแจภาพพื้นแผนที่ CARTO — ล็อกไว้กับโดเมน starmark-warranty.github.io
+   ขอใหม่ได้ที่ carto.com/basemaps/apikey ถ้าย้ายโดเมนต้องขอใหม่หรือแก้ referer ที่ CARTO
+   แต่ละเครื่องตั้งทับได้เองที่หน้า 🩺 ตรวจระบบ */
+var CARTO_KEY = 'cb1_3mru_1_ebf283a658b7804687e6a80c';
 var CHECKIN_RADIUS = 300;   // เมตร — เกินนี้เตือนว่าอยู่ไกลไซต์
 if(typeof supabase==='undefined' || !supabase.createClient){
   window.__splashFail('โหลดไลบรารี Supabase ไม่ได้ (cdn.jsdelivr.net) — '+
@@ -1113,34 +1145,111 @@ function photoStrip(arr){
 
 /* ───────── GPS ───────── */
 /* ───────── ภาพพื้นแผนที่ ─────────
-   ส.ค. 2569 CARTO เปลี่ยนนโยบาย ภาพที่ขอโดยไม่มีคีย์จะถูกสกรีนคำว่า API KEY REQUIRED ทับ
-   แผนที่ยังใช้ได้ปกติ แต่ดูเหมือนเสีย จึงเปลี่ยนค่าเริ่มต้นมาใช้ OpenStreetMap ที่ไม่ต้องใช้คีย์
-   ถ้าอยากได้หน้าตาแบบ CARTO กลับมา ขอคีย์ฟรีที่ carto.com/basemaps/apikey แล้วใส่ในหน้าตรวจระบบ */
+   ส.ค. 2569 CARTO เปลี่ยนนโยบาย ภาพที่ขอโดยไม่มีคีย์จะถูกสกรีน API KEY REQUIRED ทับ แต่ยังใช้งานได้
+   ส่วน OpenStreetMap ใช้เซิร์ฟเวอร์อาสาสมัคร และบล็อกแอปที่ผิดเงื่อนไขการใช้งานด้วย 403
+   ทางที่ยั่งยืนที่สุดตอนนี้คือขอคีย์ CARTO ฟรีที่ carto.com/basemaps/apikey (ไม่ต้องสมัครบัญชี)
+   แล้วใส่ในหน้า 🩺 ตรวจระบบ ภาพจะสะอาดทันที */
 var TILE_PRESETS={
-  osm:{ n:'OpenStreetMap — ไม่ต้องใช้คีย์', u:'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-        max:19, at:'© OpenStreetMap contributors', key:false },
-  voyager:{ n:'CARTO Voyager — ต้องมีคีย์ฟรี', u:'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
+  voyager:{ n:'CARTO Voyager — แนะนำ ใส่คีย์ฟรีแล้วภาพสะอาด',
+        u:'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
         sub:'abcd', max:20, at:'© OpenStreetMap, © CARTO', key:true },
-  light:{ n:'CARTO Light — ต้องมีคีย์ฟรี', u:'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
-        sub:'abcd', max:20, at:'© OpenStreetMap, © CARTO', key:true }
+  light:{ n:'CARTO Light — โทนอ่อน ใช้คีย์เดียวกัน',
+        u:'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
+        sub:'abcd', max:20, at:'© OpenStreetMap, © CARTO', key:true },
+  osm:{ n:'OpenStreetMap — ไม่ต้องใช้คีย์ แต่ถูกบล็อกได้',
+        u:'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+        max:19, at:'© OpenStreetMap contributors', key:false }
 };
 function tileCfg(){
-  var c={p:'osm',k:''};
+  var c={p:'voyager',k:''};
   try{ var r=localStorage.getItem('it_map'); if(r) c=Object.assign(c,JSON.parse(r)||{}); }catch(e){}
-  if(!TILE_PRESETS[c.p]) c.p='osm';
+  if(!TILE_PRESETS[c.p]) c.p='voyager';
+  /* เว้นช่องคีย์ไว้ = ใช้กุญแจกลางที่ฝังมากับไฟล์ ลบออกเมื่อไหร่ก็กลับมาใช้อันกลาง */
+  if(!c.k) c.k=CARTO_KEY;
+  /* กุญแจล็อกไว้กับโดเมน เปิดไฟล์ตรงจากเครื่องจะไม่มีโดเมนติดไปและถูกปฏิเสธเสมอ
+     กรณีนี้ตัดกุญแจออก ยอมให้มีลายน้ำแต่ยังเห็นแผนที่ ดีกว่าจอว่างเปล่า */
+  if(location.protocol==='file:') c.k='';
   return c;
 }
 function saveTileCfg(p,k){
   try{ localStorage.setItem('it_map',JSON.stringify({p:p,k:(k||'').trim()})); }catch(e){}
 }
-/* ใส่ชั้นภาพพื้นลงบนแผนที่ที่ส่งเข้ามา พร้อมเครดิตเจ้าของข้อมูลตามเงื่อนไขการใช้งาน */
+var _tileWarned=false;
+/* ทดสอบว่าภาพแผนที่โหลดได้จริงไหมจากบริบทที่กำลังเปิดอยู่ตอนนี้
+   ใช้ไทล์เหนือกรุงเทพฯ หนึ่งแผ่น ตอบได้ว่า โหลดได้ / โหลดไม่ได้ / หมดเวลา */
+var TILE_TEST={z:12,x:3191,y:1890};
+function tileTestUrl(preset, key){
+  var t=TILE_PRESETS[preset];
+  var u=t.u.replace('{s}','a').replace('{r}','')
+           .replace('{z}',TILE_TEST.z).replace('{x}',TILE_TEST.x).replace('{y}',TILE_TEST.y);
+  return u + (t.key && key ? '?key='+encodeURIComponent(key) : '');
+}
+function tileProbe(url){
+  return new Promise(function(res){
+    var img=new Image(), done=false;
+    var t=setTimeout(function(){ if(!done){ done=true; res('หมดเวลา'); } }, 8000);
+    img.onload =function(){ if(!done){ done=true; clearTimeout(t); res('โหลดได้'); } };
+    img.onerror=function(){ if(!done){ done=true; clearTimeout(t); res('ถูกปฏิเสธ'); } };
+    img.src=url;
+  });
+}
+/* ใส่ชั้นภาพพื้น พร้อมเครดิตเจ้าของข้อมูล และเตือนถ้าภาพโหลดไม่ขึ้นหลายแผ่นติดกัน */
 function addTiles(map){
   var c=tileCfg(), t=TILE_PRESETS[c.p];
   var url=t.u + (t.key && c.k ? (t.u.indexOf('?')<0?'?':'&')+'key='+encodeURIComponent(c.k) : '');
   var o={maxZoom:t.max, attribution:t.at};
   if(t.sub) o.subdomains=t.sub;
-  return L.tileLayer(url,o).addTo(map);
+  var layer=L.tileLayer(url,o);
+  var bad=0, usedKey=!!(t.key && c.k);
+  layer.on('tileerror', function(){
+    bad++;
+    if(bad<=5) return;
+    if(usedKey){
+      /* กุญแจถูกปฏิเสธ มักเพราะโดเมนที่เปิดอยู่ไม่ตรงกับที่ตั้ง Referer ไว้ที่ CARTO
+         ถอยไปใช้แบบไม่มีกุญแจ ภาพจะมีลายน้ำแต่ยังใช้งานได้ ดีกว่าจอว่าง */
+      usedKey=false; bad=0;
+      map.removeLayer(layer);
+      var o2={maxZoom:t.max, attribution:t.at}; if(t.sub) o2.subdomains=t.sub;
+      L.tileLayer(t.u,o2).addTo(map);
+      if(!_tileWarned){
+        _tileWarned=true;
+        toast('กุญแจแผนที่ถูกปฏิเสธจากโดเมนนี้ — สลับไปแบบไม่มีกุญแจให้ก่อน ภาพจะมีลายน้ำทับ', 6500);
+        if($('mapNotice')) tileNotice(true);
+      }
+      return;
+    }
+    if(!_tileWarned){
+      _tileWarned=true;
+      toast('ภาพแผนที่โหลดไม่ขึ้น — เปิด 🩺 ตรวจระบบ แล้วกดทดสอบภาพแผนที่เพื่อหาสาเหตุ', 6500);
+    }
+  });
+  layer.addTo(map);
+  return layer;
 }
+/* แถบเตือนบนแผนที่ ตอนเลือก CARTO แต่ยังไม่ได้ใส่คีย์ — ภาพจะมีลายน้ำทับ */
+function tileNotice(force){
+  var c=tileCfg(), t=TILE_PRESETS[c.p];
+  var box=$('mapNotice'); if(!box) return;
+  var show = force || (t.key && !c.k);
+  box.classList.toggle('hide', !show);
+  if(!show) return;
+  if(location.protocol==='file:'){
+    box.innerHTML='<b>กำลังเปิดไฟล์จากเครื่องโดยตรง</b> — กุญแจแผนที่ถูกล็อกไว้กับโดเมนของระบบ '+
+      'จึงใช้ไม่ได้ในโหมดนี้ และภาพจะมีลายน้ำทับ เป็นเรื่องปกติของการทดสอบในเครื่อง '+
+      'เปิดผ่านลิงก์เว็บจริงแล้วลายน้ำจะหายไปเอง '+
+      '<button class="btn ghost sm" id="mapNoticeX">ปิด</button>';
+    $('mapNoticeX').onclick=function(){ box.classList.add('hide'); };
+    return;
+  }
+  box.innerHTML='<b>แผนที่มีลายน้ำ API KEY REQUIRED ทับอยู่</b> — '+
+    'ขอคีย์ฟรีที่ <a href="https://carto.com/basemaps/apikey" target="_blank" rel="noopener">carto.com/basemaps/apikey</a> '+
+    'ใช้เวลาไม่ถึงนาที ไม่ต้องสมัครบัญชี แล้วนำมาใส่ที่ปุ่ม 🩺 ตรวจระบบ '+
+    '<button class="btn ghost sm" id="mapNoticeGo" style="margin-left:6px">ใส่คีย์เลย</button> '+
+    '<button class="btn ghost sm" id="mapNoticeX">ปิด</button>';
+  $('mapNoticeGo').onclick=function(){ diag(); };
+  $('mapNoticeX').onclick=function(){ box.classList.add('hide'); };
+}
+
 function getPos(){
   return new Promise(function(res){
     if(!navigator.geolocation) return res(null);
@@ -1811,9 +1920,22 @@ async function diag(){
         Object.keys(TILE_PRESETS).map(function(k){
           return '<option value="'+k+'"'+(k===tileCfg().p?' selected':'')+'>'+esc(TILE_PRESETS[k].n)+'</option>'; }).join('')+
       '</select></div>'+
-      '<div class="fld"><label>CARTO API key (ใส่เฉพาะเมื่อเลือก CARTO)</label>'+
-        '<input id="mapK" placeholder="วางคีย์ที่ได้จาก carto.com" value="'+esc(tileCfg().k)+'"></div>'+
-      '<button class="btn ghost sm" id="mapSave">บันทึกแล้วโหลดแผนที่ใหม่</button>'+
+      '<div class="fld"><label>CARTO API key</label>'+
+        '<input id="mapK" placeholder="เว้นว่างไว้เพื่อใช้กุญแจกลางของบริษัท" value="'+
+          esc(tileCfg().k===CARTO_KEY?'':tileCfg().k)+'">'+
+        '<div style="font-size:10.5px;color:var(--text2);margin-top:4px">'+
+          (tileCfg().k===CARTO_KEY
+            ? 'กำลังใช้กุญแจกลางที่ฝังมากับไฟล์ ไม่ต้องกรอกอะไร'
+            : 'เครื่องนี้ใช้กุญแจเฉพาะของตัวเอง ลบข้อความออกเพื่อกลับไปใช้กุญแจกลาง')+'</div></div>'+
+      '<div class="row" style="gap:6px">'+
+        '<button class="btn ghost sm" id="mapTest">🔍 ทดสอบภาพแผนที่</button>'+
+        '<button class="btn ghost sm" id="mapSave">บันทึกแล้วโหลดแผนที่ใหม่</button></div>'+
+      '<div id="mapTestOut" style="font-size:11.5px;line-height:1.8;margin-top:8px"></div>'+
+      '<div style="font-size:10.5px;color:var(--text2);margin-top:6px;word-break:break-all">'+
+        'หน้านี้เปิดจาก <b>'+esc(location.origin==='null'?'ไฟล์ในเครื่อง (file://)':location.origin)+'</b>'+
+        (location.protocol==='file:'
+          ? ' — กุญแจที่ล็อกกับโดเมนจะใช้ไม่ได้เมื่อเปิดแบบนี้ ต้องทดสอบผ่านลิงก์เว็บจริง'
+          : '')+'</div>'+
       '<div style="font-size:11px;color:var(--text3);margin-top:7px;line-height:1.6">'+
         'ค่านี้เก็บในเครื่องนี้เครื่องเดียว ถ้าจะให้ทุกคนได้เหมือนกันต้องแก้ค่าเริ่มต้นในไฟล์แล้วอัปใหม่</div>'+
     '</div>'+
@@ -1822,8 +1944,31 @@ async function diag(){
       'ถ้าขึ้น does not exist → ยังไม่ได้รัน schema ตารางนั้น<br>'+
       'ถ้าทุกตารางเขียว แต่ Dashboard ยังว่าง → ไม่มีข้อมูลของวันที่เลือก ลองกดปุ่ม “วันนี้”</div>';
   $('shF').innerHTML='<button class="btn sm" onclick="closeSheet();loadMgr()">โหลดใหม่</button>';
+  if($('mapTest')) $('mapTest').onclick=async function(){
+    var b=this, out=$('mapTestOut');
+    b.disabled=true; b.textContent='กำลังทดสอบ…'; out.innerHTML='';
+    var k=($('mapK').value.trim())||CARTO_KEY;
+    var cases=[
+      ['CARTO + กุญแจที่ใช้อยู่', tileTestUrl('voyager', k)],
+      ['CARTO ไม่ใส่กุญแจ',       tileTestUrl('voyager', '')],
+      ['OpenStreetMap',           tileTestUrl('osm', '')]
+    ];
+    var rows='';
+    for(var i=0;i<cases.length;i++){
+      var r=await tileProbe(cases[i][1]);
+      var col = r==='โหลดได้' ? 'var(--green)' : 'var(--red)';
+      rows += '<div><b style="color:'+col+'">'+(r==='โหลดได้'?'✓':'✗')+' '+r+'</b> · '+esc(cases[i][0])+'</div>';
+    }
+    out.innerHTML = rows +
+      '<div style="color:var(--text2);margin-top:6px">' +
+      'ถ้าแถวแรกถูกปฏิเสธแต่แถวสองโหลดได้ แปลว่ากุญแจถูกปฏิเสธ มักเกิดจากตั้ง Referer ที่ CARTO ไม่ตรงกับโดเมนที่เปิดอยู่' +
+      '</div>';
+    b.disabled=false; b.textContent='🔍 ทดสอบภาพแผนที่';
+  };
+
   if($('mapSave')) $('mapSave').onclick=function(){
     saveTileCfg($('mapP').value, $('mapK').value);
+    if($('mapNotice')) tileNotice();
     var t=TILE_PRESETS[$('mapP').value];
     if(t.key && !$('mapK').value.trim()){
       toast('เลือก CARTO แต่ยังไม่ใส่คีย์ — แผนที่จะยังมีลายน้ำทับอยู่', 4200);
@@ -1981,6 +2126,7 @@ function renderMap(){
   if(!S.map){
     S.map=L.map('map',{zoomControl:true, attributionControl:false}).setView([13.7563,100.5018],11);
     addTiles(S.map);
+    tileNotice();
     S.mapLayer=L.layerGroup().addTo(S.map);
     setTimeout(function(){ S.map.invalidateSize(); }, 200);
   }
@@ -2329,6 +2475,7 @@ function renderSchedule(){
   }).join('');
 
   /* มุมมองรายวัน — เรียงตามวัน ไม่ต้องเลื่อนแนวนอน เหมาะกับมือถือ */
+  wrap.classList.toggle('list', planListMode());
   if(planListMode()){
     wrap.innerHTML='<div class="agenda">'+days.map(function(d){
       var dt=new Date(d+'T00:00:00'), hd=isHoliday(d);
