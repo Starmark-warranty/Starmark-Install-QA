@@ -392,6 +392,30 @@ body.dragmode .pjob:active{cursor:grabbing}
   .itbl th,.itbl td{padding:7px 9px}
   .itbl .ttl{max-width:180px}
 }
+/* ── มุมมองรายวัน สำหรับจอแคบ ── */
+.agenda{padding:2px 0 10px}
+.aday{border:1px solid var(--border);border-radius:14px;margin-bottom:10px;overflow:hidden;background:var(--card)}
+.aday.today{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-glow)}
+.aday.hol{background:rgba(255,59,48,.05)}
+.ah{display:flex;align-items:center;gap:9px;padding:9px 12px;background:var(--s1);border-bottom:1px solid var(--border)}
+.ah .ad{font-weight:700;font-size:13.5px}
+.ah .ad i{font-style:normal;color:var(--text3);font-weight:500;font-size:11.5px;margin-left:5px}
+.ah .am{margin-left:auto;font-size:11px;color:var(--text2);text-align:right;line-height:1.45}
+.aday.today .ah{background:var(--accent-glow)}
+.ab{padding:8px 10px 10px}
+.ajob{display:block;width:100%;text-align:left;border:1px solid var(--border);border-left-width:4px;border-radius:11px;
+  padding:8px 10px;margin-bottom:6px;background:var(--card);cursor:pointer;font:inherit}
+.ajob:active{transform:scale(.995)}
+.ajob .at{font-size:10.5px;color:var(--text2);font-weight:600;margin-bottom:1px}
+.ajob b{display:block;font-size:13px;line-height:1.4}
+.ajob .sc{display:block;font-size:11.5px;color:var(--text2);margin-top:1px}
+.ajob .st{display:inline-flex;align-items:center;gap:4px;font-size:11px;margin-top:4px;font-weight:600}
+.ajob .st i{width:7px;height:7px;border-radius:50%;display:inline-block}
+.ajob .tag{display:inline-block;font-size:10px;font-weight:700;margin-right:6px}
+.afree{display:flex;flex-wrap:wrap;gap:5px;align-items:center;padding-top:4px;font-size:11px;color:var(--text3)}
+.afree .ac{border:1px dashed var(--border2);border-radius:8px;padding:3px 9px;cursor:pointer;color:var(--text2);background:transparent;font:inherit;font-size:11px}
+.afree .ac:hover{border-color:var(--accent);color:var(--accent)}
+.aempty{font-size:11.5px;color:var(--text3);padding:3px 2px}
 #mobileHint{position:fixed;left:10px;right:10px;bottom:calc(10px + env(safe-area-inset-bottom));
   background:rgba(28,28,30,.95);color:#fff;border-radius:14px;padding:13px 15px;z-index:700;
   box-shadow:var(--shadow-lg);display:none;font-size:12.5px;line-height:1.6}
@@ -459,7 +483,7 @@ body.preview #previewBar{display:flex}
 
 <script>
 /* ── ยามเฝ้า splash: อยู่นอกสคริปต์หลัก ถ้าสคริปต์หลักพัง ตัวนี้ยังทำงาน ── */
-window.APP_VER='5.5';
+window.APP_VER='5.9';
 (function(){
   var fill=function(){
     var a=document.querySelectorAll('.ver');
@@ -520,6 +544,7 @@ window.APP_VER='5.5';
     <div class="tb-live"><span class="tb-dot" id="liveDot"></span><span id="liveTxt">กำลังเชื่อมต่อ…</span></div>
     <button class="tb-btn" id="btnReload">↻ โหลดใหม่</button>
     <button class="tb-btn" id="btnDiag">🩺 ตรวจระบบ</button>
+    <button class="tb-btn hide" id="btnDb">🗄 ฐานข้อมูล</button>
     <button class="tb-btn hide" id="btnHelp">❓ วิธีใช้</button>
     <button class="tb-btn" id="btnField">👷 มุมมองหน้างาน</button>
     <button class="tb-btn" id="btnMe">บัญชีของฉัน</button>
@@ -551,6 +576,7 @@ window.APP_VER='5.5';
       <span id="pnDragHint" class="hide">⇧ Shift หรือ Ctrl ค้างไว้ = ลากย้ายงาน</span>
       <button class="tb-btn hide" id="pnShift">⏩ เลื่อนงานยกชุด</button>
       <button class="tb-btn hide" id="pnHol">🏖 วันหยุด</button>
+      <button class="tb-btn" id="pnView">📋 รายวัน</button>
       <button class="tb-btn" id="pnPrint">🖨 พิมพ์</button>
       <button class="tb-btn" id="pnXls">📊 Excel</button>
     </div>
@@ -699,7 +725,8 @@ window.APP_VER='5.5';
 
 <div id="mobileHint">
   <b>หน้า Dashboard ออกแบบไว้สำหรับจอคอม</b><br>
-  บนมือถือใช้ได้ครบทุกอย่าง แต่ตารางแผนงานกับตารางปัญหาต้องเลื่อนแนวนอน
+  แผนงานถูกสลับเป็นมุมมองรายวันให้แล้ว เลื่อนลงอย่างเดียวไม่ต้องเลื่อนข้าง
+  กดปุ่ม ▦ ตาราง บนแถบเครื่องมือเพื่อกลับไปดูแบบตารางได้ทุกเมื่อ
   <div class="row">
     <button class="btn" id="mhField">👷 เปิดมุมมองหน้างานแทน</button>
     <button class="btn ghost" id="mhOk" style="flex:0 0 96px">ใช้ต่อ</button>
@@ -725,9 +752,27 @@ window.APP_VER='5.5';
    Install-QA Tracker — ติดตามทีมติดตั้ง-QA หลายทีม หลายหน้างาน (เวอร์ชันอยู่ที่ window.APP_VER)
    ใช้ Supabase project เดียวกับ production_v2.html (ตาราง it_*)
    ===================================================================== */
-var SB_URL = 'https://vyzsdfezmzawctfkehbk.supabase.co';
-var SB_KEY = 'sb_publishable__2Ci0D7Gf4dg__BdmHJz3A_KHnvQykx';
+/* ค่าเริ่มต้นที่ฝังมากับไฟล์ — ทุกเครื่องใช้ค่านี้ถ้าไม่ได้ตั้งทับไว้เอง */
+var SB_URL_DEFAULT = 'https://vyzsdfezmzawctfkehbk.supabase.co';
+var SB_KEY_DEFAULT = 'sb_publishable__2Ci0D7Gf4dg__BdmHJz3A_KHnvQykx';
 var BUCKET = 'install-photos';
+
+/* ย้ายฐานข้อมูล — เจ้าของระบบขึ้นไปตั้งทับได้จากปุ่ม 🗄 ฐานข้อมูล
+   ค่าที่ตั้งเก็บไว้ในเครื่องที่ตั้งเท่านั้น ไม่ได้เปลี่ยนให้คนอื่น
+   ย้ายจริงทั้งบริษัทต้องแก้ค่าเริ่มต้นสองบรรทัดบนแล้วอัปไฟล์ใหม่ */
+function dbOverride(){
+  try{
+    var raw=localStorage.getItem('it_db_override');
+    if(!raw) return null;
+    var o=JSON.parse(raw);
+    return (o && o.url && o.key) ? o : null;
+  }catch(e){ return null; }
+}
+var _ov = dbOverride();
+var SB_URL = _ov ? _ov.url : SB_URL_DEFAULT;
+var SB_KEY = _ov ? _ov.key : SB_KEY_DEFAULT;
+var DB_IS_OVERRIDE = !!_ov;
+function dbRef(u){ var m=String(u||'').match(/^https:\/\/([a-z0-9]+)\.supabase\.co/i); return m? m[1] : (u||'—'); }
 /* ที่อยู่จริงของแอปบนเว็บ — ใช้แสดงเป็นลิงก์ให้พนักงานบันทึกไว้หน้าจอมือถือ
    ย้ายโฮสต์เมื่อไหร่ แก้บรรทัดนี้บรรทัดเดียว
    เว้นเป็นค่าว่างไว้ ระบบจะย้อนไปใช้ที่อยู่ของหน้าที่เปิดอยู่แทน */
@@ -741,12 +786,26 @@ if(typeof supabase==='undefined' || !supabase.createClient){
 }
 var db = supabase.createClient(SB_URL, SB_KEY);
 
+/* ถ้าเครื่องนี้ถูกตั้งให้ชี้ไปฐานอื่น ให้ติดป้ายไว้บนหัวจอตลอดเวลา
+   กันเคสเปิดดูข้อมูลฐานทดสอบแล้วเข้าใจว่าเป็นของจริง */
+if(DB_IS_OVERRIDE){
+  document.addEventListener('DOMContentLoaded', function(){
+    var t=document.querySelector('.tb-title'); if(!t) return;
+    var c=document.createElement('span');
+    c.textContent='🗄 ฐานทดสอบ · '+dbRef(SB_URL);
+    c.title='เครื่องนี้ถูกตั้งให้ใช้ฐานข้อมูลอื่น ไม่ใช่ค่าเริ่มต้นของไฟล์';
+    c.style.cssText='margin-left:8px;background:rgba(255,149,0,.16);color:#c26c00;border:1px solid var(--orange);'+
+      'border-radius:7px;padding:1px 8px;font-size:10.5px;font-weight:700;white-space:nowrap';
+    t.appendChild(c);
+  });
+}
+
 /* ───────── สถานะรวม ───────── */
 var S = {
   role:'team', mgrName:'', team:null, me:null, staff:[],
   date: todayISO(),
   sites:[], teams:[], asgs:[], issues:[],
-  work:[], pins:[], icats:[], hols:[], plan:[], showRoutes:true, geoCheck:false, asTeam:null, forcedField:false, planFrom:null, planDays:14, pnQ:'', pnBusy:false,
+  work:[], pins:[], icats:[], hols:[], plan:[], unclosed:[], showRoutes:true, geoCheck:false, asTeam:null, forcedField:false, planFrom:null, planDays:14, pnQ:'', pnBusy:false, pnList:null,
   ovFilter:'all', ovQ:'', isFilter:'open', isQ:'', isAllDates:true,
   tView:'jobs', tJob:null, map:null, markers:[], mapLayer:null
 };
@@ -1024,7 +1083,35 @@ function photoStrip(arr){
 }
 
 /* ───────── GPS ───────── */
-var TILE='https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png';
+/* ───────── ภาพพื้นแผนที่ ─────────
+   ส.ค. 2569 CARTO เปลี่ยนนโยบาย ภาพที่ขอโดยไม่มีคีย์จะถูกสกรีนคำว่า API KEY REQUIRED ทับ
+   แผนที่ยังใช้ได้ปกติ แต่ดูเหมือนเสีย จึงเปลี่ยนค่าเริ่มต้นมาใช้ OpenStreetMap ที่ไม่ต้องใช้คีย์
+   ถ้าอยากได้หน้าตาแบบ CARTO กลับมา ขอคีย์ฟรีที่ carto.com/basemaps/apikey แล้วใส่ในหน้าตรวจระบบ */
+var TILE_PRESETS={
+  osm:{ n:'OpenStreetMap — ไม่ต้องใช้คีย์', u:'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+        max:19, at:'© OpenStreetMap contributors', key:false },
+  voyager:{ n:'CARTO Voyager — ต้องมีคีย์ฟรี', u:'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
+        sub:'abcd', max:20, at:'© OpenStreetMap, © CARTO', key:true },
+  light:{ n:'CARTO Light — ต้องมีคีย์ฟรี', u:'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
+        sub:'abcd', max:20, at:'© OpenStreetMap, © CARTO', key:true }
+};
+function tileCfg(){
+  var c={p:'osm',k:''};
+  try{ var r=localStorage.getItem('it_map'); if(r) c=Object.assign(c,JSON.parse(r)||{}); }catch(e){}
+  if(!TILE_PRESETS[c.p]) c.p='osm';
+  return c;
+}
+function saveTileCfg(p,k){
+  try{ localStorage.setItem('it_map',JSON.stringify({p:p,k:(k||'').trim()})); }catch(e){}
+}
+/* ใส่ชั้นภาพพื้นลงบนแผนที่ที่ส่งเข้ามา พร้อมเครดิตเจ้าของข้อมูลตามเงื่อนไขการใช้งาน */
+function addTiles(map){
+  var c=tileCfg(), t=TILE_PRESETS[c.p];
+  var url=t.u + (t.key && c.k ? (t.u.indexOf('?')<0?'?':'&')+'key='+encodeURIComponent(c.k) : '');
+  var o={maxZoom:t.max, attribution:t.at};
+  if(t.sub) o.subdomains=t.sub;
+  return L.tileLayer(url,o).addTo(map);
+}
 function getPos(){
   return new Promise(function(res){
     if(!navigator.geolocation) return res(null);
@@ -1098,6 +1185,7 @@ function applyRoleUI(){
   set('pnShift',  rank(S.me)>=1);               /* เลื่อนงานยกชุด — แอดมินขึ้นไป */
   set('geoWrap',  rank(S.me)>=2);               /* ตรวจตำแหน่งเช็คอิน — ผู้จัดการขึ้นไป */
   set('btnHelp',  true);                        /* คู่มือ — เปิดให้ทุกระดับ */
+  set('btnDb',    isOwner(S.me));               /* ย้ายฐานข้อมูล — เจ้าของระบบขึ้นไป */
 }
 function isAdmin(u){ return rank(u)>=2; }
 function isOwner(u){ return rank(u)>=3; }
@@ -1438,6 +1526,7 @@ $('pnDays').onchange=function(){
 $('pnTeam').onchange=function(){ S.pnTeam=this.value; renderSchedule(); };
 $('pnHol').onclick=holidayManager;
 $('pnShift').onclick=shiftTool;
+$('pnView').onclick=function(){ setPlanView(!planListMode()); };
 $('pnPrint').onclick=printSchedule;
 $('pnXls').onclick=exportSchedule;
 $('pnSearch').oninput=function(){ S.pnQ=this.value.toLowerCase(); renderSchedule(); };
@@ -1447,6 +1536,7 @@ $('btnMe').onclick=myAccount;
 $('btnOut').onclick=logout;
 $('btnReload').onclick=function(){ loadMgr(); };
 $('btnDiag').onclick=function(){ diag(); };
+$('btnDb').onclick=function(){ dbPanel(); };
 $('btnToday').onclick=function(){ S.date=todayISO(); $('dtPick').value=S.date; loadMgr(); };
 $('dtPick').onchange=function(){ S.date=this.value||todayISO(); loadMgr(); };
 document.querySelectorAll('#mgr .tab').forEach(function(t){
@@ -1493,7 +1583,12 @@ async function loadMgr(){
     ['วันหยุด (it_holidays)', db.from('it_holidays').select('*').order('hday')],
     ['ปัญหา (it_issues)', S.isAllDates
         ? db.from('it_issues').select('*').neq('status','closed').order('opened_at',{ascending:false}).limit(400)
-        : db.from('it_issues').select('*').gte('opened_at',S.date+'T00:00:00').lte('opened_at',S.date+'T23:59:59').order('opened_at',{ascending:false})]
+        : db.from('it_issues').select('*').gte('opened_at',S.date+'T00:00:00').lte('opened_at',S.date+'T23:59:59').order('opened_at',{ascending:false})],
+    /* งานของวันก่อนที่ทีมเช็คอินแล้วแต่ไม่เคยกดปิดวัน — ระบบไม่ปิดให้เองตอนเที่ยงคืน
+       ถ้าไม่มีใครตาม ของค้างจะไม่ถูกยกไปวันถัดไปและงานจะค้างสถานะกำลังทำไปเรื่อย ๆ */
+    ['งานค้างปิด', db.from('it_assignments').select('*')
+        .lt('work_date', todayISO()).gte('work_date', addDays(todayISO(),-21))
+        .not('checkin_at','is',null).order('work_date',{ascending:false}).limit(200)]
   ];
   var res=[], errs=[];
   for(var i=0;i<jobs.length;i++){
@@ -1502,6 +1597,7 @@ async function loadMgr(){
     catch(e){ errs.push(jobs[i][0]+' → '+(e.message||e)); res.push([]); }
   }
   S.sites=res[0]; S.teams=res[1]; S.asgs=res[2]; S.staff=res[3]; S.work=res[4]; S.pins=res[5]; S.icats=res[6]; S.hols=res[7]; S.issues=res[8];
+  S.unclosed=(res[9]||[]).filter(function(x){ return x.status!=='done' && x.status!=='partial'; });
 
   try{ renderAll(); }
   catch(e){ errs.push('แสดงผลหน้าจอ → '+(e.message||e)); }
@@ -1519,6 +1615,116 @@ async function loadMgr(){
 }
 
 /* ───────── ตรวจระบบ: บอกให้ชัดว่าติดตรงไหน ───────── */
+
+/* ───────── ย้าย/สลับฐานข้อมูล — เจ้าของระบบขึ้นไป ───────── */
+function dbPanel(){
+  if(!isOwner(S.me)) return;
+  var cur=dbOverride();
+  sheet('ฐานข้อมูลที่เชื่อมต่ออยู่',
+    '<div style="background:'+(DB_IS_OVERRIDE?'rgba(255,149,0,.12)':'var(--s1)')+
+      ';border:1px solid '+(DB_IS_OVERRIDE?'var(--orange)':'var(--border)')+
+      ';border-radius:12px;padding:11px 13px;margin-bottom:14px">'+
+      '<div style="font-size:11px;color:var(--text2)">กำลังใช้อยู่ตอนนี้</div>'+
+      '<div style="font-weight:700;font-size:13.5px;font-family:var(--mono);word-break:break-all">'+esc(dbRef(SB_URL))+'</div>'+
+      '<div style="font-size:11px;color:var(--text2);word-break:break-all;margin-top:2px">'+esc(SB_URL)+'</div>'+
+      '<div style="font-size:11px;color:var(--text2);margin-top:4px">คีย์ '+esc(String(SB_KEY).slice(0,22))+'…</div>'+
+      '<div style="font-size:11.5px;font-weight:600;margin-top:7px;color:'+(DB_IS_OVERRIDE?'#c26c00':'var(--green)')+'">'+
+        (DB_IS_OVERRIDE? '⚠️ เครื่องนี้ถูกตั้งให้ชี้ไปฐานข้อมูลอื่น ไม่ใช่ค่าเริ่มต้นของไฟล์' : '✓ ใช้ค่าเริ่มต้นที่ฝังมากับไฟล์')+'</div>'+
+    '</div>'+
+
+    '<div style="font-size:12px;color:var(--text2);line-height:1.7;margin-bottom:12px">'+
+      'ช่องข้างล่างใช้ชี้แอปไปฐานข้อมูลใหม่ <b>เฉพาะเครื่องนี้เครื่องเดียว</b> '+
+      'เหมาะกับตอนทดสอบฐานใหม่ก่อนย้ายจริง เพื่อนร่วมงานคนอื่นยังเข้าฐานเดิมอยู่'+
+    '</div>'+
+
+    '<div class="fld"><label>Project URL ของฐานใหม่</label>'+
+      '<input class="inp" id="dbU" placeholder="https://xxxxxxxx.supabase.co" value="'+esc(cur?cur.url:'')+'"></div>'+
+    '<div class="fld"><label>Publishable key ของฐานใหม่</label>'+
+      '<input class="inp" id="dbK" placeholder="sb_publishable_…" value="'+esc(cur?cur.key:'')+'"></div>'+
+    '<div id="dbMsg" style="font-size:12px;line-height:1.65;margin-top:8px;min-height:18px"></div>'+
+
+    '<div style="border-top:1px solid var(--border);margin-top:16px;padding-top:13px">'+
+      '<div style="font-weight:700;font-size:12.5px;margin-bottom:5px">สำรองข้อมูลก่อนย้าย</div>'+
+      '<div style="font-size:11.5px;color:var(--text2);line-height:1.7;margin-bottom:8px">'+
+        'ดึงข้อมูลทุกตารางออกมาเป็นไฟล์ JSON หนึ่งไฟล์ เก็บไว้ในเครื่อง ไม่รวมไฟล์รูปซึ่งอยู่ในคลังไฟล์แยกต่างหาก</div>'+
+      '<button class="btn ghost sm" id="dbDump">⬇ ดาวน์โหลดข้อมูลทั้งหมด (JSON)</button>'+
+    '</div>'+
+
+    '<div style="background:var(--s1);border-radius:11px;padding:11px 13px;margin-top:14px;font-size:11.5px;color:var(--text2);line-height:1.75">'+
+      '<b style="color:var(--text)">ย้ายจริงทั้งบริษัทต้องทำอะไรบ้าง</b><br>'+
+      '1. สร้าง Supabase project ใหม่ แล้วสร้างตาราง it_* พร้อมนโยบายและด่านให้ครบเหมือนเดิม<br>'+
+      '2. คัดลอกข้อมูลข้ามฐาน ทำที่ระดับฐานข้อมูลจะปลอดภัยกว่า เพราะด่านกันสิทธิ์จะขวางการนำเข้าบัญชีระดับสูง<br>'+
+      '3. ย้ายไฟล์รูปในคลัง '+esc(BUCKET)+' ไปฐานใหม่<br>'+
+      '4. แก้ SB_URL_DEFAULT กับ SB_KEY_DEFAULT ในไฟล์ index.html แล้วอัปขึ้นโฮสต์<br>'+
+      '5. ให้ทุกคนกด Ctrl+Shift+R หนึ่งครั้ง และถ้าเคยตั้งทับไว้ให้กดกลับไปใช้ค่าเริ่มต้น'+
+    '</div>',
+
+    '<div class="row">'+
+      (DB_IS_OVERRIDE? '<button class="btn ghost sm" id="dbReset" style="flex:0 0 150px">↩ กลับไปค่าเริ่มต้น</button>':'')+
+      '<button class="btn ghost sm" id="dbTest" style="flex:0 0 130px">ทดสอบ</button>'+
+      '<button class="btn sm" id="dbSave">บันทึกแล้วโหลดใหม่</button>'+
+    '</div>');
+
+  var msg=function(html,color){ $('dbMsg').innerHTML='<span style="color:'+(color||'var(--text2)')+'">'+html+'</span>'; };
+
+  var testConn=async function(){
+    var u=$('dbU').value.trim(), k=$('dbK').value.trim();
+    if(!/^https:\/\/[a-z0-9]+\.supabase\.co\/?$/i.test(u)){ msg('URL ต้องอยู่ในรูป https://xxxxxxxx.supabase.co','var(--red)'); return null; }
+    if(k.length<20){ msg('คีย์สั้นเกินไป ตรวจว่าคัดลอกมาครบหรือยัง','var(--red)'); return null; }
+    u=u.replace(/\/$/,'');
+    msg('กำลังทดสอบ…');
+    try{
+      var tmp=supabase.createClient(u,k);
+      var r=await tmp.from('it_teams').select('code').limit(1);
+      if(r.error) throw new Error(r.error.message);
+      var n=await tmp.from('it_staff').select('id',{count:'exact',head:true});
+      msg('✓ ต่อได้ พบตาราง it_teams และมีพนักงาน '+(n.count!=null?n.count:'—')+' คน','var(--green)');
+      return {url:u,key:k};
+    }catch(e){
+      msg('✗ ต่อไม่ได้ — '+esc(e.message||'ไม่ทราบสาเหตุ')+'<br>ตรวจว่าใส่คีย์แบบ publishable และสร้างตาราง it_* ในฐานใหม่แล้ว','var(--red)');
+      return null;
+    }
+  };
+
+  $('dbTest').onclick=function(){ testConn(); };
+
+  $('dbSave').onclick=async function(){
+    var ok=await testConn(); if(!ok) return;
+    if(!confirm('เครื่องนี้จะเปลี่ยนไปใช้ฐานข้อมูล '+dbRef(ok.url)+
+                '\n\nหน้าจอจะโหลดใหม่และต้องเข้าระบบอีกครั้งด้วยบัญชีที่มีอยู่ในฐานใหม่\nยืนยันหรือไม่')) return;
+    try{ localStorage.setItem('it_db_override', JSON.stringify(ok)); }catch(e){ return toast('บันทึกไม่ได้ เบราว์เซอร์ปิดการเก็บข้อมูลในเครื่อง',4000); }
+    location.reload();
+  };
+
+  if($('dbReset')) $('dbReset').onclick=function(){
+    if(!confirm('กลับไปใช้ฐานข้อมูลเริ่มต้นที่ฝังมากับไฟล์\n('+dbRef(SB_URL_DEFAULT)+')\n\nหน้าจอจะโหลดใหม่')) return;
+    try{ localStorage.removeItem('it_db_override'); }catch(e){}
+    location.reload();
+  };
+
+  $('dbDump').onclick=async function(){
+    var b=this; b.disabled=true; b.textContent='กำลังดึงข้อมูล…';
+    var tables=['it_teams','it_staff','it_sites','it_work_items','it_pins','it_issue_cats',
+                'it_holidays','it_assignments','it_issues','it_issue_comments','it_reports'];
+    var out={exported_at:new Date().toISOString(), source:SB_URL, app:window.APP_VER, tables:{}};
+    try{
+      for(var i=0;i<tables.length;i++){
+        var r=await db.from(tables[i]).select('*');
+        if(r.error) throw new Error(tables[i]+': '+r.error.message);
+        out.tables[tables[i]]=r.data||[];
+      }
+      var blob=new Blob([JSON.stringify(out,null,2)],{type:'application/json'});
+      var a=document.createElement('a');
+      a.href=URL.createObjectURL(blob);
+      a.download='install-qa-backup-'+todayISO()+'.json';
+      a.click();
+      var n=tables.reduce(function(s,t){ return s+(out.tables[t]||[]).length; },0);
+      toast('ดาวน์โหลดแล้ว '+n+' แถว จาก '+tables.length+' ตาราง',3600);
+    }catch(e){ toast('ดึงข้อมูลไม่สำเร็จ: '+(e.message||''),4200); }
+    b.disabled=false; b.textContent='⬇ ดาวน์โหลดข้อมูลทั้งหมด (JSON)';
+  };
+}
+
 async function diag(){
   sheet('ตรวจระบบ','<div class="empty"><span class="spin"></span> กำลังตรวจ…','');
   var tabs=['it_staff','it_teams','it_work_items','it_pins','it_issue_cats','it_holidays','it_sites','it_assignments','it_reports','it_issues','it_issue_comments'];
@@ -1542,13 +1748,38 @@ async function diag(){
       out.map(function(x){ return row(x.n,x.ok,x.v); }).join('')+
       row('Storage · '+BUCKET, stor.ok, stor.v)+
       row('แผนที่ (Leaflet CDN)', typeof L!=='undefined', typeof L!=='undefined'?'โหลดแล้ว':'โหลดไม่ได้ — เน็ตองค์กรอาจบล็อก cdn.jsdelivr.net')+
+      row('ภาพพื้นแผนที่', true, TILE_PRESETS[tileCfg().p].n + (TILE_PRESETS[tileCfg().p].key && !tileCfg().k ? ' · ยังไม่ได้ใส่คีย์' : ''))+
       row('อินเทอร์เน็ต', navigator.onLine, navigator.onLine?'ออนไลน์':'ออฟไลน์')+
     '</tbody></table>'+
+    '<div style="border-top:1px solid var(--border);margin-top:14px;padding-top:12px">'+
+      '<div style="font-weight:700;font-size:12.5px;margin-bottom:6px">ภาพพื้นแผนที่</div>'+
+      '<div style="font-size:11.5px;color:var(--text2);line-height:1.7;margin-bottom:9px">'+
+        'ตั้งแต่ปลายสิงหาคม 2569 CARTO เปลี่ยนนโยบาย ภาพแผนที่ที่ขอโดยไม่มีคีย์จะถูกสกรีนคำว่า API KEY REQUIRED ทับทั้งจอ '+
+        'ระบบจึงเปลี่ยนมาใช้ OpenStreetMap ที่ไม่ต้องใช้คีย์เป็นค่าเริ่มต้น '+
+        'ถ้าอยากได้หน้าตาแบบเดิม ขอคีย์ฟรีได้ที่ carto.com/basemaps/apikey ใช้เวลาประมาณหนึ่งนาที ไม่ต้องสมัครบัญชี</div>'+
+      '<div class="fld"><label>ผู้ให้บริการ</label><select id="mapP">'+
+        Object.keys(TILE_PRESETS).map(function(k){
+          return '<option value="'+k+'"'+(k===tileCfg().p?' selected':'')+'>'+esc(TILE_PRESETS[k].n)+'</option>'; }).join('')+
+      '</select></div>'+
+      '<div class="fld"><label>CARTO API key (ใส่เฉพาะเมื่อเลือก CARTO)</label>'+
+        '<input id="mapK" placeholder="วางคีย์ที่ได้จาก carto.com" value="'+esc(tileCfg().k)+'"></div>'+
+      '<button class="btn ghost sm" id="mapSave">บันทึกแล้วโหลดแผนที่ใหม่</button>'+
+      '<div style="font-size:11px;color:var(--text3);margin-top:7px;line-height:1.6">'+
+        'ค่านี้เก็บในเครื่องนี้เครื่องเดียว ถ้าจะให้ทุกคนได้เหมือนกันต้องแก้ค่าเริ่มต้นในไฟล์แล้วอัปใหม่</div>'+
+    '</div>'+
     '<div style="font-size:11.5px;color:var(--text3);line-height:1.7;margin-top:12px">'+
       'ถ้าตารางไหนขึ้น ❌ พร้อมคำว่า permission หรือ policy → ยังไม่ได้ grant สิทธิ์ให้ role anon<br>'+
       'ถ้าขึ้น does not exist → ยังไม่ได้รัน schema ตารางนั้น<br>'+
       'ถ้าทุกตารางเขียว แต่ Dashboard ยังว่าง → ไม่มีข้อมูลของวันที่เลือก ลองกดปุ่ม “วันนี้”</div>';
   $('shF').innerHTML='<button class="btn sm" onclick="closeSheet();loadMgr()">โหลดใหม่</button>';
+  if($('mapSave')) $('mapSave').onclick=function(){
+    saveTileCfg($('mapP').value, $('mapK').value);
+    var t=TILE_PRESETS[$('mapP').value];
+    if(t.key && !$('mapK').value.trim()){
+      toast('เลือก CARTO แต่ยังไม่ใส่คีย์ — แผนที่จะยังมีลายน้ำทับอยู่', 4200);
+    } else { toast('บันทึกแล้ว กำลังโหลดแผนที่ใหม่', 2600); }
+    setTimeout(function(){ location.reload(); }, 900);
+  };
 }
 
 function siteOf(id){ return S.sites.filter(function(s){return s.id===id;})[0]||{}; }
@@ -1571,6 +1802,15 @@ function renderKPI(){
     kpi('ยังไม่เข้าหน้างาน', tot-arrived, tot?Math.round((tot-arrived)/tot*100)+'% ของทีมทั้งหมด':'—', (tot-arrived)>0 && new Date().getHours()>=10)+
     kpi('คืบหน้าเฉลี่ย', avg+'<small>%</small>',
         done+' ไซต์ปิดงานแล้ว'+(partial? (' · '+partial+' ปิดวันแต่ยังค้าง') : ''), partial>0)+
+    (function(){
+      var u=S.unclosed||[];
+      if(!u.length) return kpi('ค้างปิดจากวันก่อน', 0, 'ทุกทีมปิดงานครบแล้ว', false);
+      var tm={}; u.forEach(function(x){ tm[x.team_id]=1; });
+      var oldest=u[u.length-1];
+      return '<div class="kpi alert" id="kpiUnclosed" style="cursor:pointer" title="กดเพื่อดูรายการ">'+
+        '<div class="k">ค้างปิดจากวันก่อน</div><div class="v">'+u.length+'</div>'+
+        '<div class="d">'+Object.keys(tm).length+' ทีม · เก่าสุด '+esc(dayText(oldest.work_date))+' · กดดูรายการ</div></div>';
+    })()+
     kpi('ปัญหาค้างอยู่', open.length, stale+' เรื่องค้างเกิน 4 ชม.', open.length>0)+
     kpi('เรื่องด่วน', urgent, blocked+' ทีมหยุดงานเพราะติดปัญหา', urgent>0)+
     (function(){
@@ -1581,7 +1821,36 @@ function renderKPI(){
         far.length? ('ไกลสุด '+fmtDist(max)+' จากไซต์') : ('ทุกทีมเช็คอินในรัศมี '+fmtDist(CHECKIN_RADIUS)),
         far.length>0);
     })();
+  if($('kpiUnclosed')) $('kpiUnclosed').onclick=unclosedPanel;
 }
+/* รายการงานที่ทีมเข้าไปแล้วแต่ไม่เคยกดปิดวัน */
+function unclosedPanel(){
+  var u=(S.unclosed||[]).slice();
+  if(!u.length) return;
+  sheet('งานที่ยังไม่ได้ปิด',
+    '<div style="font-size:12px;color:var(--text2);line-height:1.75;margin-bottom:12px">'+
+      'ทีมเช็คอินและเริ่มงานแล้ว แต่ไม่เคยกดปิดจบงานวันนี้ '+
+      '<b>ระบบไม่ปิดให้เองตอนเที่ยงคืน</b> ตราบใดที่ยังไม่ปิด ของค้างจะไม่ถูกยกไปวันถัดไป '+
+      'และเปอร์เซ็นต์ของวันนั้นจะค้างอยู่เท่าเดิมตลอดไป</div>'+
+    u.map(function(a){
+      var si=siteOf(a.site_id), t=teamOf(a.team_id), st=AST[a.status]||AST.assigned;
+      var ck=Array.isArray(a.checklist)?a.checklist:[];
+      var dn=ck.filter(function(c){return c&&c.done;}).length;
+      return '<button class="ajob" data-u="'+a.id+'" style="border-left-color:'+st.x+';width:100%;margin-bottom:7px">'+
+        '<span class="at">'+esc(dayText(a.work_date))+' · '+esc((t.code||'')+' '+(t.name||''))+'</span>'+
+        '<b>'+esc(si.name||'—')+'</b>'+
+        (a.scope?'<span class="sc">'+esc(a.scope)+'</span>':'')+
+        '<span class="st" style="color:'+(st.d||st.x)+'"><i style="background:'+st.x+'"></i>'+
+          st.l+' · '+pct(a.progress)+'% · เช็กลิสต์ '+dn+'/'+ck.length+'</span></button>';
+    }).join('')+
+    '<div style="font-size:11.5px;color:var(--text3);line-height:1.7;margin-top:10px">'+
+      'แตะรายการเพื่อเปิดรายละเอียด · ถ้างานนั้นจบไปแล้วจริง ให้ทีมเข้าไปกดปิดย้อนหลัง '+
+      'หรือออฟฟิศเปลี่ยนสถานะเองจากหน้ารายละเอียด</div>','');
+  document.querySelectorAll('[data-u]').forEach(function(el){
+    el.onclick=function(){ closeSheet(); openAsg(el.dataset.u); };
+  });
+}
+
 function kpi(k,v,d,alert){
   return '<div class="kpi'+(alert?' alert':'')+'"><div class="k">'+k+'</div><div class="v">'+v+'</div><div class="d">'+d+'</div></div>';
 }
@@ -1661,7 +1930,7 @@ function renderMap(){
   }
   if(!S.map){
     S.map=L.map('map',{zoomControl:true, attributionControl:false}).setView([13.7563,100.5018],11);
-    L.tileLayer(TILE,{maxZoom:19}).addTo(S.map);
+    addTiles(S.map);
     S.mapLayer=L.layerGroup().addTo(S.map);
     setTimeout(function(){ S.map.invalidateSize(); }, 200);
   }
@@ -1869,6 +2138,26 @@ function cellText(a){
     ' ['+st.l+(a.progress? ' '+pct(a.progress)+'%' : '')+']';
 }
 
+/* มุมมองรายวัน: ผู้ใช้เลือกเองได้ ถ้ายังไม่เคยเลือกให้เดาจากความกว้างจอ */
+function planListMode(){
+  if(S.pnList===null){
+    var saved=null;
+    try{ saved=localStorage.getItem('it_plan_view'); }catch(e){}
+    S.pnList = saved!==null ? saved==='list' : (window.innerWidth<820);
+  }
+  return S.pnList;
+}
+function setPlanView(list){
+  S.pnList=!!list;
+  try{ localStorage.setItem('it_plan_view', list?'list':'grid'); }catch(e){}
+  syncPlanViewBtn(); renderSchedule();
+}
+function syncPlanViewBtn(){
+  var b=$('pnView'); if(!b) return;
+  b.textContent = planListMode()? '▦ ตาราง' : '📋 รายวัน';
+  b.title = planListMode()? 'สลับกลับไปดูแบบตารางทีมคูณวัน' : 'สลับเป็นรายวัน เลื่อนลงอย่างเดียว เหมาะกับมือถือ';
+}
+
 function renderSchedule(){
   var wrap=$('pnWrap'); if(!wrap) return;
   if(!S.planFrom) S.planFrom=todayISO();
@@ -1933,6 +2222,7 @@ function renderSchedule(){
     '</th>';
   }).join('')+'</tr>';
 
+  syncPlanViewBtn();
   var nClash=0, SM=seriesMap();
   var body=teams.map(function(t){
     var L=leadInfo(t);
@@ -1988,7 +2278,50 @@ function renderSchedule(){
       }).join('')+'</tr>';
   }).join('');
 
-  wrap.innerHTML='<table class="plan'+(days.length>45?' compact':'')+'"><thead>'+head+'</thead><tbody>'+body+'</tbody></table>';
+  /* มุมมองรายวัน — เรียงตามวัน ไม่ต้องเลื่อนแนวนอน เหมาะกับมือถือ */
+  if(planListMode()){
+    wrap.innerHTML='<div class="agenda">'+days.map(function(d){
+      var dt=new Date(d+'T00:00:00'), hd=isHoliday(d);
+      var jobs=S.plan.filter(function(a){
+        return a.work_date===d && teams.some(function(t){ return t.id===a.team_id; }); });
+      var byTeam={}; jobs.forEach(function(a){ (byTeam[a.team_id]=byTeam[a.team_id]||[]).push(a); });
+      var freeTeams=teams.filter(function(t){ return !byTeam[t.id]; });
+
+      var items=teams.filter(function(t){ return byTeam[t.id]; }).map(function(t){
+        var list=byTeam[t.id];
+        var sset={}; list.forEach(function(a){ sset[a.site_id]=1; });
+        var nSite=Object.keys(sset).length;
+        return list.map(function(a){
+          var st=AST[a.status]||AST.assigned, si=siteOf(a.site_id);
+          var iss=S.issues.filter(function(x){ return x.site_id===a.site_id && x.status!=='closed' && x.status!=='resolved'; }).length;
+          var carry=/ต่อจาก /.test(a.scope||'');
+          var sk=seriesKey(a), ser=SM[sk], nDay=ser? ser.dates.length : 1;
+          return '<button class="ajob" data-job="'+a.id+'" style="border-left-color:'+st.x+'">'+
+            '<span class="at">'+esc(t.code+' · '+t.name)+
+              (nSite>1?' <span style="color:var(--orange)">⚠️ ซ้อน '+nSite+' ไซต์</span>':'')+'</span>'+
+            (nDay>1?'<span class="tag" style="color:hsl('+seriesHue(sk)+',45%,38%)">ชุด '+(ser.dates.indexOf(d)+1)+'/'+nDay+' วัน</span>':'')+
+            (carry?'<span class="tag" style="color:var(--orange)">↪ งานยกมา</span>':'')+
+            '<b>'+esc(si.name||'—')+'</b>'+
+            (a.scope?'<span class="sc">'+esc(a.scope)+'</span>':'')+
+            '<span class="st" style="color:'+(st.d||st.x)+'"><i style="background:'+st.x+'"></i>'+
+              st.l+(a.progress?' · '+pct(a.progress)+'%':'')+(iss?' · ⚠'+iss:'')+'</span></button>';
+        }).join('');
+      }).join('');
+
+      return '<div class="aday'+(d===today?' today':'')+(hd?' hol':'')+'">'+
+        '<div class="ah"><div class="ad">'+esc(dayText(d))+(d===today?'<i>วันนี้</i>':'')+'</div>'+
+          '<div class="am">'+(hd? '🏖 '+esc(hd.name)
+            : (jobs.length? jobs.length+' งาน' : 'ยังไม่มีงาน')+
+              (freeTeams.length? '<br>ว่าง '+freeTeams.length+' ทีม' : '<br>ทีมเต็ม'))+'</div></div>'+
+        '<div class="ab">'+(items||'<div class="aempty">วันนี้ยังไม่ได้มอบหมายงานให้ทีมไหน</div>')+
+          (freeTeams.length? '<div class="afree">ทีมว่าง '+
+             freeTeams.map(function(t){ return '<button class="ac" data-add="'+t.id+'|'+d+'">+ '+esc(t.code)+'</button>'; }).join('')+
+           '</div>' : '')+
+        '</div></div>';
+    }).join('')+'</div>';
+  } else {
+    wrap.innerHTML='<table class="plan'+(days.length>45?' compact':'')+'"><thead>'+head+'</thead><tbody>'+body+'</tbody></table>';
+  }
   if(nClash) $('pnNote').innerHTML += ' · <b style="color:#c26c00">⚠️ งานซ้อน '+nClash+' ช่อง</b>';
 
   wrap.querySelectorAll('[data-job]').forEach(function(el){
@@ -4066,7 +4399,7 @@ function mapPicker(ids, lat, lng){
     var has = lat!=null && lng!=null;
     var start=[has?lat:13.7563, has?lng:100.5018];
     var m=L.map(ids.map,{attributionControl:false}).setView(start, has?16:11);
-    L.tileLayer(TILE,{maxZoom:19}).addTo(m);
+    addTiles(m);
     var mk=L.marker(start,{draggable:true}).addTo(m);
     if(!has) mk.setOpacity(.35);
     var put=function(ll){ mk.setLatLng(ll); mk.setOpacity(1); setXY(ll.lat, ll.lng); };
