@@ -64,6 +64,9 @@ button,input,select,textarea{font-family:inherit;color:inherit}
 .lg-tab{flex:1;border:none;background:none;border-radius:8px;padding:8px;font-size:12.5px;font-weight:600;color:var(--text2);cursor:pointer;transition:.15s}
 .lg-tab.on{background:#fff;color:var(--text);box-shadow:var(--shadow-sm)}
 .fld{margin-bottom:12px}
+.huebx{width:30px;height:30px;border:1px solid var(--border2);border-radius:8px;cursor:pointer;padding:0;
+  font-size:8.5px;color:var(--text3);font-family:inherit;line-height:1.1}
+.huebx.on{outline:2px solid var(--accent);outline-offset:1px;border-color:var(--accent)}
 .fld label{display:block;font-size:11px;font-weight:600;color:var(--text2);margin-bottom:5px}
 .fld input,.fld select,.fld textarea{width:100%;background:#fff;border:1px solid var(--border2);border-radius:10px;
   padding:11px 13px;font-size:14px;outline:none;transition:.15s}
@@ -535,7 +538,7 @@ body.preview #previewBar{display:flex}
 
 <script>
 /* ── ยามเฝ้า splash: อยู่นอกสคริปต์หลัก ถ้าสคริปต์หลักพัง ตัวนี้ยังทำงาน ── */
-window.APP_VER='6.6';
+window.APP_VER='6.7';
 (function(){
   var fill=function(){
     var a=document.querySelectorAll('.ver');
@@ -2312,6 +2315,17 @@ function seriesHue(k){
   var h=0; for(var i=0;i<k.length;i++) h=(h*31+k.charCodeAt(i))>>>0;
   return SERIES_HUE[h%SERIES_HUE.length];
 }
+/* สีพื้นประจำโปรเจ็ค — ตั้งเองได้ที่ Work & Site ถ้าไม่ตั้งจะสุ่มจากรหัสไซต์ให้คงที่
+   เก็บเป็นค่า hue อย่างเดียว ความสดกับความสว่างล็อกไว้ ตัวหนังสือจึงอ่านออกเสมอ */
+function siteHue(siteId){
+  var s=siteOf(siteId);
+  if(s && s.color_hue!=null && s.color_hue!=='') return +s.color_hue;
+  return seriesHue('site|'+siteId);
+}
+function siteTint(siteId){
+  var h=siteHue(siteId);
+  return {bg:'hsl('+h+',66%,95%)', line:'hsl('+h+',42%,86%)', ink:'hsl('+h+',45%,38%)'};
+}
 /* แผนที่ชุดงานในช่วงที่กำลังดู: กี่วัน และแต่ละวันเป็นวันที่เท่าไหร่ของชุด */
 function seriesMap(){
   var m={};
@@ -2387,7 +2401,7 @@ function renderSchedule(){
         return '<span><i style="background:'+AST[k].x+'"></i>'+AST[k].l+'</span>';
       }).join('')+
       '<span style="width:1px;height:13px;background:var(--border2)"></span>'+
-      '<span><span class="bx" style="background:hsl(205,66%,95%);border-color:hsl(205,42%,84%)"></span>ชุดงานหลายวัน (คนละชุดคนละสี)</span>'+
+      '<span><span class="bx" style="background:hsl(205,66%,95%);border-color:hsl(205,42%,84%)"></span>สีพื้น = โปรเจ็ค (ตั้งสีได้ที่ Work &amp; Site)</span>'+
       '<span><span class="bx" style="background:rgba(255,149,0,.15);border-color:var(--orange)"></span>งานซ้อน</span>'+
       '<span><span class="bx" style="background:rgba(255,59,48,.12);border-color:rgba(255,59,48,.4)"></span>วันหยุด</span>';
   })();
@@ -2462,14 +2476,12 @@ function renderSchedule(){
           var iss=S.issues.filter(function(x){ return x.site_id===a.site_id && x.status!=='closed' && x.status!=='resolved'; }).length;
           var carry=/ต่อจาก /.test(a.scope||'');
           var sk=seriesKey(a), ser=SM[sk], nDay=ser? ser.dates.length : 1;
-          var tint='', dayTag='';
-          if(nDay>1){
-            var hue=seriesHue(sk);
-            tint=';background:hsl('+hue+',66%,95%);border-top-color:hsl('+hue+',42%,86%)'+
-                 ';border-right-color:hsl('+hue+',42%,86%);border-bottom-color:hsl('+hue+',42%,86%)';
-            dayTag='<span class="sc" style="color:hsl('+hue+',45%,38%);font-weight:600">'+
-                   'ชุด '+(ser.dates.indexOf(d)+1)+'/'+nDay+' วัน</span>';
-          }
+          var ct=siteTint(a.site_id);
+          var tint=';background:'+ct.bg+';border-top-color:'+ct.line+
+                   ';border-right-color:'+ct.line+';border-bottom-color:'+ct.line;
+          var dayTag = nDay>1
+            ? '<span class="sc" style="color:'+ct.ink+';font-weight:600">ชุด '+(ser.dates.indexOf(d)+1)+'/'+nDay+' วัน</span>'
+            : '';
           return '<div class="pjob" data-job="'+a.id+'" style="border-left-color:'+st.x+tint+'" title="'+
             esc((si.name||'')+' — '+(a.scope||'')+(nDay>1?(' · ชุด '+nDay+' วัน'):''))+'">'+
             dayTag+
@@ -2505,10 +2517,12 @@ function renderSchedule(){
           var iss=S.issues.filter(function(x){ return x.site_id===a.site_id && x.status!=='closed' && x.status!=='resolved'; }).length;
           var carry=/ต่อจาก /.test(a.scope||'');
           var sk=seriesKey(a), ser=SM[sk], nDay=ser? ser.dates.length : 1;
-          return '<button class="ajob" data-job="'+a.id+'" style="border-left-color:'+st.x+'">'+
+          var ct=siteTint(a.site_id);
+          return '<button class="ajob" data-job="'+a.id+'" style="border-left-color:'+st.x+
+            ';background:'+ct.bg+';border-top-color:'+ct.line+';border-right-color:'+ct.line+';border-bottom-color:'+ct.line+'">'+
             '<span class="at">'+esc(t.code+' · '+t.name)+
               (nSite>1?' <span style="color:var(--orange)">⚠️ ซ้อน '+nSite+' ไซต์</span>':'')+'</span>'+
-            (nDay>1?'<span class="tag" style="color:hsl('+seriesHue(sk)+',45%,38%)">ชุด '+(ser.dates.indexOf(d)+1)+'/'+nDay+' วัน</span>':'')+
+            (nDay>1?'<span class="tag" style="color:'+ct.ink+'">ชุด '+(ser.dates.indexOf(d)+1)+'/'+nDay+' วัน</span>':'')+
             (carry?'<span class="tag" style="color:var(--orange)">↪ งานยกมา</span>':'')+
             '<b>'+esc(si.name||'—')+'</b>'+
             (a.scope?'<span class="sc">'+esc(a.scope)+'</span>':'')+
@@ -2842,7 +2856,7 @@ function printSchedule(){
           (cl?'<div class="clash-n">⚠ ซ้อน '+Object.keys(ss).length+' ไซต์</div>':'')+
           (js.length? js.map(function(a){
             var si=siteOf(a.site_id), st=AST[a.status]||AST.assigned;
-            var sk=seriesKey(a), ser=SM[sk], nD=ser? ser.dates.length : 1, hue=seriesHue(sk);
+            var sk=seriesKey(a), ser=SM[sk], nD=ser? ser.dates.length : 1, hue=siteHue(a.site_id);
             var box = nD>1
               ? ('background:hsl('+hue+',66%,95%);border:1px solid hsl('+hue+',42%,84%)')
               : 'background:#fff;border:1px solid #ddd';
@@ -4258,7 +4272,12 @@ async function delIssue(i, nComment){
 function renderPlan(){
   var srow=function(s){
     var todayAsg=S.asgs.filter(function(a){return a.site_id===s.id;}).length;
-    return '<div class="brow" data-sid="'+s.id+'"><div class="brow-t"><span class="nm">'+esc(s.name)+'</span>'+
+    var ct=siteTint(s.id);
+    return '<div class="brow" data-sid="'+s.id+'"><div class="brow-t">'+
+      '<span style="display:inline-block;width:11px;height:11px;border-radius:3px;margin-right:7px;'+
+        'background:'+ct.bg+';border:1px solid '+ct.line+';vertical-align:-1px" '+
+        'title="'+(s.color_hue==null?'สีอัตโนมัติ':'สีที่ตั้งเอง')+'"></span>'+
+      '<span class="nm">'+esc(s.name)+'</span>'+
       '<span class="chip '+(s.status==='active'?'c-blue':s.status==='done'?'c-green':s.status==='hold'?'c-orange':'c-gray')+'">'+esc(s.status)+'</span></div>'+
       '<div class="brow-s"><span class="tm">'+esc(s.code)+'</span><span>'+esc(s.customer||'')+'</span>'+
       (s.lat==null?'<span class="chip c-orange">ยังไม่มีพิกัด</span>':'')+
@@ -4670,6 +4689,7 @@ async function renameSiteCat(oldName){
 
 function siteForm(id){
   var s=id? siteOf(id) : {status:'planned'};
+  var _siteHue = (s.color_hue==null? null : +s.color_hue);
   sheet(id?'แก้ไขไซต์งาน':'เพิ่มไซต์งาน',
     '<div class="fld"><label>รหัสงาน</label><input id="f_code" value="'+esc(s.code||'')+'" placeholder="JOB-2601"></div>'+
     '<div class="fld"><label>ชื่องาน</label><input id="f_name" value="'+esc(s.name||'')+'"></div>'+
@@ -4677,6 +4697,19 @@ function siteForm(id){
       siteCats().map(function(c){ return '<option value="'+esc(c)+'"'+((s.category||'ทั่วไป')===c?' selected':'')+'>'+esc(c)+'</option>'; }).join('')+
       '<option value="__new">＋ สร้างหมวดใหม่…</option></select>'+
       '<input id="f_catnew" class="hide" placeholder="ชื่อหมวดใหม่ เช่น คอนโด / บ้านเดี่ยว / โครงการ" style="margin-top:7px"></div>'+
+    '<div class="fld"><label>สีของโปรเจ็คในตารางแผนงาน</label>'+
+      '<div id="f_hues" style="display:flex;flex-wrap:wrap;gap:6px">'+
+        ['auto'].concat(SERIES_HUE).map(function(h){
+          var on = (h==='auto') ? (s.color_hue==null) : (+s.color_hue===+h);
+          var st = (h==='auto')
+            ? 'background:repeating-linear-gradient(45deg,#fff,#fff 5px,#eceef2 5px,#eceef2 10px)'
+            : 'background:hsl('+h+',66%,92%);border-color:hsl('+h+',42%,80%)';
+          return '<button type="button" class="huebx'+(on?' on':'')+'" data-hue="'+h+'" style="'+st+'" '+
+                 'title="'+(h==='auto'?'ให้ระบบเลือกให้':'สีที่ '+h)+'">'+(h==='auto'?'อัตโนมัติ':'')+'</button>';
+        }).join('')+
+      '</div>'+
+      '<div style="font-size:10.5px;color:var(--text2);margin-top:5px">'+
+        'ใช้เป็นพื้นหลังของใบงานทุกใบของโปรเจ็คนี้ ช่วยให้กวาดตาหาในตารางได้เร็ว · เลือกอัตโนมัติ = ระบบเลือกสีคงที่ให้จากรหัสงาน</div></div>'+
     '<div class="fld"><label>ลูกค้า</label><input id="f_cus" value="'+esc(s.customer||'')+'"></div>'+
     '<div class="fld"><label>ที่อยู่</label><input id="f_addr" value="'+esc(s.address||'')+'"></div>'+
     '<div class="fld"><label>พิกัดหน้างาน — แตะบนแผนที่เพื่อปักหมุด</label>'+
@@ -4698,8 +4731,16 @@ function siteForm(id){
             here:'f_here', paste:'f_paste', savePin:'f_pin'}, s.lat, s.lng);
   $('f_cat').onchange=function(){ $('f_catnew').classList.toggle('hide', this.value!=='__new');
     if(this.value==='__new') $('f_catnew').focus(); };
+  document.querySelectorAll('#f_hues .huebx').forEach(function(b){
+    b.onclick=function(){
+      _siteHue = b.dataset.hue==='auto' ? null : +b.dataset.hue;
+      document.querySelectorAll('#f_hues .huebx').forEach(function(x){ x.classList.remove('on'); });
+      b.classList.add('on');
+    };
+  });
   $('f_save').onclick=async function(){
     var p={code:$('f_code').value.trim(), name:$('f_name').value.trim(), customer:$('f_cus').value.trim()||null,
+      color_hue: _siteHue,
       address:$('f_addr').value.trim()||null, lat:parseFloat($('f_lat').value)||null, lng:parseFloat($('f_lng').value)||null,
       contact:$('f_ct').value.trim()||null, start_date:$('f_sd').value||null, due_date:$('f_dd').value||null, status:$('f_st').value,
       category: ($('f_cat').value==='__new' ? ($('f_catnew').value.trim()||'ทั่วไป') : $('f_cat').value)};
@@ -4707,6 +4748,11 @@ function siteForm(id){
     this.disabled=true;
     var save=async function(pp){ return id? db.from('it_sites').update(pp).eq('id',id) : db.from('it_sites').insert(pp); };
     var r = await save(p);
+    if(r.error && /color_hue/i.test(r.error.message||'')){
+      delete p.color_hue;                      /* ฐานยังไม่มีคอลัมน์สี — บันทึกส่วนที่เหลือให้ก่อน */
+      r = await save(p);
+      if(!r.error) toast('บันทึกแล้ว แต่สีโปรเจ็คยังใช้ไม่ได้ — ต้องเพิ่มคอลัมน์ color_hue ในตาราง it_sites ก่อน', 5500);
+    }
     if(r.error && /category/i.test(r.error.message||'')){
       delete p.category;                       /* ยังไม่ได้รันไฟล์ SQL เพิ่มหมวด — บันทึกส่วนที่เหลือให้ก่อน */
       r = await save(p);
