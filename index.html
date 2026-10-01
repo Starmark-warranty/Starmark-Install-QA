@@ -75,6 +75,11 @@ button,input,select,textarea{font-family:inherit;color:inherit}
 .dseed:hover{border-color:var(--accent);background:var(--accent-glow)}
 .dseed b{display:block;font-size:14px;margin-bottom:4px}
 .dseed span{display:block;font-size:11.5px;color:var(--text2);line-height:1.7;font-weight:400}
+.dseed.sel{border-color:var(--accent);background:var(--accent-glow)}
+.dseed .tk{float:right;font-size:17px;line-height:1.1;color:var(--text3)}
+.dseed.sel .tk{color:var(--accent)}
+.dseed:disabled{opacity:.52;cursor:not-allowed}
+.dseed:disabled:hover{border-color:var(--border2);background:#fff}
 .huebx{width:30px;height:30px;border:1px solid var(--border2);border-radius:8px;cursor:pointer;padding:0;
   font-size:8.5px;color:var(--text3);font-family:inherit;line-height:1.1}
 .huebx.on{outline:2px solid var(--accent);outline-offset:1px;border-color:var(--accent)}
@@ -618,7 +623,7 @@ body.preview #previewBar{display:flex}
 
 <script>
 /* ── ยามเฝ้า splash: อยู่นอกสคริปต์หลัก ถ้าสคริปต์หลักพัง ตัวนี้ยังทำงาน ── */
-window.APP_VER='14.2';
+window.APP_VER='14.3';
 (function(){
   var fill=function(){
     var a=document.querySelectorAll('.ver');
@@ -2377,7 +2382,7 @@ $('hdrToggle').onclick=function(){
     }
   }catch(e){}
 })();
-$('pnPrint').onclick=printSchedule;
+$('pnPrint').onclick=printSheet;
 $('pnXls').onclick=exportSchedule;
 $('pnSearch').oninput=function(){ S.pnQ=this.value.toLowerCase(); renderSchedule(); };
 $('pnBusy').onchange=function(){ S.pnBusy=this.checked; renderSchedule(); };
@@ -3799,8 +3804,105 @@ function printReport(){
   setTimeout(function(){ try{ w.focus(); w.print(); }catch(e){} }, 700);
 }
 
+/* ═════ เลือกหัวข้อก่อนสั่งพิมพ์ ═════ */
+var PN_PRINT_KEY='it_pn_print';
+function printOpt(){
+  try{
+    var o=JSON.parse(localStorage.getItem(PN_PRINT_KEY)||'null');
+    if(o && typeof o==='object')
+      return {site:!!o.site, person:!!o.person, veh:!!o.veh, sig:!!o.sig};
+  }catch(e){}
+  /* ครั้งแรก เอาส่วนที่กำลังเห็นอยู่บนจอเป็นค่าตั้งต้น */
+  var sec=(typeof planSec==='function')? planSec() : 'all';
+  if(sec==='all') return {site:true, person:true, veh:true, sig:true};
+  return {site:sec==='site', person:sec==='person', veh:sec==='veh', sig:true};
+}
+function savePrintOpt(o){
+  try{ localStorage.setItem(PN_PRINT_KEY, JSON.stringify(
+    {site:!!o.site, person:!!o.person, veh:!!o.veh, sig:!!o.sig})); }catch(e){}
+}
+/* รายการมอบหมายรายคนในช่วงวันที่กำลังดู ใช้ร่วมกันทั้งบนจอและตอนพิมพ์ */
+function saGrid(days){
+  var d0=days[0], d1=days[days.length-1];
+  var rows=(S.sassign||[]).filter(function(x){
+    return x.status!=='cancelled' && x.start_date<=d1 && x.end_date>=d0; });
+  var by={};
+  rows.forEach(function(x){ (by[x.staff_id]=by[x.staff_id]||[]).push(x); });
+  var ids=Object.keys(by).sort(function(a,b){
+    return String(staffOf(a).name||'').localeCompare(String(staffOf(b).name||''),'th'); });
+  return {ids:ids, by:by, rows:rows};
+}
+
+function printSheet(){
+  var d=scheduleData(), days=d.days, teams=d.teams;
+  if(!teams.length) return toast('ไม่มีทีมให้พิมพ์');
+  var vehs=(S.vehicles||[]).filter(function(v){ return v.active; });
+  var sg=saGrid(days);
+  var nJob=days.reduce(function(n,x){
+    return n+teams.reduce(function(m,t){ return m+jobsAt(t.id,x).length; },0); },0);
+  var nStop=(S.plan||[]).filter(function(a){
+    return a.vehicle_id && a.work_date>=days[0] && a.work_date<=days[days.length-1]; }).length;
+
+  var o=printOpt();
+  if(!sg.ids.length) o.person=false;
+  if(!vehs.length)   o.veh=false;
+  if(!o.site && !o.person && !o.veh) o.site=true;
+
+  var dt0=new Date(days[0]+'T00:00:00'), dt1=new Date(days[days.length-1]+'T00:00:00');
+  var period=dt0.getDate()+' '+MO_TH[dt0.getMonth()]+' — '+dt1.getDate()+' '+MO_TH[dt1.getMonth()]+' '+(dt1.getFullYear()+543);
+
+  var rows=[
+    {k:'site', t:'\ud83c\udfd7 แผนงานหน้าไซต์',
+     s:'ตารางทีม × วัน พร้อมรายชื่อลูกทีม ชื่อไซต์ สธานะ และ % ความคืบหน้า',
+     n:teams.length+' ทีม · '+nJob+' งาน', ok:true},
+    {k:'person', t:'\ud83d\udc64 มอบหมายรายคน',
+     s:'ใครไปช่วยทีมไหน หรือแยกหน้าที่ไปทำอะไรในวันนั้น',
+     n:sg.ids.length? (sg.ids.length+' คน · '+sg.rows.length+' รายการ')
+                    : 'ช่วงนี้ยังไม่มีการมอบหมายรายคน', ok:!!sg.ids.length},
+    {k:'veh', t:'\ud83d\ude9a คิวรถ',
+     s:'รถคันไหนวันนั้นวิ่งกี่ไซต์ ลำดับไหน ใครขับ และระยะรวม',
+     n:vehs.length? (vehs.length+' คัน · '+nStop+' จุดส่ง')
+                  : 'ยังไม่มีรถในทะเบียนรถ', ok:!!vehs.length},
+    {k:'sig', t:'\u270d\ufe0f ช่องลายเซ็นท้ายเอกสาร',
+     s:'ผู้จัดทำ / ผู้ตรวจสอบ / ผู้อนุมัติ ต่อท้ายส่วนสุดท้าย',
+     n:'สำหรับติดบอร์ดหรือเก็บเข้าแฟ้ม', ok:true}
+  ];
+
+  function draw(){
+    var nSel=(o.site?1:0)+(o.person?1:0)+(o.veh?1:0);
+    $('shB').innerHTML=
+      '<div style="font-size:11.5px;color:var(--text2);line-height:1.75;margin-bottom:13px">'+
+        'พิมพ์ช่วง <b>'+esc(period)+'</b> เท่าที่เห็นบนจอ · กระดาษ A4 แนวนอน<br>'+
+        'แตะเพื่อเลือก หรือเอาออก — แต่ละส่วนที่เลือกจะขึ้นหน้าใหม่'+
+      '</div>'+
+      rows.map(function(r){
+        var on=!!o[r.k] && r.ok;
+        return '<button class="dseed'+(on?' sel':'')+'" data-po="'+r.k+'"'+(r.ok?'':' disabled')+'>'+
+          '<span class="tk">'+(on?'\u2611':'\u2610')+'</span>'+
+          '<b>'+r.t+'</b>'+
+          '<span>'+r.s+'<br><span style="color:var(--text3)">'+esc(r.n)+'</span></span></button>';
+      }).join('')+
+      '<div style="font-size:11px;color:'+(nSel?'var(--text3)':'var(--red)')+';line-height:1.7;margin-top:2px">'+
+        (nSel? ('จะพิมพ์ '+nSel+' ส่วน รวมหน้าอย่างน้อย '+nSel+' หน้า')
+             : 'ต้องเลือกอย่างน้อย 1 ส่วน')+'</div>';
+    $('shB').querySelectorAll('[data-po]').forEach(function(b){
+      b.onclick=function(){ o[b.dataset.po]=!o[b.dataset.po]; draw(); };
+    });
+  }
+
+  sheet('\ud83d\udda8 พิมพ์แผนงาน','',
+    '<div class="row"><button class="btn ghost sm" onclick="closeSheet()" style="flex:0 0 92px">ยกเลิก</button>'+
+    '<button class="btn sm" id="poGo">\ud83d\udda8 พิมพ์</button></div>');
+  draw();
+  $('poGo').onclick=function(){
+    if(!o.site && !o.person && !o.veh)
+      return toast('เลือกอย่างน้อย 1 ส่วนที่จะพิมพ์', 3000);
+    savePrintOpt(o); closeSheet(); printSchedule(o);
+  };
+}
+
 /* ═════ พิมพ์ตารางแผนงาน ═════ */
-function printSchedule(){
+function printSchedule(opt){
   var d=scheduleData(), days=d.days, teams=d.teams, today=todayISO();
   if(!teams.length) return toast('ไม่มีทีมให้พิมพ์');
 
@@ -3850,6 +3952,120 @@ function printSchedule(){
       }).join('')+'</tr>';
   }).join('');
 
+  /* ── หัวตารางวันแบบเรียบ ใช้กับส่วนรายคนและส่วนรถ ── */
+  function headPlain(label){
+    return '<tr><th class="tc">'+label+'</th>'+days.map(function(x){
+      var dt=new Date(x+'T00:00:00'), hd=isHoliday(x);
+      return '<th'+(hd?' class="hol"':(dt.getDay()===0?' class="sun"':''))+'>'+DW_TH[dt.getDay()]+'<br>'+
+        dt.getDate()+' '+MO_TH[dt.getMonth()]+
+        (hd? ('<br><span class="hn">\ud83c\udfd6 '+esc(hd.name)+'</span>') : '')+'</th>';
+    }).join('')+'</tr>';
+  }
+
+  var sg=saGrid(days);
+  var sbody=sg.ids.map(function(sid){
+    var pr=staffOf(sid), hm=teamOf(pr.team_id);
+    return '<tr><td class="tc"><b>'+esc(pr.name||pr.emp_code||'—')+'</b><br>'+
+      '<span class="sm">ทีมหลัก '+esc(hm.code||'—')+
+      (pr.emp_code? ' · '+esc(pr.emp_code) : '')+'</span></td>'+
+      days.map(function(x){
+        var dt=new Date(x+'T00:00:00');
+        var cls=isHoliday(x)?' class="hol"':(dt.getDay()===0?' class="sun"':'');
+        var a=sg.by[sid].filter(function(v){ return v.start_date<=x && v.end_date>=x; })[0];
+        if(!a) return '<td'+cls+'></td>';
+        var to=a.team_id? teamOf(a.team_id) : null, si=a.site_id? siteOf(a.site_id) : null;
+        var hue=si? siteHue(si.id) : 250;
+        var jst=AST[a.job_status||'assigned']||AST.assigned;
+        return '<td'+cls+'><div class="sab" style="background:hsl('+hue+',66%,95%);border:1px solid hsl('+hue+',42%,84%)">'+
+          '<span class="tt" style="color:hsl('+hue+',48%,32%)">'+
+            (to? (esc(hm.code||'—')+' → '+esc(to.code||'—')) : 'แยกหน้าที่')+'</span>'+
+          (si? ('<b>'+esc(si.name||'—')+'</b>') : '')+
+          (a.task? ('<span class="k">'+esc(a.task)+'</span>') : '')+
+          (a.as_job
+            ? ('<span class="k"><i style="background:'+jst.x+'"></i>'+jst.l+
+                ((a.progress||0)? (' · '+pct(a.progress)+'%') : '')+
+                (a.checkin_at? (' · เข้า '+fmtT(a.checkin_at)) : '')+'</span>')
+            : '<span class="k">บันทึกอย่างเดียว ไม่มีเช็กลิสต์</span>')+
+          '<span class="k">'+esc(saTimeText(a))+'</span>'+
+        '</div></td>';
+      }).join('')+'</tr>';
+  }).join('');
+
+  var vehs=(S.vehicles||[]).filter(function(v){ return v.active; });
+  var vbody=vehs.map(function(v){
+    var vt=vehTint(v);
+    return '<tr><td class="tc"><span class="vc">'+vehIcon(v,26)+
+      '<span><b>'+esc(v.code||'—')+'</b><br>'+
+      '<span class="sm">'+esc(v.kind||'—')+(v.plate? (' · '+esc(v.plate)) : '')+'</span>'+
+      (v.driver_name? ('<br><span class="sm">คนขับประจำ '+esc(v.driver_name)+'</span>') : '')+
+      '</span></span></td>'+
+      days.map(function(x){
+        var dt=new Date(x+'T00:00:00');
+        var q=vehQueue(v.id, x);
+        if(!q.length) return '<td'+(isHoliday(x)?' class="hol"':(dt.getDay()===0?' class="sun"':''))+'></td>';
+        var sp=vehSpan(q);
+        var drv={}; q.forEach(function(a){ if(a.driver_name) drv[a.driver_name]=1; });
+        var dn=Object.keys(drv);
+        return '<td'+(sp.far?' class="clash"':'')+'><div class="vqh">'+
+            (q.length>1? (q.length+' คิว · '+sp.km+' กม.') : '1 คิว')+
+            (dn.length? (' · '+esc(dn.join(', '))) : '')+
+            (sp.far? ' ⚠ ไกลผิดปกติ' : '')+'</div>'+
+          q.map(function(a){
+            var si=siteOf(a.site_id), tm=teamOf(a.team_id), st=AST[a.status]||AST.assigned;
+            return '<div class="vq" style="background:'+vt.bg+';border-color:'+vt.line+'">'+
+              '<span class="n" style="background:'+vt.ink+'">'+(a.vehicle_seq||'?')+'</span>'+
+              '<span><b>'+esc(si.name||'—')+'</b>'+
+                '<span class="t"><i style="background:'+st.x+'"></i>ส่งให้ '+esc(teamLabel(tm))+'</span></span></div>';
+          }).join('')+'</td>';
+      }).join('')+'</tr>';
+  }).join('');
+
+  /* ส่วนไหนที่จะพิมพ์ ตามที่เลือกจากกล่องตัวเลือก */
+  var o=opt||printOpt();
+  if(!sg.ids.length) o.person=false;
+  if(!vehs.length)   o.veh=false;
+  if(!o.site && !o.person && !o.veh) o.site=true;
+  function secNames(){
+    var a=[];
+    if(o.site)   a.push('แผนงานหน้าไซต์');
+    if(o.person) a.push('มอบหมายรายคน');
+    if(o.veh)    a.push('คิวรถ');
+    return a.join(' + ');
+  }
+  function lgSite(){
+    return '<div class="lg"><b style="color:#111">สถานะ:</b>'+
+      Object.keys(AST).map(function(k){
+        return '<span><i style="background:'+AST[k].x+'"></i>'+AST[k].l+'</span>';
+      }).join('')+
+      '<span style="margin-left:6px"><span class="bx" style="background:hsl(205,66%,95%);border-color:hsl(205,42%,84%)"></span>'+
+      'พื้นสีอ่อน = ชุดงานหลายวันของไซต์+ทีมเดียวกัน (แต่ละชุดคนละสี)</span>'+
+      '<span><span class="bx" style="background:#fff5e6;border-color:#d98800"></span>ทีมถูกจองหลายไซต์ในวันเดียว</span>'+
+      '<span><span class="bx" style="background:#fdeceb;border-color:#e8b4b0"></span>วันหยุดรงงาน</span>'+
+    '</div>';
+  }
+  function lgSA(){
+    return '<div class="lg"><span><b style="color:#111">A → B</b> = ไปช่วยทีม B ชั่วคราว ทีมหลักยังเป็น A</span>'+
+      '<span><b style="color:#111">แยกหน้าที่</b> = อยู่ทีมเดิม แต่แยกไปทำอีกหน้าที่ในวันนั้น</span>'+
+      '<span>ช่องว่าง = วันนั้นอยู่กับทีมหลักตามปกติ</span>'+
+      '<span>พื้นสี = สีประจำไซต์ ตรงกับตารางแผนงาน</span>'+
+    '</div>';
+  }
+  function lgVeh(){
+    return '<div class="lg"><span><b style="color:#111">เลขหน้าไซต์</b> = ลำดับคิวที่รถต้องวิ่ง</span>'+
+      '<span><span class="bx" style="background:#fff5e6;border-color:#d98800"></span>ระยะระหว่างจุดไกลผิดปกติ (เกิน '+VEH_FAR_KM+' กม.) ควรทบทวนคิว</span>'+
+      '<span>ช่องว่าง = วันนั้นรถคันนี้ยังไม่มีคิว</span>'+
+    '</div>';
+  }
+  function sigHTML(){
+    return '<div class="sig">'+
+      ['ผู้จัดทำ','ผู้ตรวจสอบ','ผู้อนุมัติ'].map(function(role){
+        return '<div class="box"><div class="space"></div><div class="line"></div>'+
+          '<div>('+new Array(26).join('&nbsp;')+')</div>'+
+          '<div class="role">'+role+'</div>'+
+          '<div class="date">วันที่ ......... / ......... / .........</div></div>';
+      }).join('')+
+    '</div>';
+  }
   var total=days.reduce(function(n,x){ return n+teams.reduce(function(m,t){ return m+jobsAt(t.id,x).length; },0); },0);
   var dt0=new Date(days[0]+'T00:00:00'), dt1=new Date(days[days.length-1]+'T00:00:00');
   var period=dt0.getDate()+' '+MO_TH[dt0.getMonth()]+' — '+dt1.getDate()+' '+MO_TH[dt1.getMonth()]+' '+(dt1.getFullYear()+543);
@@ -3893,31 +4109,45 @@ function printSchedule(){
     '.sig .line{border-bottom:1px dotted #555;margin-bottom:5px}'+
     '.sig .role{font-weight:700;font-size:10.5px}'+
     '.sig .date{color:#666;font-size:9.5px;margin-top:3px}'+
+    'h2.sh{font-size:13px;margin:0 0 7px;padding-bottom:4px;border-bottom:1.5px solid #111}'+
+    '.brk{page-break-before:always;height:0}'+
+    '.lg{page-break-inside:avoid}'+
+    '.vc{display:flex;gap:5px;align-items:center}'+
+    '.vqh{font-size:8.5px;font-weight:700;color:#333;margin-bottom:2px;line-height:1.35}'+
+    '.vq{display:flex;gap:4px;align-items:flex-start;border-radius:4px;padding:2px 4px;margin-bottom:2px;border:1px solid #ddd}'+
+    '.vq .n{flex:none;min-width:13px;height:13px;border-radius:3px;color:#fff;font-size:8px;'+
+      'font-weight:700;text-align:center;line-height:13px}'+
+    '.vq b{display:block;font-size:9px;line-height:1.3}'+
+    '.vq .t{display:block;font-size:8.5px;color:#444;line-height:1.3}'+
+    '.vq .t i{display:inline-block;width:6px;height:6px;border-radius:50%;margin-right:3px}'+
+    '.sab{border-radius:4px;padding:3px 5px}'+
+    '.sab .tt{display:block;font-size:8.5px;font-weight:700;line-height:1.35}'+
+    '.sab b{display:block;font-size:9.5px;line-height:1.3}'+
+    '.sab .k{display:block;font-size:8.5px;color:#444;line-height:1.35}'+
+    '.sab .k i{display:inline-block;width:6px;height:6px;border-radius:50%;margin-right:3px}'+
     '@media print{.noprint{display:none}}'+
     '</style></head><body>'+
     '<div class="hd"><div><h1>แผนงานติดตั้ง — Install-QA Tracker</h1>'+
-      '<div class="p">'+esc(period)+' · '+teams.length+' ทีม · '+total+' งาน'+
+      '<div class="p">'+esc(period)+' · '+esc(secNames())+' · '+teams.length+' ทีม · '+total+' งาน'+
         (S.pnTeam? (' · เฉพาะทีม '+esc((teamOf(S.pnTeam).name)||'')) : '')+
         (S.pnQ? (' · ค้นหา “'+esc(S.pnQ)+'”') : '')+'</div></div>'+
       '<div class="meta">พิมพ์เมื่อ '+fmtDT(new Date().toISOString())+'<br>โดย '+esc(meName())+'</div></div>'+
-    '<table><thead>'+head+'</thead><tbody>'+body+'</tbody></table>'+
-    '<div class="lg"><b style="color:#111">สถานะ:</b>'+
-      Object.keys(AST).map(function(k){
-        return '<span><i style="background:'+AST[k].x+'"></i>'+AST[k].l+'</span>';
-      }).join('')+
-      '<span style="margin-left:6px"><span class="bx" style="background:hsl(205,66%,95%);border-color:hsl(205,42%,84%)"></span>'+
-      'พื้นสีอ่อน = ชุดงานหลายวันของไซต์+ทีมเดียวกัน (แต่ละชุดคนละสี)</span>'+
-      '<span><span class="bx" style="background:#fff5e6;border-color:#d98800"></span>ทีมถูกจองหลายไซต์ในวันเดียว</span>'+
-      '<span><span class="bx" style="background:#fdeceb;border-color:#e8b4b0"></span>วันหยุดโรงงาน</span>'+
-    '</div>'+
-    '<div class="sig">'+
-      ['ผู้จัดทำ','ผู้ตรวจสอบ','ผู้อนุมัติ'].map(function(role){
-        return '<div class="box"><div class="space"></div><div class="line"></div>'+
-          '<div>(&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;)</div>'+
-          '<div class="role">'+role+'</div>'+
-          '<div class="date">วันที่ ......... / ......... / .........</div></div>';
-      }).join('')+
-    '</div>'+
+    (function(){
+      var out='';
+      if(o.site)
+        out+='<h2 class="sh">\ud83c\udfd7 ส่วนที่ 1 · แผนงานหน้าไซต์ (ทีม × วัน)</h2>'+
+          '<table><thead>'+head+'</thead><tbody>'+body+'</tbody></table>'+lgSite();
+      if(o.person)
+        out+=(out? '<div class="brk"></div>' : '')+
+          '<h2 class="sh">\ud83d\udc64 ส่วนที่ '+((o.site?1:0)+1)+' · มอบหมายรายคน ('+sg.ids.length+' คน)</h2>'+
+          '<table><thead>'+headPlain('พนักงาน')+'</thead><tbody>'+sbody+'</tbody></table>'+lgSA();
+      if(o.veh)
+        out+=(out? '<div class="brk"></div>' : '')+
+          '<h2 class="sh">\ud83d\ude9a ส่วนที่ '+((o.site?1:0)+(o.person?1:0)+1)+' · คิวรถ ('+vehs.length+' คัน)</h2>'+
+          '<table><thead>'+headPlain('รถ')+'</thead><tbody>'+vbody+'</tbody></table>'+lgVeh();
+      return out;
+    })()+
+    (o.sig? sigHTML() : '')+
     '</body></html>';
 
   var w=window.open('','_blank');
