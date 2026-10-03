@@ -623,7 +623,7 @@ body.preview #previewBar{display:flex}
 
 <script>
 /* ── ยามเฝ้า splash: อยู่นอกสคริปต์หลัก ถ้าสคริปต์หลักพัง ตัวนี้ยังทำงาน ── */
-window.APP_VER='14.5';
+window.APP_VER='14.6';
 (function(){
   var fill=function(){
     var a=document.querySelectorAll('.ver');
@@ -1654,13 +1654,17 @@ async function importOct69(){
       var p=OCT69_STAFF[i], tid=p.team? tmap[p.team] : null;
       var h2=allS.filter(function(x){ return x.emp_code===p.emp; })[0];
       if(!h2){
-        h2=ck(await db.from('it_staff').insert({emp_code:p.emp,name:p.name,team_id:tid,is_leader:!!p.lead,
-          role:'staff',approved:true,active:true}).select().single()).data;
+        /* ฐานข้อมูลบังคับว่าแถวพนักงานที่เพิ่งสร้างต้องเริ่มจากสถานะรออนุมัติ
+           จึงสร้างแบบรอก่อน แล้วค่อยอนุมัติในขั้นถัดไป เหมือนกดอนุมัติเองในหน้าพนักงาน
+           ไม่ตั้ง PIN ให้ ครั้งแรกที่เขาเข้าใช้งาน ระบบจะให้เขาตั้งของเขาเอง */
+        h2=ck(await db.from('it_staff').insert({emp_code:p.emp, name:p.name,
+              role:'staff', approved:false, active:true}).select().single()).data;
         say('✓ เพิ่มพนักงาน '+p.name+' ('+p.emp+')');
-      }else{
-        ck(await db.from('it_staff').update({team_id:tid,is_leader:!!p.lead,approved:true,active:true}).eq('id',h2.id));
-        say('· อัปเดตพนักงาน '+p.name);
       }
+      ck(await db.from('it_staff').update({name:p.name, team_id:tid, is_leader:!!p.lead,
+            approved:true, active:true}).eq('id',h2.id));
+      say('✓ อนุมัติและจัดเข้าทีม '+p.name+
+          (tid? (p.lead? ' · ตั้งเป็นหัวหน้าทีม' : '') : ' · ไม่สังกัดทีม (คนขับรถ)'));
       smap[p.emp]=h2.id;
     }
     /* ให้มีหัวหน้าทีมละคน */
