@@ -623,7 +623,7 @@ body.preview #previewBar{display:flex}
 
 <script>
 /* ── ยามเฝ้า splash: อยู่นอกสคริปต์หลัก ถ้าสคริปต์หลักพัง ตัวนี้ยังทำงาน ── */
-window.APP_VER='15.6';
+window.APP_VER='15.9';
 (function(){
   var fill=function(){
     var a=document.querySelectorAll('.ver');
@@ -815,6 +815,7 @@ window.APP_VER='15.6';
           </div>
           <button class="btn ghost sm hide" id="impOct" style="text-align:left;line-height:1.5">📥 ใส่แผนงานต้นแบบ 1–10 ต.ค. 69<br><span style="font-size:10.5px;opacity:.75">ทีมชาญ · ทีมอารมณ์ · รถ ฬ 7536 · คนขับ ปัญญา<br>4 ไซต์เข้าทะเบียน · 6 ขั้นตอนการทำงานเข้าคลังงาน · 18 ใบงาน</span></button>
           <button class="btn ghost sm hide" id="impReset" style="margin-top:8px;text-align:left;line-height:1.5">↺ ล้างสถานะและ % ของแผน 1–10 ต.ค.<br><span style="font-size:10.5px;opacity:.75">ให้ทุกใบกลับไปเป็น “ยังไม่เข้า 0%” รอให้หน้างานรายงานจริง</span></button>
+          <button class="btn ghost sm hide" id="impScope" style="margin-top:8px;text-align:left;line-height:1.5">📥 นำเข้าตามไฟล์ Job Scope<br><span style="font-size:10.5px;opacity:.75">ทีม QA 1-2 · พนักงาน 6 คน · หัวข้องาน 8 หัวข้อ · ยุบขั้นตอนย่อยทั้งหมด</span></button>
           <div id="impNote" class="hide" style="font-size:11px;color:var(--text3);margin-top:8px">
             เฉพาะเฉพาะเจ้าของระบบที่นำเข้าหรือล้างข้อมูลได้</div>
           <div id="impLog" style="font-size:11.5px;color:var(--text2);line-height:1.8;margin-top:9px"></div>
@@ -1597,7 +1598,7 @@ var OCT69_STAFF=[{emp:'CHAN', name:'ชาญ',  team:'ชาญ',  lead:true},
 var OCT69_VEH={code:'ฬ7536', plate:'ฬ 7536', kind:'รถบรรทุก', driver_name:'ปัญญา', color_hue:30};
 var OCT69_SITES=[{name:'CDD',           category:'โชว์รูม', start_date:'2026-10-01'},
                  {name:'CDC',           category:'โชว์รูม', start_date:'2026-10-02'},
-                 {name:'ลิฟวิ่ง สายใต้',category:'โชว์รูม', start_date:'2026-10-01'},
+                 {name:'STARMARK (Living)',category:'โชว์รูม', start_date:'2026-10-01'},
                  {name:'แพนแปซิฟิก',  category:'โรงแรม', start_date:'2026-10-05'}];
 var OCT69_CK={
   'ติดตั้งซุ้มงานโชว์':
@@ -1620,23 +1621,23 @@ var OCT69_CK={
 /* [วันที่, 'C'=ทีมชาญ คิวรถที่ 1 / 'A'=ทีมอารมณ์ คิวที่ 2, ไซต์, งาน, สถานะ, %] */
 var OCT69_JOBS=[
   ['2026-10-01','C','CDD','ติดตั้งซุ้มงานโชว์','assigned',0],
-  ['2026-10-01','A','ลิฟวิ่ง สายใต้','ติดตั้งออฟฟิศเฟอร์นิเจอร์','assigned',0],
+  ['2026-10-01','A','STARMARK (Living)','ติดตั้งออฟฟิศเฟอร์นิเจอร์','assigned',0],
   ['2026-10-02','C','CDC','ติดตั้งชุดโชว์','assigned',0],
-  ['2026-10-02','A','ลิฟวิ่ง สายใต้','ติดตั้งออฟฟิศเฟอร์นิเจอร์','assigned',0],
+  ['2026-10-02','A','STARMARK (Living)','ติดตั้งออฟฟิศเฟอร์นิเจอร์','assigned',0],
   ['2026-10-03','C','CDC','ติดตั้งชุดโชว์','assigned',0],
-  ['2026-10-03','A','ลิฟวิ่ง สายใต้','ติดตั้งออฟฟิศเฟอร์นิเจอร์','assigned',0],
+  ['2026-10-03','A','STARMARK (Living)','ติดตั้งออฟฟิศเฟอร์นิเจอร์','assigned',0],
   ['2026-10-05','C','แพนแปซิฟิก','ติดตั้งงานต้นแบบ','assigned',0],
-  ['2026-10-05','A','ลิฟวิ่ง สายใต้','ติดตั้งออฟฟิศเฟอร์นิเจอร์','assigned',0],
+  ['2026-10-05','A','STARMARK (Living)','ติดตั้งออฟฟิศเฟอร์นิเจอร์','assigned',0],
   ['2026-10-06','C','แพนแปซิฟิก','ติดตั้งงานต้นแบบ','assigned',0],
-  ['2026-10-06','A','ลิฟวิ่ง สายใต้','ติดตั้งออฟฟิศเฟอร์นิเจอร์','assigned',0],
+  ['2026-10-06','A','STARMARK (Living)','ติดตั้งออฟฟิศเฟอร์นิเจอร์','assigned',0],
   ['2026-10-07','C','แพนแปซิฟิก','ติดตั้งงานต้นแบบ','assigned',0],
-  ['2026-10-07','A','ลิฟวิ่ง สายใต้','ติดตั้งออฟฟิศเฟอร์นิเจอร์','assigned',0],
+  ['2026-10-07','A','STARMARK (Living)','ติดตั้งออฟฟิศเฟอร์นิเจอร์','assigned',0],
   ['2026-10-08','C','แพนแปซิฟิก','ติดตั้งงานต้นแบบ','assigned',0],
   ['2026-10-08','A','CDC','เข้ารื้อออฟฟิศเฟอร์นิเจอร์','assigned',0],
   ['2026-10-09','C','แพนแปซิฟิก','ติดตั้งงานต้นแบบ','assigned',0],
   ['2026-10-09','A','CDC','รื้อแพ็คงานออฟฟิศเฟอร์นิเจอร์','assigned',0],
   ['2026-10-10','C','แพนแปซิฟิก','ติดตั้งงานต้นแบบ','assigned',0],
-  ['2026-10-10','A','ลิฟวิ่ง สายใต้','ติดตั้งออฟฟิศเฟอร์นิเจอร์','assigned',0]
+  ['2026-10-10','A','STARMARK (Living)','ติดตั้งออฟฟิศเฟอร์นิเจอร์','assigned',0]
 ];
 function oct69Ck(scope, pg){
   var L=OCT69_CK[scope]||[], n=L.length||1;
@@ -1690,12 +1691,105 @@ async function resetOct69(){
   if(btn){ btn.disabled=false; btn.innerHTML=html; }
 }
 
+/* ═════ ข้อมูลจากไฟล์ Job Scope ═════
+   หัวข้องานแบบขั้นเดียว — ไม่แตกเป็นขั้นตอนย่อย
+   หน้างานกดสถานะ ใส่หมายเหตุ แล้วแนบรูปตอนส่งรายงาน */
+var SCOPE_TEAMS=[
+  {code:'QA1',  name:'ทีม QA 1'},
+  {code:'QA2',  name:'ทีม QA 2'}
+];
+var SCOPE_STAFF=[
+  {emp:'PORNANONG', name:'พรอนงค์ ขวัญโพน',   pos:'หัวหน้าแผนก'},
+  {emp:'SIRIPORN', name:'ศิริพร คำสุขา',       pos:'หัวหน้าแผนก'},
+  {emp:'WICHUNAN', name:'วิชุนันท์ จั่นเพชร',  pos:'เจ้าหน้าที่'},
+  {emp:'NUTJARIN', name:'นุชจรินทร์ ตุ้มทอง', pos:'เจ้าหน้าที่'},
+  {emp:'SOMPOP',   name:'สมภพ ภู่แสง',          pos:'คนขับรถ'},
+  {emp:'NANTAKAN', name:'นันทกานต์ ปานอาภรณ์', pos:'ผช.ผจก'}
+];
+/* [หมวด, หัวข้องาน, ไอคอน] — ทุกหัวข้อมีขั้นเดียว คือตัวมันเอง */
+var SCOPE_WORK=[
+  ['QA','ตรวจงานผู้รับเหมา','\ud83d\udd0d'],
+  ['QA','ติด QC Pass','\u2705'],
+  ['QA','ตรวจปิด Defect','\ud83d\udee0'],
+  ['QA','ตามการร้องขอ','\ud83d\udcde'],
+  ['Mock up','งานติดตั้ง','\ud83c\udfd7'],
+  ['Mock up','รื้อ Pack','\ud83d\udce6'],
+  ['Mock up','แก้ไข ลูกค้า','\ud83d\udd27'],
+  ['Mock up','ตามการร้องขอ','\ud83d\udcde']
+];
+
+async function importScope(){
+  if(rank(S.me)<3) return toast('เฉพาะเจ้าของระบบที่นำเข้าข้อมูลได้', 3600);
+  if(!confirm('นำเข้าข้อมูลตามไฟล์ Job Scope\n\n'+
+    '• ทีม QA 1 และ ทีม QA 2\n'+
+    '• พนักงาน 6 คน (ยังไม่จัดเข้าทีม คุณจัดเองภายหลัง)\n'+
+    '• หัวข้องาน 8 หัวข้อ (QA 4 · Mock up 4)\n\n'+
+    'และจะยุบรายการงานเดิมในคลังงานให้เหลือหัวข้อเดียวด้วย\n'+
+    '(ขั้นตอนย่อยจะหาย — ใบงานที่มอบหมายไปแล้วไม่กระทบ)\n\nยืนยันหรือไม่?')) return;
+
+  var btn=$('impScope'), html=btn?btn.innerHTML:'';
+  if(btn){ btn.disabled=true; btn.textContent='กำลังนำเข้า…'; }
+  var log=$('impLog'), lines=[];
+  var say=function(t){ lines.push(t); if(log) log.innerHTML=lines.map(function(x){return esc(x);}).join('<br>'); };
+  var ck=function(r){ if(r&&r.error){ var e=new Error(r.error.message); e.db=true; throw e; } return r; };
+  try{
+    /* ทีม */
+    var allT=(ck(await db.from('it_teams').select('*')).data)||[];
+    for(var i=0;i<SCOPE_TEAMS.length;i++){
+      var t=SCOPE_TEAMS[i];
+      if(allT.filter(function(x){ return x.code===t.code || x.name===t.name; }).length){ say('· มี '+t.name+' อยู่แล้ว'); continue; }
+      ck(await db.from('it_teams').insert({code:t.code,name:t.name,active:true,pin:'-'}));
+      say('✓ สร้าง '+t.name);
+    }
+    /* พนักงาน — เทียบด้วยชื่อ กันซ้ำกับคนที่มีอยู่แล้ว */
+    var allS=(ck(await db.from('it_staff').select('*')).data)||[];
+    var norm=function(v){ return String(v||'').replace(/\s|คุณ/g,''); };
+    for(i=0;i<SCOPE_STAFF.length;i++){
+      var q=SCOPE_STAFF[i];
+      var hit=allS.filter(function(x){ return x.emp_code===q.emp || norm(x.name)===norm(q.name); })[0];
+      if(hit){ say('· มี '+q.name+' อยู่แล้ว ('+(hit.emp_code||'')+')'); continue; }
+      var ins=ck(await db.from('it_staff').insert({emp_code:q.emp, name:q.name,
+        role:'staff', approved:false, active:true}).select().single()).data;
+      ck(await db.from('it_staff').update({approved:true}).eq('id',ins.id));
+      say('✓ เพิ่ม '+q.name+' ('+q.pos+') · รหัส '+q.emp);
+    }
+    /* คลังงาน — ยุบของเดิมให้เหลือหัวข้อเดียว แล้วเติมของใหม่ */
+    var allW=(ck(await db.from('it_work_items').select('*')).data)||[];
+    var flat=0;
+    for(i=0;i<allW.length;i++){
+      var w=allW[i], tk=Array.isArray(w.tasks)?w.tasks:[];
+      if(tk.length===1 && tk[0]===w.label) continue;
+      ck(await db.from('it_work_items').update({tasks:[w.label]}).eq('id',w.id));
+      flat++;
+    }
+    if(flat) say('✓ ยุบรายการเดิมให้เหลือหัวข้อเดียว '+flat+' รายการ');
+    var sortN=allW.reduce(function(n,x){ return Math.max(n,+x.sort||0); },0)+10, added=0;
+    for(i=0;i<SCOPE_WORK.length;i++){
+      var c=SCOPE_WORK[i][0], lb=SCOPE_WORK[i][1], ic=SCOPE_WORK[i][2];
+      if(allW.filter(function(x){ return String(x.label||'')===lb && String(x.category||'')===c; }).length) continue;
+      var wp={category:c, label:lb, icon:ic, tasks:[lb], item_mode:'work', check_mode:false, sort:sortN, active:true};
+      var rw=await db.from('it_work_items').insert(wp);
+      if(rw.error && /(check_mode|item_mode)/i.test(rw.error.message||'')){
+        delete wp.check_mode; delete wp.item_mode; rw=await db.from('it_work_items').insert(wp); }
+      ck(rw); sortN++; added++;
+    }
+    say(added? ('✓ เพิ่มหัวข้องานใหม่ '+added+' หัวข้อ')
+              : '· หัวข้องานทั้ง 8 หัวข้อมีอยู่แล้ว');
+    await loadMgr();
+    toast('นำเข้า Job Scope เรียบร้อย — ดูที่คลังงานและทะเบียนพนักงาน', 5200);
+  }catch(e){
+    say('✗ '+(e.message||''));
+    toast('นำเข้าไม่สำเร็จ: '+(e.message||''), 7000);
+  }
+  if(btn){ btn.disabled=false; btn.innerHTML=html; }
+}
+
 async function importOct69(){
   if(rank(S.me)<3) return toast('เฉพาะเจ้าของระบบที่นำเข้าข้อมูลได้', 3600);
   if(!confirm('ใส่แผนงานต้นแบบ 1–10 ต.ค. 2569\n\n'+
     '• ทีมชาญ และ ทีมอารมณ์ (หัวหน้า ชาญ / อารมณ์)\n'+
     '• ปัญญา คนขับ · รถ ฬ 7536\n'+
-    '• ไซต์ CDD · CDC · ลิฟวิ่ง สายใต้ · แพนแปซิฟิก (ยังไม่ใส่พิกัด)\n'+
+    '• ไซต์ CDD · CDC · STARMARK (Living) · แพนแปซิฟิก (ยังไม่ใส่พิกัด)\n'+
     '• ใบงาน 18 ใบ จัดคิวรถให้ครบ\n\n'+
     'ของที่มีอยู่แล้วจะไม่ถูกสร้างซ้ำ ยืนยันหรือไม่?')) return;
 
@@ -1828,6 +1922,8 @@ function renderDemo(){
   showEl('impOct', may); showEl('impReset', may); showEl('impNote', !may);
   if($('impOct')) $('impOct').onclick=importOct69;
   if($('impReset')) $('impReset').onclick=resetOct69;
+  showEl('impScope', may);
+  if($('impScope')) $('impScope').onclick=importScope;
   var demoShow=async function(){
     try{
       var r=await db.rpc('it_demo_count');
@@ -6464,6 +6560,81 @@ async function renameSiteCat(oldName){
   toast('เปลี่ยนชื่อหมวดแล้ว'); loadMgr();
 }
 
+/* ═════ รวมสองไซต์เข้าด้วยกัน ═════
+   ใช้เวลาคีย์ชื่อซ้ำหรือเปลี่ยนมาใช้ชื่อใหม่ — ย้ายใบงาน ปัญหา รายงาน และงานรายคน
+   ไปไซต์ปลายทางให้ครบ แล้วค่อยลบไซต์เก่าทิ้ง ประวัติไม่หาย              */
+async function siteMerge(fromId){
+  if(rank(S.me)<2) return toast('เฉพาะผู้จัดการขึ้นไปที่รวมไซต์ได้', 3400);
+  var from=siteOf(fromId);
+  var others=(S.sites||[]).filter(function(x){ return x.id!==fromId; })
+    .sort(function(a,b){ return String(a.name||'').localeCompare(String(b.name||''),'th'); });
+  if(!others.length) return toast('มีไซต์เดียวในระบบ ยังรวมกับอะไรไม่ได้', 3400);
+
+  sheet2('⇄ รวมไซต์',
+    '<div style="font-size:12.5px;color:var(--text2);line-height:1.8;margin-bottom:14px">'+
+      'งานทั้งหมดที่อยู่กับ <b style="color:var(--text)">'+esc(siteLabel(from))+'</b> '+
+      'จะถูกย้ายไปไซต์ที่เลือก แล้วไซต์นี้จะถูกลบ<br>'+
+      '<span style="color:var(--text3)">ย้ายให้ทั้ง ใบงาน · ปัญหา · รายงานและรูป · งานมอบหมายรายคน — ประวัติไม่หาย</span>'+
+    '</div>'+
+    '<div class="fld"><label>ย้ายไปไซต์</label><select id="mg_to">'+
+      others.map(function(x){ return '<option value="'+x.id+'">'+esc(siteLabel(x))+'</option>'; }).join('')+
+    '</select></div>'+
+    '<div id="mg_log" style="font-size:11.5px;color:var(--text2);line-height:1.8;margin-top:10px"></div>',
+    '<button class="btn sm" id="mg_go">ตรวจแล้วย้าย</button>');
+
+  $('mg_go').onclick=async function(){
+    var toId=$('mg_to').value; if(!toId) return;
+    var to=siteOf(toId), log=$('mg_log'), btn=this;
+    var say=function(t){ if(log) log.innerHTML+=(log.innerHTML?'<br>':'')+t; };
+    btn.disabled=true; btn.textContent='กำลังตรวจ…'; if(log) log.innerHTML='';
+    try{
+      var qa=dbOK(await db.from('it_assignments').select('*').eq('site_id',fromId));
+      var qb=dbOK(await db.from('it_assignments').select('team_id,work_date').eq('site_id',toId));
+      var have={}; (qb.data||[]).forEach(function(x){ have[x.team_id+'|'+x.work_date]=1; });
+      var mine=qa.data||[];
+      var clash=mine.filter(function(x){ return have[x.team_id+'|'+x.work_date]; });
+      var movable=mine.filter(function(x){ return !have[x.team_id+'|'+x.work_date]; });
+
+      if(!confirm('ย้ายงานจาก “'+(from.name||'')+'” ไป “'+(to.name||'')+'”\n\n'+
+        '• ใบงานที่ย้ายได้ '+movable.length+' ใบ\n'+
+        (clash.length? ('• ซ้อนกัน '+clash.length+' ใบ (ทีมเดิมมีงานที่ไซต์ปลายทางวันนั้นอยู่แล้ว) — จะค้างไว้ไม่ย้าย\n') : '')+
+        '• ปัญหา รายงาน รูป และงานรายคน ย้ายตามทั้งหมด\n\n'+
+        (clash.length? 'ไซต์เก่าจะยังไม่ถูกลบ เพราะยังมีใบงานค้างอยู่'
+                      : 'เสร็จแล้วไซต์ “'+(from.name||'')+'” จะถูกลบ')+'\n\nยืนยันหรือไม่?')){
+        btn.disabled=false; btn.textContent='ตรวจแล้วย้าย'; return; }
+
+      for(var i=0;i<movable.length;i++)
+        dbOK(await db.from('it_assignments').update({site_id:toId}).eq('id',movable[i].id));
+      say('✓ ย้ายใบงาน '+movable.length+' ใบ');
+
+      /* ตารางอื่นที่อ้างไซต์ — ถ้าฐานยังไม่มีตารางไหน ก็ข้ามไป */
+      var more=[['it_issues','ปัญหา'],['it_reports','รายงาน'],
+                ['it_staff_assign','งานรายคน'],['it_other_log','ประวัติงานอื่น ๆ']];
+      for(var k=0;k<more.length;k++){
+        try{
+          var r=await db.from(more[k][0]).update({site_id:toId}).eq('site_id',fromId).select('id');
+          if(!r.error) say('✓ ย้าย'+more[k][1]+' '+((r.data&&r.data.length)||0)+' รายการ');
+        }catch(e){}
+      }
+
+      if(clash.length){
+        say('⚠ เหลือ '+clash.length+' ใบที่ซ้อนวันกับทีมเดิม — ไซต์นี้ยังไม่ถูกลบ');
+        await loadMgr(); closeSheet2(); siteForm(fromId);
+        return toast('ย้ายแล้ว แต่ยังเหลือใบงานซ้อนวัน '+clash.length+' ใบ — จัดการใบเหล่านั้นก่อนค่อยลบไซต์', 8000);
+      }
+      var rd=await db.from('it_sites').delete().eq('id',fromId);
+      if(rd.error){ say('✗ '+delMsg(rd)); return toast(delMsg(rd), 7000); }
+      say('✓ ลบไซต์ “'+esc(from.name||'')+'” แล้ว');
+      await loadMgr(); closeSheet2(); closeSheet();
+      toast('รวมไซต์เรียบร้อย — งานทั้งหมดย้ายไปที่ '+(to.name||'')+' แล้ว', 5200);
+    }catch(e){
+      say('✗ '+(e.message||''));
+      toast('รวมไซต์ไม่สำเร็จ: '+(e.message||''), 7000);
+    }
+    btn.disabled=false; btn.textContent='ตรวจแล้วย้าย';
+  };
+}
+
 function siteForm(id){
   var s=id? siteOf(id) : {status:'planned'};
   var _siteHue = (s.color_hue==null? null : +s.color_hue);
@@ -6503,7 +6674,9 @@ function siteForm(id){
     '<div class="fld"><label>กำหนดเสร็จ</label><input type="date" id="f_dd" value="'+(s.due_date||'')+'"></div></div>'+
     '<div class="fld"><label>สถานะ</label><select id="f_st">'+
       ['planned','active','done','hold'].map(function(k){ return '<option value="'+k+'"'+(s.status===k?' selected':'')+'>'+k+'</option>'; }).join('')+'</select></div>',
+    (id? '<button class="btn ghost sm" id="f_merge" style="margin-bottom:9px">⇄ ย้ายงานทั้งหมดไปไซต์อื่น แล้วลบไซต์นี้</button>' : '')+
     '<div class="row">'+(id?'<button class="btn ghost sm" id="f_del" style="flex:0 0 90px">ลบ</button>':'')+'<button class="btn sm" id="f_save">บันทึก</button></div>');
+  if($('f_merge')) $('f_merge').onclick=function(){ siteMerge(id); };
   mapPicker({map:'pickMap', lat:'f_lat', lng:'f_lng', bar:'pinBar',
             here:'f_here', paste:'f_paste', savePin:'f_pin'}, s.lat, s.lng);
   $('f_cat').onchange=function(){ $('f_catnew').classList.toggle('hide', this.value!=='__new');
