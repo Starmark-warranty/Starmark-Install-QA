@@ -623,7 +623,7 @@ body.preview #previewBar{display:flex}
 
 <script>
 /* ── ยามเฝ้า splash: อยู่นอกสคริปต์หลัก ถ้าสคริปต์หลักพัง ตัวนี้ยังทำงาน ── */
-window.APP_VER='14.3';
+window.APP_VER='14.4';
 (function(){
   var fill=function(){
     var a=document.querySelectorAll('.ver');
@@ -2694,6 +2694,18 @@ function teamLabel(t){
   var norm=function(v){ return v.replace(/[\s\-_.·]/g,'').toUpperCase(); };
   return norm(n).indexOf(norm(c))>=0 ? n : (c+' · '+n);
 }
+/* บรรทัดย่อยใต้ชื่อทีม — ตัดคำที่ชื่อทีมหรือคำก่อนหน้าครอบคลุมอยู่แล้วทิ้ง
+   ทีมชื่อ "ทีมชาญ" รหัส "ชาญ" หัวหน้า "ชาญ" จะได้ไม่ขึ้นคำว่าชาญสามรอบ */
+function subBits(base, parts){
+  var norm=function(v){ return String(v||'').replace(/[\s\-_.·]/g,'').toUpperCase(); };
+  var seen=norm(base), out=[];
+  (parts||[]).forEach(function(p){
+    var s=String(p==null?'':p).trim(); if(!s) return;
+    var n=norm(s); if(!n || seen.indexOf(n)>=0) return;
+    seen+=n; out.push(s);
+  });
+  return out;
+}
 function siteLabel(v){
   if(!v) return '—';
   var c=String(v.code||''), n=String(v.name||'');
@@ -3920,8 +3932,9 @@ function printSchedule(opt){
     /* บนกระดาษไม่มี tooltip และมักเอาไปติดบอร์ด จึงพิมพ์รายชื่อลูกทีมครบทุกคน */
     var mem=teamStaff(t.id);
     var crew=mem.filter(function(x){ return !x.is_leader; }).map(function(x){ return x.name||x.emp_code; });
-    return '<tr><td class="tc"><b>'+esc(t.name)+'</b><br><span class="sm">'+esc(t.code)+
-      (L.name?' · '+esc(L.name):'')+(L.phone?' · '+esc(L.phone):'')+'</span>'+
+    var sub=subBits(t.name, [t.code, L.name, L.phone]);
+    return '<tr><td class="tc"><b>'+esc(t.name)+'</b>'+
+      (sub.length? ('<br><span class="sm">'+esc(sub.join(' · '))+'</span>') : '')+
       (mem.length
         ? ('<span class="crew">'+mem.length+' คน'+(crew.length? (': '+esc(crew.join(', '))) : '')+'</span>')
         : '<span class="crew">ยังไม่มีสมาชิก</span>')+
