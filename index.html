@@ -623,7 +623,7 @@ body.preview #previewBar{display:flex}
 
 <script>
 /* ── ยามเฝ้า splash: อยู่นอกสคริปต์หลัก ถ้าสคริปต์หลักพัง ตัวนี้ยังทำงาน ── */
-window.APP_VER='14.8';
+window.APP_VER='15.0';
 (function(){
   var fill=function(){
     var a=document.querySelectorAll('.ver');
@@ -1137,6 +1137,21 @@ $('lightbox').onclick=function(){ this.classList.remove('on'); };
 function saveSess(o){ try{ localStorage.setItem('it_sess', JSON.stringify(o)); }catch(e){} }
 function loadSess(){ try{ return JSON.parse(localStorage.getItem('it_sess')||'null'); }catch(e){ return null; } }
 
+/* ───── ดักข้อผิดพลาดจากฐานข้อมูล ─────
+   supabase ไม่โยน error เวลาฐานปຏิเสธ แต่คืน {error} กลับมาเฉย ๆ
+   ถ้าไม่เช็ก หน้าจอจะขึ้นว่า “บันทึกแล้ว” ทั้งที่ข้อมูลไม่ได้ลง */
+function dbOK(r){
+  if(r && r.error){ var e=new Error(r.error.message||'บันทึกไม่สำเร็จ'); e.db=true; throw e; }
+  return r;
+}
+function isDbErr(e){ return !!(e && e.db); }
+function delMsg(r){
+  var m=(r && r.error && r.error.message) || (r && r.message) || '';
+  return /foreign key|violates|constraint/i.test(m)
+    ? 'ลบไม่ได้ เพราะยังมีข้อมูลอื่นผูกอยู่กับรายการนี้ — ย้ายหรือลบข้อมูลที่ผูกไว้ก่อน'
+    : ('ลบไม่สำเร็จ: '+m);
+}
+
 /* ───────── offline queue ───────── */
 function qGet(){ try{ return JSON.parse(localStorage.getItem('it_queue')||'[]'); }catch(e){ return []; } }
 function qPut(a){ try{ localStorage.setItem('it_queue', JSON.stringify(a)); }catch(e){} qShow(); }
@@ -1145,17 +1160,23 @@ function qShow(){ var n=qGet().length; $('qN').textContent=n;
   $('offbar').classList.toggle('on', n>0 || !navigator.onLine); }
 async function qFlush(){
   var a=qGet(); if(!a.length) return;
-  var left=[];
+  var left=[], dropped=[];
   for(var i=0;i<a.length;i++){
     try{
       var j=a[i];
-      if(j.t==='report'){ await db.from('it_reports').insert(j.p); if(j.asg) await db.from('it_assignments').update(j.asg.v).eq('id',j.asg.id); }
-      else if(j.t==='issue'){ await db.from('it_issues').insert(j.p); }
-      else if(j.t==='comment'){ await db.from('it_issue_comments').insert(j.p); }
-    }catch(e){ left.push(a[i]); }
+      if(j.t==='report'){ dbOK(await db.from('it_reports').insert(j.p));
+        if(j.asg) dbOK(await db.from('it_assignments').update(j.asg.v).eq('id',j.asg.id)); }
+      else if(j.t==='issue'){ dbOK(await db.from('it_issues').insert(j.p)); }
+      else if(j.t==='comment'){ dbOK(await db.from('it_issue_comments').insert(j.p)); }
+    }catch(e){
+      /* เน็ตหลุด = เก็บไว้ส่งรอบหน้า · ฐานปຏิเสธ = เก็บไว้ก็ไม่มีวันสำเร็จ บอกคนหน้างานไปเลย */
+      if(isDbErr(e)) dropped.push(e.message||'');
+      else left.push(a[i]);
+    }
   }
   qPut(left);
-  if(!left.length){ toast('ส่งข้อมูลที่ค้างไว้ครบแล้ว'); if(S.role==='team') loadTeamData(); }
+  if(dropped.length) toast('ข้อมูลที่ค้าง '+dropped.length+' รายการส่งไม่สำเร็จ — '+esc(dropped[0])+' · แจ้งออฟฟิษ', 8000);
+  if(!left.length && !dropped.length){ toast('ส่งข้อมูลที่ค้างไว้ครบแล้ว'); if(S.role==='team') loadTeamData(); }
 }
 window.addEventListener('online', function(){ qShow(); qFlush(); });
 window.addEventListener('offline', qShow);
@@ -2149,11 +2170,8 @@ function saAsJob(x){
   };
 }
 /* ทีมนี้ให้แต่ละคนมีใบงานของตัวเองหรือใช้ใบงานของทีมร่วมกัน */
-function personMode(t){ return !!(t && t.field_mode==='person'); }
 /* ตารางที่ต้องเขียนกลับ ต่างกันระหว่างงานทีมกับงานรายคน */
 function jobTable(a){ return a && a._personal ? 'it_staff_assign' : 'it_assignments'; }
-/* งานรายคนไม่มีระยะทางตามถนน และผูกรายงานคนละคอลัมน์ */
-function jobRepKey(a){ return (a && a._personal) ? {staff_assign_id:a.id} : {assignment_id:a.id}; }
 function jobPatch(a, p){
   if(!a || !a._personal) return p;
   var o={}; for(var k in p){
@@ -2166,18 +2184,6 @@ function jobPatch(a, p){
 /* ───────── มอบหมายพนักงานข้ามทีม ─────────
    ของชั่วคราวตามช่วงวัน ไม่เปลี่ยน team_id ในทะเบียนพนักงาน
    มีผลกับวันไหน คนนั้นจะไปเห็นและทำงานของทีมปลายทางในวันนั้น */
-function saOf(list, staffId, date){
-  return (list||[]).filter(function(x){
-    return x.staff_id===staffId && x.status!=='cancelled' && x.start_date<=date && x.end_date>=date;
-  })[0]||null;
-}
-function saToday(staffId, date){ return saOf(S.sassign, staffId, date||todayISO()); }
-/* คนนอกที่ถูกยืมมาช่วยทีมนี้ในวันนั้น */
-function saBorrowed(teamId, date){
-  return (S.sassign||[]).filter(function(x){
-    return x.team_id===teamId && x.status!=='cancelled' && x.start_date<=date && x.end_date>=date;
-  });
-}
 function saTimeText(x){
   if(!x.start_time && !x.end_time) return 'ทั้งวัน';
   return (x.start_time||'').slice(0,5)+'–'+(x.end_time||'').slice(0,5);
@@ -5062,12 +5068,12 @@ async function openIssue(id){
       if(st!=='open' && !i.acked_at) patch.acked_at=new Date().toISOString();
       if(st==='resolved') patch.resolved_at=new Date().toISOString();
       if(st==='closed') patch.closed_at=new Date().toISOString();
-      await db.from('it_issues').update(patch).eq('id',id);
+      dbOK(await db.from('it_issues').update(patch).eq('id',id));
       var log=[];
       if(st!==i.status) log.push('เปลี่ยนสถานะเป็น "'+IST[st].l+'"');
       if((asgn||null)!==(i.assignee||null)) log.push('มอบหมายให้ '+(asgn||'—'));
       if(msg) log.push(msg);
-      if(log.length) await db.from('it_issue_comments').insert({issue_id:id, author:meName(), role:'office', body:log.join('\n')});
+      if(log.length) dbOK(await db.from('it_issue_comments').insert({issue_id:id, author:meName(), role:'office', body:log.join('\n')}));
       toast('บันทึกแล้ว — หน้างานจะเห็นทันที');
       await loadMgr(); openIssue(id);
     }catch(e){ toast('บันทึกไม่สำเร็จ: '+(e.message||e),4000); this.disabled=false; this.textContent='บันทึกและส่งกลับหน้างาน'; }
@@ -5474,7 +5480,9 @@ function pinForm(id, preLat, preLng){
   };
   if(id) $('k_del').onclick=async function(){
     if(!confirm('ลบหมุด "'+x.label+'" ?\nไซต์ที่เคยใช้หมุดนี้ไม่กระทบ เพราะพิกัดถูกบันทึกไว้ที่ไซต์แล้ว')) return;
-    await db.from('it_pins').delete().eq('id',id); closeSheet(); toast('ลบแล้ว'); loadMgr();
+    var rdel=await db.from('it_pins').delete().eq('id',id);
+    if(rdel.error) return toast(delMsg(rdel), 6500);
+    closeSheet(); toast('ลบหมุดแล้ว'); loadMgr();
   };
 }
 
@@ -5674,8 +5682,9 @@ function workForm(id, presetCat){
   };
   if(id) $('w_del').onclick=async function(){
     if(!confirm('ลบรายการ "'+cur.l+'" ?\nงานที่มอบหมายไปแล้วไม่กระทบ เพราะเช็กลิสต์ถูกคัดลอกไว้ในใบงานแล้ว')) return;
-    await db.from('it_work_items').delete().eq('id',id);
-    closeSheet(); toast('ลบแล้ว'); loadMgr();
+    var rdel=await db.from('it_work_items').delete().eq('id',id);
+    if(rdel.error) return toast(delMsg(rdel), 6500);
+    closeSheet(); toast('ลบรายการแล้ว'); loadMgr();
   };
 }
 
@@ -6435,12 +6444,17 @@ function siteForm(id){
   };
   if(id) $('f_del').onclick=async function(){
     if(!confirm('ลบไซต์นี้? งานและปัญหาที่ผูกกับไซต์จะถูกลบตามไปด้วย')) return;
-    await db.from('it_sites').delete().eq('id',id); closeSheet(); toast('ลบแล้ว'); loadMgr();
+    var rdel=await db.from('it_sites').delete().eq('id',id);
+    if(rdel.error) return toast(delMsg(rdel), 6500);
+    closeSheet(); toast('ลบไซต์แล้ว'); loadMgr();
   };
 }
 
 function teamForm(id){
   var t=id? teamOf(id) : {active:true, pin:'', field_mode:'team'};
+  /* สองบรรทัดนี้หายไปตอนเก็บกวาดโค้ด v14.2 ทำให้คลิกแถวทีมแล้วหน้าต่างไม่เปิด */
+  var mem = id? teamStaff(id) : [];
+  var ld  = id? teamLeader(id) : null;
   var leadField = !id
     ? '<div style="background:var(--s1);border:1px solid var(--border);border-radius:11px;padding:11px 13px;'+
       'font-size:12.5px;color:var(--text2);line-height:1.6">สร้างทีมก่อน แล้วค่อยจัดคนเข้าทีมและตั้งหัวหน้าที่การ์ด '+
@@ -7274,10 +7288,11 @@ async function doCheckin(a){
     lat:pos?pos.lat:null, lng:pos?pos.lng:null, acc_m:pos?pos.acc:null,
     created_by:meName(), staff_id:S.me.id};
   try{
-    await db.from('it_assignments').update(upd).eq('id',a.id);
-    await db.from('it_reports').insert(rep);
+    dbOK(await db.from('it_assignments').update(upd).eq('id',a.id));
+    dbOK(await db.from('it_reports').insert(rep));
     toast('เช็คอินแล้ว — ออฟฟิศเห็นทันที');
   }catch(e){
+    if(isDbErr(e)){ toast('เช็คอินไม่สำเร็จ: '+e.message, 7000); renderTeam(); return; }
     qPush({t:'report', p:rep, asg:{id:a.id, v:upd}});
     toast('ยังไม่มีเน็ต — บันทึกไว้ในเครื่อง จะส่งให้อัตโนมัติ', 3600);
   }
@@ -7299,8 +7314,12 @@ async function ckSave(a, ck, opt){
   if(a.status==='assigned' && (p>0 || (opt&&opt.start))) upd.status='working';
   a.checklist=ck; a.progress=p;
   if(!(opt&&opt.quiet)) renderTeam();
-  try{ await db.from(jobTable(a)).update(jobPatch(a,upd)).eq('id',a.id); }
-  catch(e){ toast('บันทึกไม่ได้ตอนนี้ — ลองอีกครั้งเมื่อมีสัญญาณ'); }
+  try{ dbOK(await db.from(jobTable(a)).update(jobPatch(a,upd)).eq('id',a.id)); }
+  catch(e){
+    toast(isDbErr(e)
+      ? ('บันทึกเช็กลิสต์ไม่สำเร็จ: '+e.message+' · กดใหม่อีกครั้ง')
+      : 'บันทึกไม่ได้ตอนนี้ — ลองอีกครั้งเมื่อมีสัญญาณ', isDbErr(e)?7000:3200);
+  }
 }
 /* ตั้งสถานะของหนึ่งข้อ — 0 ยังไม่เริ่ม · 50 กำลังทำ · 100 เสร็จแล้ว */
 async function setCheckState(a, i, st){
@@ -7570,6 +7589,7 @@ function reportSheet(a){
       }
     }
 
+    var lbl0=btn.textContent;
     btn.disabled=true; btn.textContent='กำลังส่ง…';
     var pos=await getPos(), now=new Date().toISOString();
     var body = alsoClose
@@ -7584,19 +7604,24 @@ function reportSheet(a){
       ? {progress:p, status: full? 'done' : 'partial', checkout_at:now}
       : {progress:p, status: blocked? 'blocked' : (a.status==='assigned'?'working':a.status)};
     try{
-      await db.from('it_reports').insert(rep);
-      await db.from('it_assignments').update(upd).eq('id',a.id);
+      dbOK(await db.from('it_reports').insert(rep));
+      dbOK(await db.from(jobTable(a)).update(jobPatch(a,upd)).eq('id',a.id));
       if(wantIssue){
-        await db.from('it_issues').insert({site_id:a.site_id, team_id:S.team.id, assignment_id:a._personal?null:a.id,
+        dbOK(await db.from('it_issues').insert({site_id:a.site_id, team_id:S.team.id, assignment_id:a._personal?null:a.id,
           category:cat, severity:sev, title:isTitle.slice(0,120),
           detail:(isDetail || note || '')+'\n\n(แจ้งพร้อมรายงานวันที่ '+dayText(a.work_date)+' · คืบหน้า '+p+'% · ค้าง '+left+' ข้อ)',
-          photos:photos, opened_by:meName(), staff_id:S.me.id});
+          photos:photos, opened_by:meName(), staff_id:S.me.id}));
       }
       toast(alsoClose
         ? (full? 'ปิดงานเสร็จ 100% แล้ว' : ('ปิดวันแล้วที่ '+p+'%'+(wantIssue?' · แจ้งปัญหาแล้ว':'')))
         : ('ส่งรายงานแล้ว'+(wantIssue?' · แจ้งปัญหาแล้ว':'')), 3600);
       if(alsoClose) await rollover(a, full, pickIssues);
     }catch(e){
+      if(isDbErr(e)){
+        toast('ส่งรายงานไม่สำเร็จ: '+e.message+' · ข้อมูลยังไม่ถูกบันทึก ลองใหม่อีกครั้ง', 8000);
+        if(btn){ btn.disabled=false; btn.textContent=lbl0; }
+        return;
+      }
       qPush({t:'report', p:rep, asg:{id:a.id, v:upd}});
       toast('ยังไม่มีเน็ต — บันทึกไว้ในเครื่องแล้ว', 3600);
     }
@@ -7665,12 +7690,12 @@ async function rollover(a, full, pick){
     if(full){
       var msg=[];
       if(future.length){
-        await db.from('it_assignments').delete().in('id', future.map(function(x){ return x.id; }));
+        dbOK(await db.from('it_assignments').delete().in('id', future.map(function(x){ return x.id; })));
         msg.push('ยกเลิกวันที่เหลืออีก '+future.length+' วัน');
       }
       if(pick && pick.length){
         var now=new Date().toISOString();
-        await db.from('it_issues').update({status:'resolved', resolved_at:now}).in('id', pick);
+        dbOK(await db.from('it_issues').update({status:'resolved', resolved_at:now}).in('id', pick));
         for(var k=0;k<pick.length;k++){
           await db.from('it_issue_comments').insert({issue_id:pick[k], author:meName(), role:'team',
             body:'ปิดพร้อมงาน — งานที่ไซต์นี้เสร็จครบ 100% เมื่อ '+dayText(a.work_date)});
@@ -7699,16 +7724,19 @@ async function rollover(a, full, pick){
       if(other.length) toast('⚠️ วัน '+dayText(d)+' ทีมมีงานที่ไซต์อื่นอยู่แล้ว — แจ้งออฟฟิศให้ช่วยจัดคิว', 6000);
     };
     if(future.length){
-      await db.from('it_assignments').update({checklist:items, scope:scope, progress:0}).eq('id', future[0].id);
+      dbOK(await db.from('it_assignments').update({checklist:items, scope:scope, progress:0}).eq('id', future[0].id));
       toast('ยกงานค้าง '+items.length+' ข้อ ไปวัน '+dayText(future[0].work_date), 5000);
       warnClash(future[0].work_date);
     }else{
       var d=planDates(addDays(a.work_date,1), 1, true)[0];
       var r=await db.from('it_assignments').upsert({site_id:a.site_id, team_id:a.team_id, work_date:d,
         scope:scope, checklist:items}, {onConflict:'site_id,team_id,work_date'});
-      if(!r.error){ toast('สร้างงานต่อวัน '+dayText(d)+' · ค้าง '+items.length+' ข้อ', 5000); warnClash(d); }
+      if(r.error) toast('สร้างงานต่อวันไม่สำเร็จ: '+r.error.message+' — แจ้งออฟฟิศให้สร้างใบงานวันถัดไปให้', 8000);
+      else { toast('สร้างงานต่อวัน '+dayText(d)+' · ค้าง '+items.length+' ข้อ', 5000); warnClash(d); }
     }
-  }catch(e){}
+  }catch(e){
+    toast('ยกงานค้างไปวันถัดไปไม่สำเร็จ — '+(e.message||'')+' · แจ้งออฟฟิศด้วย', 8000);
+  }
 }
 
 /* เปิดงานที่ปิดไปแล้วกลับมาแก้ไข — ทำได้จากหน้างานเอง */
@@ -7722,10 +7750,11 @@ async function reopenDay(a){
   var rep={assignment_id:a._personal?null:a.id, staff_assign_id:a._personal?a.id:null, site_id:a.site_id, team_id:S.team.id, kind:'progress', progress:pct(a.progress),
     note:'เปิดงานต่อเพื่อแก้ไข (จาก '+was+')', created_by:meName(), staff_id:S.me.id};
   try{
-    await db.from('it_assignments').update(upd).eq('id',a.id);
-    await db.from('it_reports').insert(rep);
+    dbOK(await db.from(jobTable(a)).update(jobPatch(a,upd)).eq('id',a.id));
+    dbOK(await db.from('it_reports').insert(rep));
     toast('เปิดงานต่อแล้ว — แก้ไขได้ตามปกติ');
   }catch(e){
+    if(isDbErr(e)){ toast('เปิดงานต่อไม่สำเร็จ: '+e.message, 7000); return; }
     qPush({t:'report', p:rep, asg:{id:a.id, v:upd}});
     toast('ยังไม่มีเน็ต — บันทึกไว้ในเครื่องแล้ว', 3600);
   }
@@ -7783,10 +7812,13 @@ async function teamIssueSheet(id){
 
   var post=async function(patch, body, okMsg){
     try{
-      await db.from('it_issues').update(patch).eq('id',id);
-      if(body) await db.from('it_issue_comments').insert({issue_id:id, author:meName(), role:'team', body:body});
+      dbOK(await db.from('it_issues').update(patch).eq('id',id));
+      if(body) dbOK(await db.from('it_issue_comments').insert({issue_id:id, author:meName(), role:'team', body:body}));
       toast(okMsg, 3600);
-    }catch(e){ toast('บันทึกไม่สำเร็จ — ตรวจอินเทอร์เน็ตแล้วลองใหม่', 4000); return; }
+    }catch(e){
+      toast(isDbErr(e)? ('บันทึกไม่สำเร็จ: '+e.message)
+                      : 'บันทึกไม่สำเร็จ — ตรวจอินเทอร์เน็ตแล้วลองใหม่', isDbErr(e)?7000:4000);
+      return; }
     closeSheet(); loadTeamData();
   };
 
@@ -7794,8 +7826,10 @@ async function teamIssueSheet(id){
     var b=$('tcm').value.trim(); if(!b) return toast('พิมพ์ข้อความก่อน');
     this.disabled=true;
     var p={issue_id:id, author:meName(), role:'team', body:b};
-    try{ await db.from('it_issue_comments').insert(p); toast('ส่งแล้ว'); }
-    catch(e){ qPush({t:'comment', p:p}); toast('ยังไม่มีเน็ต — บันทึกไว้ในเครื่องแล้ว',3600); }
+    try{ dbOK(await db.from('it_issue_comments').insert(p)); toast('ส่งแล้ว'); }
+    catch(e){
+      if(isDbErr(e)){ toast('ส่งข้อความไม่สำเร็จ: '+e.message, 7000); this.disabled=false; return; }
+      qPush({t:'comment', p:p}); toast('ยังไม่มีเน็ต — บันทึกไว้ในเครื่องแล้ว',3600); }
     closeSheet();
   };
 
@@ -7823,19 +7857,6 @@ async function teamIssueSheet(id){
 }
 
 /* คนนอกที่ถูกยืมมาช่วยทีมนี้วันนี้ */
-function saGuestBlk(){
-  if(!S.team) return '';
-  var g=(S.sassign||[]).filter(function(x){
-    return x.team_id && x.team_id===S.team.id && x.status!=='cancelled'
-      && x.start_date<=todayISO() && x.end_date>=todayISO(); });
-  if(!g.length) return '';
-  return '<div class="blk"><div class="blk-h">วันนี้มีคนมาช่วย '+g.length+' คน</div>'+
-    g.map(function(x){ var p=staffOf(x.staff_id), hm=teamOf(x.home_team_id);
-      return '<div class="tl"><div class="tl-d" style="background:#5856d6"></div><div class="tl-c">'+
-        '<div class="tl-b" style="font-weight:600">'+esc(p?(p.name||p.emp_code):'—')+'</div>'+
-        '<div class="tl-m">มาจากทีม '+esc(hm?hm.code:'—')+' · '+esc(saTimeText(x))+
-          (x.task?' · '+esc(x.task):'')+'</div></div></div>'; }).join('')+'</div>';
-}
 
 /* วันนี้ในทีม — ใครอยู่กับทีม ใครแยกไปไหน และมีใครมาช่วย
    ทำให้ลูกทีมรู้กำลังคนจริงของวันนั้นโดยไม่ต้องโทรถาม */
