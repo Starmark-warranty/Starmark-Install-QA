@@ -623,7 +623,7 @@ body.preview #previewBar{display:flex}
 
 <script>
 /* ── ยามเฝ้า splash: อยู่นอกสคริปต์หลัก ถ้าสคริปต์หลักพัง ตัวนี้ยังทำงาน ── */
-window.APP_VER='16.2';
+window.APP_VER='16.3';
 (function(){
   var fill=function(){
     var a=document.querySelectorAll('.ver');
@@ -5051,12 +5051,25 @@ async function asgActions(a){
     '</div>'+
 
     '<div class="fld"><label>เลื่อนไปวันที่</label><input type="date" id="mv_date" value="'+a.work_date+'"></div>'+
+    '<div class="fld"><label>ย้ายไปโครงการ</label><select id="mv_site">'+
+      (function(){
+        var cs=[], by={};
+        (S.sites||[]).forEach(function(x){ var c=x.category||'ทั่วไป'; if(!by[c]){ by[c]=[]; cs.push(c); } by[c].push(x); });
+        cs.sort();
+        return cs.map(function(c){
+          return '<optgroup label="'+esc(c)+'">'+
+            by[c].sort(function(x,y){ return String(x.name||'').localeCompare(String(y.name||''),'th'); })
+              .map(function(x){ return '<option value="'+x.id+'"'+(x.id===a.site_id?' selected':'')+'>'+
+                esc(siteLabel(x))+'</option>'; }).join('')+'</optgroup>';
+        }).join('');
+      })()+
+    '</select></div>'+
     '<div class="fld"><label>ย้ายไปทีม</label><select id="mv_team">'+
       S.teams.filter(function(t){return t.active!==false;}).map(function(t){
         return '<option value="'+t.id+'"'+(t.id===a.team_id?' selected':'')+'>'+esc(teamLabel(t))+'</option>'; }).join('')+
     '</select></div>'+
     '<p style="font-size:11px;color:var(--text3);line-height:1.6;margin-bottom:16px">'+
-      'เลือก “ทั้งชุด” แล้วเลื่อนวัน ระบบจะเลื่อนทุกวันในชุดตามกันเป็นระยะเท่ากัน</p>'+
+      'เลือก “ทั้งชุด” แล้วเลื่อนวัน ระบบจะเลื่อนทุกวันในชุดตามกันเป็นระยะเท่ากัน<br>อยากแก้ชื่อโครงการเอง ไม่ใช่ย้ายใบงาน — ไปที่ Work &amp; Site → คลิกโครงการ → แก้ช่อง “ชื่องาน”</p>'+
 
     '<div class="sec-h" style="color:var(--red)">ลบงาน</div>'+
     '<div style="background:var(--red-dim);border:1px solid rgba(255,59,48,.25);border-radius:11px;padding:11px 13px;font-size:12px;line-height:1.65;color:#c9251c">'+
@@ -5082,7 +5095,11 @@ async function asgActions(a){
 
   $('mv_save').onclick=async function(){
     var nd=$('mv_date').value||a.work_date, nt=$('mv_team').value;
-    if(nd===a.work_date && nt===a.team_id) return toast('ยังไม่ได้เปลี่ยนอะไร');
+    var ns=($('mv_site') && $('mv_site').value) || a.site_id;
+    if(nd===a.work_date && nt===a.team_id && ns===a.site_id) return toast('ยังไม่ได้เปลี่ยนอะไร');
+    if(ns!==a.site_id && !confirm('ย้ายงานไปโครงการ “'+(siteOf(ns).name||'')+'”\n\n'+
+        'รายงาน รูป และเช็กลิสต์ของใบงานนี้จะตามไปด้วย\n'+
+        'ส่วนปัญหาที่เคยแจ้งไว้จะยังอยู่กับโครงการเดิม\n\nยืนยันหรือไม่?')) return;
     var wdDelta=workDaysBetween(a.work_date, nd);   /* นับเป็นวันทำงาน ข้ามวันอาทิตย์และวันหยุด */
     var list = (mode==='all')? series : [a];
     if(mode==='all' && nd!==a.work_date && list.length>1){
@@ -5101,13 +5118,14 @@ async function asgActions(a){
         return wdDelta>0? (x.work_date<y.work_date?1:-1) : (x.work_date>y.work_date?1:-1); });
       for(var i=0;i<list.length;i++){
         var x=list[i];
-        var patch={team_id:nt};
+        var patch={team_id:nt, site_id:ns};
         if(nd!==a.work_date) patch.work_date = (x.id===a.id)? nd : addWorkDays(x.work_date, wdDelta);
         var r=await db.from('it_assignments').update(patch).eq('id',x.id);
         if(r.error) throw r.error;
       }
       closeSheet(); closeDrawer();
-      toast(list.length>1? ('ย้ายแล้ว '+list.length+' วัน') : 'ย้ายงานแล้ว');
+      toast((ns!==a.site_id? ('ย้ายไป '+(siteOf(ns).name||'')+' · ') : '')+
+        (list.length>1? (list.length+' วัน') : 'ย้ายงานแล้ว'), 3600);
       loadMgr();
     }catch(e){
       this.disabled=false; this.textContent='บันทึกการเปลี่ยนแปลง';
