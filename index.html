@@ -623,7 +623,7 @@ body.preview #previewBar{display:flex}
 
 <script>
 /* ── ยามเฝ้า splash: อยู่นอกสคริปต์หลัก ถ้าสคริปต์หลักพัง ตัวนี้ยังทำงาน ── */
-window.APP_VER='15.0';
+window.APP_VER='15.1';
 (function(){
   var fill=function(){
     var a=document.querySelectorAll('.ver');
@@ -814,6 +814,7 @@ window.APP_VER='15.0';
             · กดซ้ำได้ ของที่มีอยู่แล้วจะไม่ถูกสร้างซ้ำ
           </div>
           <button class="btn ghost sm hide" id="impOct" style="text-align:left;line-height:1.5">📥 ใส่แผนงานต้นแบบ 1–10 ต.ค. 69<br><span style="font-size:10.5px;opacity:.75">ทีมชาญ · ทีมอารมณ์ · รถ ฬ 7536 · คนขับ ปัญญา<br>4 ไซต์เข้าทะเบียน · 6 ขั้นตอนการทำงานเข้าคลังงาน · 18 ใบงาน</span></button>
+          <button class="btn ghost sm hide" id="impReset" style="margin-top:8px;text-align:left;line-height:1.5">↺ ล้างสถานะและ % ของแผน 1–10 ต.ค.<br><span style="font-size:10.5px;opacity:.75">ให้ทุกใบกลับไปเป็น “ยังไม่เข้า 0%” รอให้หน้างานรายงานจริง</span></button>
           <div id="impNote" class="hide" style="font-size:11px;color:var(--text3);margin-top:8px">
             เฉพาะผู้จัดการขึ้นไปที่นำเข้าได้</div>
           <div id="impLog" style="font-size:11.5px;color:var(--text2);line-height:1.8;margin-top:9px"></div>
@@ -1617,12 +1618,12 @@ var OCT69_CK={
 };
 /* [วันที่, 'C'=ทีมชาญ คิวรถที่ 1 / 'A'=ทีมอารมณ์ คิวที่ 2, ไซต์, งาน, สถานะ, %] */
 var OCT69_JOBS=[
-  ['2026-10-01','C','CDD','ติดตั้งซุ้มงานโชว์','done',100],
-  ['2026-10-01','A','ลิฟวิ่ง สายใต้','ติดตั้งออฟฟิศเฟอร์นิเจอร์','done',100],
-  ['2026-10-02','C','CDC','ติดตั้งชุดโชว์','done',100],
-  ['2026-10-02','A','ลิฟวิ่ง สายใต้','ติดตั้งออฟฟิศเฟอร์นิเจอร์','done',100],
-  ['2026-10-03','C','CDC','ติดตั้งชุดโชว์','working',60],
-  ['2026-10-03','A','ลิฟวิ่ง สายใต้','ติดตั้งออฟฟิศเฟอร์นิเจอร์','working',40],
+  ['2026-10-01','C','CDD','ติดตั้งซุ้มงานโชว์','assigned',0],
+  ['2026-10-01','A','ลิฟวิ่ง สายใต้','ติดตั้งออฟฟิศเฟอร์นิเจอร์','assigned',0],
+  ['2026-10-02','C','CDC','ติดตั้งชุดโชว์','assigned',0],
+  ['2026-10-02','A','ลิฟวิ่ง สายใต้','ติดตั้งออฟฟิศเฟอร์นิเจอร์','assigned',0],
+  ['2026-10-03','C','CDC','ติดตั้งชุดโชว์','assigned',0],
+  ['2026-10-03','A','ลิฟวิ่ง สายใต้','ติดตั้งออฟฟิศเฟอร์นิเจอร์','assigned',0],
   ['2026-10-05','C','แพนแปซิฟิก','ติดตั้งงานต้นแบบ','assigned',0],
   ['2026-10-05','A','ลิฟวิ่ง สายใต้','ติดตั้งออฟฟิศเฟอร์นิเจอร์','assigned',0],
   ['2026-10-06','C','แพนแปซิฟิก','ติดตั้งงานต้นแบบ','assigned',0],
@@ -1643,6 +1644,51 @@ function oct69Ck(scope, pg){
     return {label:l, st:(on?100:0), done:on, w:1};
   });
 }
+/* ล้างสถานะกับ % ของแผน 1–10 ต.ค. ให้กลับไปเป็น ยังไม่เข้า 0%
+   ใช้เมื่อมีตัวเลขที่ไม่ได้มาจากคนหน้างานจริง ติดอยู่ในระบบ */
+async function resetOct69(){
+  if(rank(S.me)<2) return toast('เฉพาะผู้จัดการขึ้นไปที่ทำได้', 3200);
+  var d0='2026-10-01', d1='2026-10-10';
+  var tids=(S.teams||[]).filter(function(t){ return t.code==='ชาญ' || t.code==='อารมณ์'
+      || t.name==='ทีมชาญ' || t.name==='ทีมอารมณ์'; }).map(function(t){ return t.id; });
+  if(!tids.length) return toast('ยังไม่มีทีมชาญ / ทีมอารมณ์ ในระบบ', 4000);
+
+  var btn=$('impReset'), html=btn? btn.innerHTML : '';
+  var log=$('impLog');
+  if(btn){ btn.disabled=true; btn.textContent='กำลังล้าง…'; }
+  try{
+    var q=await db.from('it_assignments').select('*')
+      .gte('work_date',d0).lte('work_date',d1).in('team_id',tids);
+    if(q.error) throw new Error(q.error.message);
+    var rows=q.data||[];
+    if(!rows.length){ toast('ไม่มีใบงานของสองทีมนี้ในช่วง 1–10 ต.ค.', 4000);
+      if(btn){ btn.disabled=false; btn.innerHTML=html; } return; }
+    if(!confirm('ล้างสถานะและความคืบหน้าของใบงาน '+rows.length+' ใบ (1–10 ต.ค.)\n\n'+
+      'ทุกใบจะกลับเป็น “ยังไม่เข้า 0%” เช็กลิสต์ถูกเอาติ๊กออกทั้งหมด\n'+
+      'รวมถึงเวลาเช็คอิน/เช็คเอาต์ด้วย\n\n'+
+      '⚠️ ถ้ามีทีมที่ทำงานจริงไปแล้ว ความคืบหน้าของเขาจะหายด้วย\n'+
+      '(รายงานและรูปที่เคยส่งไว้ไม่หาย)\n\nยืนยันหรือไม่?')){
+      if(btn){ btn.disabled=false; btn.innerHTML=html; } return; }
+
+    var n=0;
+    for(var i=0;i<rows.length;i++){
+      var ck=(Array.isArray(rows[i].checklist)?rows[i].checklist:[]).map(function(c){
+        var o=ckNorm(c); o.st=0; o.done=false; return o; });
+      var r=await db.from('it_assignments').update({status:'assigned', progress:0, checklist:ck,
+        checkin_at:null, checkout_at:null}).eq('id',rows[i].id);
+      if(r.error) throw new Error(r.error.message);
+      n++;
+      if(log) log.innerHTML='ล้างแล้ว '+n+' / '+rows.length+' ใบ';
+    }
+    await loadMgr();
+    toast('ล้างสถานะแล้ว '+n+' ใบ — ทุกใบกลับเป็นยังไม่เข้า 0%', 5200);
+  }catch(e){
+    if(log) log.innerHTML=esc('✗ '+(e.message||''));
+    toast('ล้างไม่สำเร็จ: '+(e.message||''), 7000);
+  }
+  if(btn){ btn.disabled=false; btn.innerHTML=html; }
+}
+
 async function importOct69(){
   if(rank(S.me)<2) return toast('เฉพาะผู้จัดการขึ้นไปที่นำเข้าได้', 3200);
   if(!confirm('ใส่แผนงานต้นแบบ 1–10 ต.ค. 2569\n\n'+
@@ -1777,8 +1823,9 @@ function renderDemo(){
   if(!$('demoCnt')) return;
   var may=rank(S.me)>=2;
   showEl('demoSeed', may); showEl('demoClear', may); showEl('demoNote', !may);
-  showEl('impOct', may); showEl('impNote', !may);
+  showEl('impOct', may); showEl('impReset', may); showEl('impNote', !may);
   if($('impOct')) $('impOct').onclick=importOct69;
+  if($('impReset')) $('impReset').onclick=resetOct69;
   var demoShow=async function(){
     try{
       var r=await db.rpc('it_demo_count');
