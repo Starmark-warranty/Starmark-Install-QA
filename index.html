@@ -623,7 +623,7 @@ body.preview #previewBar{display:flex}
 
 <script>
 /* ── ยามเฝ้า splash: อยู่นอกสคริปต์หลัก ถ้าสคริปต์หลักพัง ตัวนี้ยังทำงาน ── */
-window.APP_VER='15.3';
+window.APP_VER='15.6';
 (function(){
   var fill=function(){
     var a=document.querySelectorAll('.ver');
@@ -793,7 +793,7 @@ window.APP_VER='15.3';
         <div style="padding:12px 14px 14px">
           <div style="font-size:11.5px;color:var(--text2);line-height:1.75;margin-bottom:10px">
             ทุกแถวที่ระบบสร้างให้จะติดธงกำกับไว้ว่าเป็นข้อมูลตัวอย่าง เวลาลบจึงลบเฉพาะของตัวอย่าง
-            <b>ข้อมูลจริงที่คุณคีย์เองไม่ถูกแตะ</b> · ใช้ตอนสาธิตให้ผู้บริหารดู หรือรีเซ็ตกลับสภาพเริ่มต้น
+            <b>ข้อมูลจริงที่คุณคีย์เองไม่ถูกแตะ</b> · ใช้ตอนสาธิตให้ผู้บริหารดู<br><b style="color:var(--red)">ระบบนี้มีข้อมูลจริงใช้งานแล้ว — เปิดให้เฉพาะเฉพาะเจ้าของระบบกดได้เท่านั้น</b>
           </div>
           <div id="demoCnt" style="font-size:11.5px;line-height:1.8;margin-bottom:11px;color:var(--text2)">กำลังนับ…</div>
           <div class="row" style="gap:8px">
@@ -801,7 +801,7 @@ window.APP_VER='15.3';
             <button class="btn ghost sm hide" id="demoClear" style="color:var(--red);border-color:rgba(255,59,48,.4)">🗑 ลบข้อมูลตัวอย่างทั้งหมด</button>
           </div>
           <div id="demoNote" class="hide" style="font-size:11px;color:var(--text3);margin-top:8px">
-            เฉพาะผู้จัดการขึ้นไปที่กดปุ่มเหล่านี้ได้</div>
+            เฉพาะเฉพาะเจ้าของระบบที่กดปุ่มเหล่านี้ได้ — ระบบมีข้อมูลจริงแล้ว</div>
         </div>
       </div>
 
@@ -816,7 +816,7 @@ window.APP_VER='15.3';
           <button class="btn ghost sm hide" id="impOct" style="text-align:left;line-height:1.5">📥 ใส่แผนงานต้นแบบ 1–10 ต.ค. 69<br><span style="font-size:10.5px;opacity:.75">ทีมชาญ · ทีมอารมณ์ · รถ ฬ 7536 · คนขับ ปัญญา<br>4 ไซต์เข้าทะเบียน · 6 ขั้นตอนการทำงานเข้าคลังงาน · 18 ใบงาน</span></button>
           <button class="btn ghost sm hide" id="impReset" style="margin-top:8px;text-align:left;line-height:1.5">↺ ล้างสถานะและ % ของแผน 1–10 ต.ค.<br><span style="font-size:10.5px;opacity:.75">ให้ทุกใบกลับไปเป็น “ยังไม่เข้า 0%” รอให้หน้างานรายงานจริง</span></button>
           <div id="impNote" class="hide" style="font-size:11px;color:var(--text3);margin-top:8px">
-            เฉพาะผู้จัดการขึ้นไปที่นำเข้าได้</div>
+            เฉพาะเฉพาะเจ้าของระบบที่นำเข้าหรือล้างข้อมูลได้</div>
           <div id="impLog" style="font-size:11.5px;color:var(--text2);line-height:1.8;margin-top:9px"></div>
         </div>
       </div>
@@ -1105,7 +1105,7 @@ var IST = {open:{l:'ใหม่',c:'c-red'}, acked:{l:'รับเรื่อ
            resolved:{l:'แก้แล้ว',c:'c-green'}, closed:{l:'ปิดเรื่อง',c:'c-gray'}};
 var AST = {
   assigned  :{l:'ยังไม่เข้า',      c:'c-gray',   x:'#aeaeb2', d:'#6e6e73'},
-  checked_in:{l:'ถึงหน้างาน',      c:'c-purple', x:'#5856d6', d:'#4340b8'},
+  checked_in:{l:'กำลังทำ (เช็คอินแล้ว)', c:'c-purple', x:'#5856d6', d:'#4340b8'},
   working   :{l:'กำลังทำ',         c:'c-blue',   x:'#007AFF', d:'#0062cc'},
   done      :{l:'เสร็จ',           c:'c-green',  x:'#34c759', d:'#1e8e3e'},
   partial   :{l:'ปิดวัน · ค้างต่อ', c:'c-orange', x:'#ff9500', d:'#c26c00'},
@@ -1648,7 +1648,7 @@ function oct69Ck(scope, pg){
 /* ล้างสถานะกับ % ของแผน 1–10 ต.ค. ให้กลับไปเป็น ยังไม่เข้า 0%
    ใช้เมื่อมีตัวเลขที่ไม่ได้มาจากคนหน้างานจริง ติดอยู่ในระบบ */
 async function resetOct69(){
-  if(rank(S.me)<2) return toast('เฉพาะผู้จัดการขึ้นไปที่ทำได้', 3200);
+  if(rank(S.me)<3) return toast('เฉพาะเจ้าของระบบที่ล้างสถานะได้', 3600);
   var d0='2026-10-01', d1='2026-10-10';
   var tids=(S.teams||[]).filter(function(t){ return t.code==='ชาญ' || t.code==='อารมณ์'
       || t.name==='ทีมชาญ' || t.name==='ทีมอารมณ์'; }).map(function(t){ return t.id; });
@@ -1691,7 +1691,7 @@ async function resetOct69(){
 }
 
 async function importOct69(){
-  if(rank(S.me)<2) return toast('เฉพาะผู้จัดการขึ้นไปที่นำเข้าได้', 3200);
+  if(rank(S.me)<3) return toast('เฉพาะเจ้าของระบบที่นำเข้าข้อมูลได้', 3600);
   if(!confirm('ใส่แผนงานต้นแบบ 1–10 ต.ค. 2569\n\n'+
     '• ทีมชาญ และ ทีมอารมณ์ (หัวหน้า ชาญ / อารมณ์)\n'+
     '• ปัญญา คนขับ · รถ ฬ 7536\n'+
@@ -1822,7 +1822,8 @@ async function importOct69(){
 
 function renderDemo(){
   if(!$('demoCnt')) return;
-  var may=rank(S.me)>=2;
+  /* ระบบมีข้อมูลจริงแล้ว ปุ่มกลุ่มนี้จึงเปิดให้เฉพาะเจ้าของระบบขึ้นไป */
+  var may=rank(S.me)>=3;
   showEl('demoSeed', may); showEl('demoClear', may); showEl('demoNote', !may);
   showEl('impOct', may); showEl('impReset', may); showEl('impNote', !may);
   if($('impOct')) $('impOct').onclick=importOct69;
@@ -3040,7 +3041,7 @@ function unclosedPanel(){
       '<b>ระบบไม่ปิดให้เองตอนเที่ยงคืน</b> ตราบใดที่ยังไม่ปิด ของค้างจะไม่ถูกยกไปวันถัดไป '+
       'และเปอร์เซ็นต์ของวันนั้นจะค้างอยู่เท่าเดิมตลอดไป</div>'+
     u.map(function(a){
-      var si=siteOf(a.site_id), t=teamOf(a.team_id), st=AST[a.status]||AST.assigned;
+      var si=siteOf(a.site_id), t=teamOf(a.team_id), st=astOf(a);
       var ck=Array.isArray(a.checklist)?a.checklist:[];
       var dn=ckCount(ck).done;
       return '<button class="ajob" data-u="'+a.id+'" style="border-left-color:'+st.x+';width:100%;margin-bottom:7px">'+
@@ -3118,7 +3119,7 @@ function renderBoard(){
   $('boardN').textContent=list.length+' รายการ'+(nPer? ' · รายคน '+nPer : '');
   if(!list.length){ $('board').innerHTML='<div class="empty"><b>ไม่มีทีมตรงเงื่อนไข</b>ลองเปลี่ยนวันที่ หรือล้างตัวกรอง</div>'; return; }
   $('board').innerHTML=list.map(function(a){
-    var s=siteOf(a.site_id), t=teamOf(a.team_id), st=AST[a.status]||AST.assigned;
+    var s=siteOf(a.site_id), t=teamOf(a.team_id), st=astOf(a);
     var iss=S.issues.filter(function(i){ return i.site_id===a.site_id && i.status!=='closed' && i.status!=='resolved'; }).length;
     var who=a._who;
     return '<div class="brow'+(a._personal?' mine':'')+'" data-id="'+a.id+'"'+(a._personal?' data-personal="1"':'')+'>'+
@@ -3172,7 +3173,7 @@ function renderMap(){
   var tok=++_mapToken, queue=[];
   var list=asgFiltered().concat(saMapJobs()), pts=[], nGps=0;
   list.forEach(function(a){
-    var s=siteOf(a.site_id), t=teamOf(a.team_id), st=AST[a.status]||AST.assigned;
+    var s=siteOf(a.site_id), t=teamOf(a.team_id), st=astOf(a);
     var iss=S.issues.filter(function(i){ return i.site_id===a.site_id&&i.status!=='closed'&&i.status!=='resolved'; }).length;
     var hasCk = geoOn() && a.checkin_lat!=null && a.checkin_lng!=null;
     var hasSite= s.lat!=null && s.lng!=null;
@@ -3480,7 +3481,7 @@ function jobsAt(teamId, d){
   return S.plan.filter(function(a){ return a.team_id===teamId && a.work_date===d; });
 }
 function cellText(a){
-  var si=siteOf(a.site_id), st=AST[a.status]||AST.assigned;
+  var si=siteOf(a.site_id), st=astOf(a);
   return (si.code? si.code+' ' : '')+(si.name||'—')+
     (a.scope? (' — '+a.scope) : '')+
     ' ['+st.l+(a.progress? ' '+pct(a.progress)+'%' : '')+']';
@@ -3636,7 +3637,7 @@ function renderSchedule(){
         if(clash) nClash++;
         var cls='pcell'+(isHoliday(d)?' hol':(dt.getDay()===0?' sun':''))+(d===today?' pcol-today':'')+(clash?' clash':'');
         var inner=jobs.map(function(a){
-          var st=AST[a.status]||AST.assigned, si=siteOf(a.site_id);
+          var st=astOf(a), si=siteOf(a.site_id);
           var iss=S.issues.filter(function(x){ return x.site_id===a.site_id && x.status!=='closed' && x.status!=='resolved'; }).length;
           var carry=/ต่อจาก /.test(a.scope||'');
           var sk=seriesKey(a), ser=SM[sk], nDay=ser? ser.dates.length : 1;
@@ -3677,7 +3678,7 @@ function renderSchedule(){
         var sset={}; list.forEach(function(a){ sset[a.site_id]=1; });
         var nSite=Object.keys(sset).length;
         return list.map(function(a){
-          var st=AST[a.status]||AST.assigned, si=siteOf(a.site_id);
+          var st=astOf(a), si=siteOf(a.site_id);
           var iss=S.issues.filter(function(x){ return x.site_id===a.site_id && x.status!=='closed' && x.status!=='resolved'; }).length;
           var carry=/ต่อจาก /.test(a.scope||'');
           var sk=seriesKey(a), ser=SM[sk], nDay=ser? ser.dates.length : 1;
@@ -3734,7 +3735,7 @@ function renderSchedule(){
             '<div class="vq-h">'+(q.length>1? q.length+' คิว · '+sp.km+' กม.' : '1 คิว')+
               (q[0].driver_name?' · '+esc(q[0].driver_name):'')+
               (sp.far?' <b style="color:#c26c00">ไกลผิดปกติ</b>':'')+'</div>'+
-            q.map(function(a){ var si=siteOf(a.site_id), t=teamOf(a.team_id), st=AST[a.status]||AST.assigned;
+            q.map(function(a){ var si=siteOf(a.site_id), t=teamOf(a.team_id), st=astOf(a);
               return '<div class="vq" style="background:'+vt.bg+';border-color:'+vt.line+'">'+
                 '<span class="vq-n" style="background:'+vt.ink+'">'+(a.vehicle_seq||'?')+'</span>'+
                 '<span class="vq-s"><b>'+esc(si.name||'—')+'</b>'+
@@ -4227,7 +4228,7 @@ function printSchedule(opt){
         return '<td'+(cl?' class="clash"':(isHoliday(x)?' class="hol"':(dt.getDay()===0?' class="sun"':'')))+'>'+
           (cl?'<div class="clash-n">⚠ ซ้อน '+Object.keys(ss).length+' ไซต์</div>':'')+
           (js.length? js.map(function(a){
-            var si=siteOf(a.site_id), st=AST[a.status]||AST.assigned;
+            var si=siteOf(a.site_id), st=astOf(a);
             var sk=seriesKey(a), ser=SM[sk], nD=ser? ser.dates.length : 1, hue=siteHue(a.site_id);
             var box = nD>1
               ? ('background:hsl('+hue+',66%,95%);border:1px solid hsl('+hue+',42%,84%)')
@@ -4304,7 +4305,7 @@ function printSchedule(opt){
             (dn.length? (' · '+esc(dn.join(', '))) : '')+
             (sp.far? ' ⚠ ไกลผิดปกติ' : '')+'</div>'+
           q.map(function(a){
-            var si=siteOf(a.site_id), tm=teamOf(a.team_id), st=AST[a.status]||AST.assigned;
+            var si=siteOf(a.site_id), tm=teamOf(a.team_id), st=astOf(a);
             return '<div class="vq" style="background:'+vt.bg+';border-color:'+vt.line+'">'+
               '<span class="n" style="background:'+vt.ink+'">'+(a.vehicle_seq||'?')+'</span>'+
               '<span><b>'+esc(si.name||'—')+'</b>'+
@@ -4473,7 +4474,7 @@ function exportSchedule(){
     var L=leadInfo(t);
     days.forEach(function(x){
       jobsAt(t.id,x).forEach(function(a){
-        var si=siteOf(a.site_id), st=AST[a.status]||AST.assigned;
+        var si=siteOf(a.site_id), st=astOf(a);
         var ck=Array.isArray(a.checklist)?a.checklist:[];
         flat.push({
           วันที่:x, วัน:DW_TH[new Date(x+'T00:00:00').getDay()],
@@ -4814,7 +4815,7 @@ async function openAsg(id){
   var a=S.asgs.filter(function(x){return x.id===id;})[0] ||
           (S.plan||[]).filter(function(x){return x.id===id;})[0];
   if(!a) return;
-  var s=siteOf(a.site_id), t=teamOf(a.team_id), st=AST[a.status];
+  var s=siteOf(a.site_id), t=teamOf(a.team_id), st=astOf(a);
   $('dwHead').innerHTML='<div style="font-size:15px;font-weight:700;letter-spacing:-.01em">'+esc(s.name||'')+'</div>'+
     '<div style="font-size:11.5px;color:var(--text2);margin-top:2px">'+esc(s.code||'')+' · '+esc(t.name||'')+' <span class="chip '+st.c+'">'+st.l+'</span></div>';
   $('dwBody').innerHTML='<div class="empty"><span class="spin"></span></div>';
@@ -6811,7 +6812,7 @@ $('btnRpRun').onclick=async function(){
   $('exA').onclick=function(){ csv('assignments_'+f+'_'+t, A.map(function(a){
     var s=siteOf(a.site_id), tm=teamOf(a.team_id);
     return {วันที่:a.work_date, รหัสงาน:s.code, ไซต์:s.name, ลูกค้า:s.customer, ทีม:tm.code+' '+tm.name,
-      หัวหน้าทีม:leadInfo(tm).name, เบอร์หัวหน้าทีม:leadInfo(tm).phone, สถานะ:(AST[a.status]||{}).l, คืบหน้า:a.progress,
+      หัวหน้าทีม:leadInfo(tm).name, เบอร์หัวหน้าทีม:leadInfo(tm).phone, สถานะ:astOf(a).l, คืบหน้า:a.progress,
       เช็คอิน:a.checkin_at?fmtDT(a.checkin_at):'',
       ห่างจากไซต์กม: geoOn()&&a.checkin_dist_m!=null?(a.checkin_dist_m/1000).toFixed(2):'',
       พิกัดเช็คอิน: geoOn()&&a.checkin_lat!=null?(a.checkin_lat.toFixed(6)+', '+a.checkin_lng.toFixed(6)):'',
@@ -7154,7 +7155,7 @@ function renderJobs(){
 
 function sectionTitle(s){ return '<div style="padding:15px 16px 2px;font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.5px">'+esc(s)+'</div>'; }
 function jobCard(a){
-  var s=siteOf(a.site_id), st=AST[a.status]||AST.assigned;
+  var s=siteOf(a.site_id), st=astOf(a);
   var iss=S.issues.filter(function(i){ return i.assignment_id===a.id && i.status!=='closed'&&i.status!=='resolved'; }).length;
   var ck=Array.isArray(a.checklist)?a.checklist:[];
   var lab = a.work_date!==todayISO()? dayLabel(a.work_date) : '';
@@ -7241,8 +7242,15 @@ function renderJob(){
                 '<span style="font-size:11.5px;color:var(--text2)"><b>'+lbl+'</b> · '+done+' จาก '+tot+' ข้อ</span></div>'+
               '<div class="bar" style="height:7px"><i style="width:'+val+'%;background:'+col+'"></i></div></div>';
           };
-          return (_sp.std.length? line('งานตามแผน', pct(a.progress), _sc.done, _sp.std.length,
-                    (pct(a.progress)>=100?'var(--green)':'var(--accent)')) : '')+
+          var _live=_sp.std.length? ckProgress(_sp.std, true) : 0;   /* ที่ติ๊กไว้ตอนนี้ */
+          var _sent=pct(a.progress);                                  /* ที่ส่งให้ออฟฟิศไปแล้ว */
+          return (_sp.std.length? line('งานตามแผน', _live, _sc.done, _sp.std.length,
+                    (_live>=100?'var(--green)':'var(--accent)')) : '')+
+                 (_sp.std.length && _live!==_sent
+                   ? ('<div style="font-size:11px;line-height:1.7;color:#8a4b00;background:var(--orange-dim);'+
+                      'border:1px solid rgba(255,149,0,.3);border-radius:9px;padding:7px 10px;margin:-2px 0 10px">'+
+                      'ติ๊กไว้ <b>'+_live+'%</b> แต่ออฟฟิศยังเห็น <b>'+_sent+'%</b><br>'+
+                      'กด “ส่งรายงานความคืบหน้า” พร้อมแนบรูป เปอร์เซ็นต์ถึงจะขึ้นหน้าออฟฟิศ</div>') : '')+
                  (_sp.other.length? line('งานเพิ่มเติม', _op, _oc.done, _sp.other.length, '#5856d6') : '');
         })()+
         '</div>'+
@@ -7376,7 +7384,7 @@ async function doCheckin(a){
     btn.disabled=false; btn.textContent='📍 เช็คอินถึงหน้างาน'; return;
   }
   var now=new Date().toISOString();
-  var upd={checkin_at:now, status:'working', checkin_lat:pos?pos.lat:null, checkin_lng:pos?pos.lng:null,
+  var upd={checkin_at:now, status:(pct(a.progress)>0?'working':'checked_in'), checkin_lat:pos?pos.lat:null, checkin_lng:pos?pos.lng:null,
     checkin_dist_m:d, checkin_acc_m:pos?pos.acc:null};
   var rep={assignment_id:a._personal?null:a.id, staff_assign_id:a._personal?a.id:null, site_id:a.site_id, team_id:S.team.id, kind:'checkin',
     note:'เช็คอินถึงหน้างาน'+(d!=null?' (ห่างไซต์ '+fmtDist(d)+')':'')+(pos&&pos.acc?' · GPS ±'+pos.acc+' ม.':''),
@@ -7401,13 +7409,31 @@ async function doCheckin(a){
   }
 }
 
+/* สถานะที่ควรเป็นของงานที่ยังไม่ปิด — ต้องสะท้อนของจริงที่หน้างานทำ
+     ยังไม่เช็คอิน และยังไม่ติ๊กอะไร = ยังไม่เข้า
+     เช็คอินแล้วแต่ยังไม่ติ๊กอะไร   = ถึงหน้างาน
+     ติ๊กแล้วอย่างน้อย 1 ข้อ       = กำลังทำ                                   */
+function liveStatus(a, p){
+  if(p>0) return 'working';
+  return (a && a.checkin_at) ? 'checked_in' : 'assigned';
+}
+/* สถานะที่ระบบขยับเองได้ — งานที่ปิดหรือติดปัญหาแล้ว คนหน้างานต้องสั่งเอง */
+function liveOK(st){ return st==='assigned' || st==='checked_in' || st==='working'; }
+/* สถานะที่เอาไปแสดง — แก้แถวเก่าที่สถานะไม่ตรงกับของจริงให้ด้วย
+   เช่น เคยเป็น “กำลังทำ” ทั้งที่ 0% และยังไม่เช็คอิน ไม่เขียนฐาน แค่แสดงให้ถูก */
+function effStatus(a){
+  var st=(a && a.status) || 'assigned';
+  return liveOK(st) ? liveStatus(a, pct(a && a.progress)) : st;
+}
+function astOf(a){ return AST[effStatus(a)] || AST.assigned; }
+
 /* เขียนเช็กลิสต์กลับฐาน — จุดเดียวที่คำนวณ progress ใหม่ */
 async function ckSave(a, ck, opt){
+  /* ติ๊กเช็กลิสต์ = เก็บร่างไว้เฉย ๆ
+     เปอร์เซ็นต์กับสถานะที่ออฟฟิศเห็น จะขยับก็ต่อเมื่อกดส่งรายงาน ซึ่งบังคับแนบรูปเท่านั้น */
   ck=ck.map(ckNorm);
-  var p=ckProgress(ck);
-  var upd={checklist:ck, progress:p};
-  if(a.status==='assigned' && (p>0 || (opt&&opt.start))) upd.status='working';
-  a.checklist=ck; a.progress=p;
+  var upd={checklist:ck};
+  a.checklist=ck;
   if(!(opt&&opt.quiet)) renderTeam();
   try{ dbOK(await db.from(jobTable(a)).update(jobPatch(a,upd)).eq('id',a.id)); }
   catch(e){
@@ -7697,7 +7723,7 @@ function reportSheet(a){
     var blocked = wantIssue && $('isBlock') && $('isBlock').checked;
     var upd = alsoClose
       ? {progress:p, status: full? 'done' : 'partial', checkout_at:now}
-      : {progress:p, status: blocked? 'blocked' : (a.status==='assigned'?'working':a.status)};
+      : {progress:p, status: blocked? 'blocked' : (liveOK(a.status)? liveStatus(a,p) : a.status)};
     try{
       dbOK(await db.from('it_reports').insert(rep));
       dbOK(await db.from(jobTable(a)).update(jobPatch(a,upd)).eq('id',a.id));
@@ -7841,7 +7867,7 @@ async function reopenDay(a){
   if(a.work_date!==todayISO()) msg+='\n\n⚠️ งานนี้เป็นของวันที่ '+dayText(a.work_date)+' ไม่ใช่วันนี้';
   if(!confirm(msg)) return;
 
-  var upd={status:'working', checkout_at:null};
+  var upd={status:liveStatus(a, pct(a.progress)), checkout_at:null};
   var rep={assignment_id:a._personal?null:a.id, staff_assign_id:a._personal?a.id:null, site_id:a.site_id, team_id:S.team.id, kind:'progress', progress:pct(a.progress),
     note:'เปิดงานต่อเพื่อแก้ไข (จาก '+was+')', created_by:meName(), staff_id:S.me.id};
   try{
