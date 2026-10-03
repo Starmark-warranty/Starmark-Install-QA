@@ -623,7 +623,7 @@ body.preview #previewBar{display:flex}
 
 <script>
 /* ── ยามเฝ้า splash: อยู่นอกสคริปต์หลัก ถ้าสคริปต์หลักพัง ตัวนี้ยังทำงาน ── */
-window.APP_VER='14.6';
+window.APP_VER='14.8';
 (function(){
   var fill=function(){
     var a=document.querySelectorAll('.ver');
@@ -813,7 +813,7 @@ window.APP_VER='14.6';
             กดปุ่ม “ลบข้อมูลตัวอย่าง” แล้วจะไม่หาย · หลังนำเข้าแล้ว <b>แก้ไข ลบ ย้ายวัน ใส่พิกัด เพิ่มลูกทีม ได้ตามปกติทุกจุด</b>
             · กดซ้ำได้ ของที่มีอยู่แล้วจะไม่ถูกสร้างซ้ำ
           </div>
-          <button class="btn ghost sm hide" id="impOct" style="text-align:left;line-height:1.5">📥 ใส่แผนงานต้นแบบ 1–10 ต.ค. 69<br><span style="font-size:10.5px;opacity:.75">ทีมชาญ · ทีมอารมณ์ · รถ ฬ 7536 · คนขับ ปัญญา · 18 ใบงาน</span></button>
+          <button class="btn ghost sm hide" id="impOct" style="text-align:left;line-height:1.5">📥 ใส่แผนงานต้นแบบ 1–10 ต.ค. 69<br><span style="font-size:10.5px;opacity:.75">ทีมชาญ · ทีมอารมณ์ · รถ ฬ 7536 · คนขับ ปัญญา<br>4 ไซต์เข้าทะเบียน · 6 ขั้นตอนการทำงานเข้าคลังงาน · 18 ใบงาน</span></button>
           <div id="impNote" class="hide" style="font-size:11px;color:var(--text3);margin-top:8px">
             เฉพาะผู้จัดการขึ้นไปที่นำเข้าได้</div>
           <div id="impLog" style="font-size:11.5px;color:var(--text2);line-height:1.8;margin-top:9px"></div>
@@ -1700,6 +1700,32 @@ async function importOct69(){
       }else say('· มีไซต์ '+s.name+' อยู่แล้ว');
       simap[s.name]=h3.id;
     }
+    /* คลังงาน — ใส่ขั้นตอนการทำงานทั้ง 6 แบบ ครั้งต่อไปจะกดเลือกได้เลย ไม่ต้องพิมพ์เอง */
+    var allW=(ck(await db.from('it_work_items').select('*')).data)||[];
+    var wsort=allW.reduce(function(n,x){ return Math.max(n, +x.sort||0); },0)+10;
+    var wIcon={'ติดตั้งซุ้มงานโชว์':'\ud83c\udfd7',
+               'ติดตั้งชุดโชว์':'\ud83d\udecb',
+               'ติดตั้งงานต้นแบบ':'\ud83d\udcd0',
+               'ติดตั้งออฟฟิศเฟอร์นิเจอร์':'\ud83e\ude91',
+               'เข้ารื้อออฟฟิศเฟอร์นิเจอร์':'\ud83d\udd27',
+               'รื้อแพ็คงานออฟฟิศเฟอร์นิเจอร์':'\ud83d\udce6'};
+    var wkeys=Object.keys(OCT69_CK), wNew=0;
+    for(i=0;i<wkeys.length;i++){
+      var lb=wkeys[i];
+      if(allW.filter(function(x){ return String(x.label||'')===lb; }).length) continue;
+      var wp={category:'งานต้นแบบ', label:lb, icon:wIcon[lb]||'\ud83d\udd27',
+              tasks:OCT69_CK[lb].slice(), item_mode:'work', check_mode:false,
+              sort:wsort, active:true};
+      var rw=await db.from('it_work_items').insert(wp);
+      if(rw.error && /(check_mode|item_mode)/i.test(rw.error.message||'')){
+        delete wp.check_mode; delete wp.item_mode;
+        rw=await db.from('it_work_items').insert(wp);
+      }
+      ck(rw); wsort++; wNew++;
+    }
+    say(wNew? ('✓ เพิ่มขั้นตอนการทำงานเข้าคลังงาน '+wNew+' รายการ · หมวด งานต้นแบบ')
+            : '· ขั้นตอนการทำงานมีในคลังงานอยู่แล้ว');
+
     /* ใบงาน */
     var rows=OCT69_JOBS.map(function(j){
       return {site_id:simap[j[2]], team_id:(j[1]==='C'? tmap['ชาญ'] : tmap['อารมณ์']),
@@ -6508,8 +6534,22 @@ function teamForm(id){
     closeSheet(); toast('บันทึกทีมแล้ว'); loadMgr();
   };
   if(id) $('g_del').onclick=async function(){
-    if(!confirm('ลบทีมนี้?\nคนในทีมจะกลับไปเป็นสถานะรอจัดทีม')) return;
-    await db.from('it_teams').delete().eq('id',id); closeSheet(); toast('ลบแล้ว'); loadMgr();
+    /* เดิมขึ้นว่า “ลบแล้ว” ทุกครั้ง แม้ฐานข้อมูลจะปຏิเสธเพราะยังมีใบงานผูกอยู่ */
+    var nMem=teamStaff(id).length;
+    var nJob=(S.plan||[]).filter(function(a){ return a.team_id===id; }).length;
+    if(!confirm('ลบทีม '+(teamOf(id).name||'')+' ?\n\n'+
+        (nMem? ('• สมาชิก '+nMem+' คนจะกลับไปเป็นสถานะรอจัดทีม\n') : '• ทีมนี้ไม่มีสมาชิก\n')+
+        (nJob? ('• ช่วงวันที่เปิดดูอยู่ ทีมนี้มีใบงาน '+nJob+' ใบ — ต้องย้ายหรือลบใบงานก่อน\n') : '')+
+        '\nลบแล้วกู้คืนไม่ได้ ยืนยันหรือไม่?')) return;
+    this.disabled=true;
+    var r=await db.from('it_teams').delete().eq('id',id);
+    if(r.error){
+      this.disabled=false;
+      return toast(/foreign key|violates|constraint/i.test(r.error.message||'')
+        ? 'ลบไม่ได้ เพราะยังมีใบงานหรือข้อมูลอื่นผูกอยู่กับทีมนี้ — ย้ายหรือลบใบงานของทีมนี้ก่อน หรือติ๊กปิดใช้งานแทนก็ได้'
+        : ('ลบไม่สำเร็จ: '+r.error.message), 6500);
+    }
+    closeSheet(); toast('ลบทีมแล้ว'); loadMgr();
   };
 }
 
