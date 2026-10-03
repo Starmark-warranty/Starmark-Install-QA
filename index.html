@@ -623,7 +623,7 @@ body.preview #previewBar{display:flex}
 
 <script>
 /* ── ยามเฝ้า splash: อยู่นอกสคริปต์หลัก ถ้าสคริปต์หลักพัง ตัวนี้ยังทำงาน ── */
-window.APP_VER='16.3';
+window.APP_VER='16.4';
 (function(){
   var fill=function(){
     var a=document.querySelectorAll('.ver');
@@ -2030,6 +2030,17 @@ function vehForm(id){
                            :'background:hsl('+h+',66%,92%);border-color:hsl('+h+',42%,80%)';
         return '<button type="button" class="huebx'+(on?' on':'')+'" data-hue="'+h+'" style="'+st+'">'+(h==='auto'?'อัตโนมัติ':'')+'</button>';
       }).join('')+'</div></div>'+
+    '<div class="fld"><label>จุดเริ่มต้นของรถคันนี้</label><select id="v_home">'+
+      '<option value="">— ยังไม่ตั้ง · ระยะจะนับจากไซต์แรกเท่านั้น —</option>'+
+      (S.pins||[]).map(function(x){
+        var on=(v.home_lat!=null && Math.abs(+v.home_lat-+x.lat)<1e-6 && Math.abs(+v.home_lng-+x.lng)<1e-6);
+        return '<option value="'+x.id+'"'+(on?' selected':'')+'>\ud83d\udccd '+esc(x.label)+'</option>'; }).join('')+
+      '</select>'+
+      '<div style="font-size:10.5px;color:var(--text2);margin-top:5px;line-height:1.6">'+
+        'ระยะของวันจะเริ่มนับจากจุดนี้ไปไซต์แรก · '+
+        'เพิ่มจุดใหม่ได้ที่ Work &amp; Site → หมุดพิกัดประจำ'+
+        (v.home_label? ('<br>ตอนนี้: <b>'+esc(v.home_label)+'</b>') : '')+
+      '</div></div>'+
     f('หมายเหตุ','v_note',v.note,'')+
     '<label style="display:flex;gap:7px;align-items:center;font-size:12.5px;margin-top:4px">'+
       '<input type="checkbox" id="v_act"'+(v.active!==false?' checked':'')+'> เปิดใช้งานรถคันนี้</label>',
@@ -2050,9 +2061,22 @@ function vehForm(id){
       driver_name:$('v_drv').value.trim()||null, driver_phone:$('v_drvp').value.trim()||null,
       tax_to:$('v_tax').value||null, insure_to:$('v_ins').value||null,
       color_hue:hue, note:$('v_note').value.trim()||null, active:$('v_act').checked};
+    /* จุดเริ่มต้น — เก็บพิกัดไว้กับรถ เผื่อหมุดถูกแก้หรือลบทีหลัง */
+    if($('v_home')){
+      var hp=(S.pins||[]).filter(function(x){ return x.id===$('v_home').value; })[0];
+      p.home_label = hp? hp.label : null;
+      p.home_lat   = hp? hp.lat   : null;
+      p.home_lng   = hp? hp.lng   : null;
+    }
     if(!p.code) return toast('ต้องมีเบอร์รถ');
     this.disabled=true;
-    var r = id? await db.from('it_vehicles').update(p).eq('id',id) : await db.from('it_vehicles').insert(p);
+    var save=async function(pp){ return id? db.from('it_vehicles').update(pp).eq('id',id) : db.from('it_vehicles').insert(pp); };
+    var r = await save(p);
+    if(r.error && /home_(label|lat|lng)/i.test(r.error.message||'')){
+      delete p.home_label; delete p.home_lat; delete p.home_lng;   /* ฐานยังไม่มีคอลัมน์จุดเริ่ม */
+      r = await save(p);
+      if(!r.error) toast('บันทึกแล้ว แต่จุดเริ่มต้นยังใช้ไม่ได้ — ต้องเพิ่มคอลัมน์ home_lat/home_lng ในตาราง it_vehicles ก่อน', 6000);
+    }
     if(r.error){ toast(r.error.message||'บันทึกไม่สำเร็จ',5000); this.disabled=false; return; }
     closeSheet(); toast('บันทึกแล้ว'); loadMgr();
   };
@@ -2177,7 +2201,7 @@ async function vehQueueSheet(key){
   var mine=vehQueue(vid, d);
   var free=(S.plan||[]).filter(function(a){ return a.work_date===d && !a.vehicle_id; })
     .sort(function(a,b){ return (siteOf(a.site_id).name||'')<(siteOf(b.site_id).name||'')?-1:1; });
-  var sp=vehSpan(mine);
+  var sp=vehSpan(mine, v);
 
   var line=function(a,i){
     var si=siteOf(a.site_id), t=teamOf(a.team_id), gap='';
@@ -2198,7 +2222,16 @@ async function vehQueueSheet(key){
   sheet('คิวรถ '+esc(v.code||'')+' · '+esc(dayText(d)),
     '<div style="font-size:11.5px;color:var(--text2);line-height:1.75;margin-bottom:12px">'+
       esc((v.kind||'')+(v.plate?' · '+v.plate:'')+(v.driver_name?' · คนขับ '+v.driver_name:''))+
-      (mine.length>1?'<br>วิ่ง '+mine.length+' จุด ระยะรวมประมาณ '+sp.km+' กม.':'')+
+      (mine.length? ('<br>วิ่ง '+mine.length+' จุด · ระยะรวม <b style="color:var(--text)">'+sp.km+' กม.</b> (เส้นตรง ไม่นับขากลับ)') : '')+
+      (mine.length? ('<div style="margin-top:8px;padding:9px 11px;background:var(--s1);border:1px solid var(--border);'+
+        'border-radius:10px;font-size:11px;line-height:1.85;color:var(--text2)">'+
+        (sp.noHome
+          ? '<b style="color:#8a4b00">ยังไม่ได้ตั้งจุดเริ่มต้นของรถคันนี้</b> — ระยะที่เห็นนับจากไซต์แรกเท่านั้น ยังไม่รวมขาออก<br>ตั้งได้ที่ปุ่มแก้รายละเอียดรถ<br>'
+          : '')+
+        sp.legs.map(function(l){
+          return '<span style="color:'+(l.km>VEH_FAR_KM?'#c26c00':'var(--text2)')+'">'+
+            esc(l.from)+' → '+esc(l.to)+' <b>'+l.km.toFixed(1)+' กม.</b></span>'; }).join('<br>')+
+        '</div>') : '')+
       (sp.far?'<br><b style="color:#c26c00">มีจุดที่ห่างจากจุดก่อนหน้าเกิน '+VEH_FAR_KM+' กม. ควรแยกคันหรือสลับลำดับ</b>':'')+
     '</div>'+
     (mine.length
@@ -2311,15 +2344,31 @@ function vehQueue(vid, date){
     .sort(function(a,b){ return (a.vehicle_seq||99)-(b.vehicle_seq||99); });
 }
 /* ระยะรวมของคิว และจุดที่ห่างจากจุดก่อนหน้ามากผิดปกติ */
-function vehSpan(q){
-  var tot=0, far=0;
-  for(var i=1;i<q.length;i++){
-    var A=siteOf(q[i-1].site_id), B=siteOf(q[i].site_id);
-    if(A.lat==null||B.lat==null) continue;
-    var d=dist(A.lat,A.lng,B.lat,B.lng)/1000;
-    tot+=d; if(d>VEH_FAR_KM) far++;
+/* ระยะของคิวหนึ่งวัน — นับเป็นช่วง ๆ
+   จุดตั้งต้นของรถ → ไซต์ที่ 1 → ไซต์ที่ 2 …  (ไม่นับขากลับตามที่ตกลงกัน)
+   ถ้ารถยังไม่ได้ตั้งจุดเริ่ม จะข้ามช่วงแรกไป และติดธง noHome ไว้ให้หน้าจอบอก */
+function vehLegs(q, veh){
+  var legs=[], prev=null, plabel=null;
+  if(veh && veh.home_lat!=null && veh.home_lng!=null){
+    prev={lat:+veh.home_lat, lng:+veh.home_lng};
+    plabel=veh.home_label||'จุดตั้งต้น';
   }
-  return {km:Math.round(tot), far:far};
+  /* ยังไม่ได้ตั้งจุดเริ่ม — คิดระยะระหว่างไซต์ไปก่อนเหมือนเดิม จะได้ไม่เห็นเลขหายไปเฉย ๆ */
+  for(var i=0;i<q.length;i++){
+    var B=siteOf(q[i].site_id);
+    if(prev && B.lat!=null && prev.lat!=null){
+      var km=dist(prev.lat,prev.lng,B.lat,B.lng)/1000;
+      legs.push({from:plabel, to:(B.name||'—'), km:km, seq:i});
+    }
+    if(B.lat!=null){ prev={lat:+B.lat, lng:+B.lng}; plabel=B.name||'—'; }
+  }
+  return legs;
+}
+function vehSpan(q, veh){
+  var legs=vehLegs(q, veh), tot=0, far=0;
+  legs.forEach(function(l){ tot+=l.km; if(l.km>VEH_FAR_KM) far++; });
+  return {km:Math.round(tot), far:far, legs:legs,
+          noHome: !(veh && veh.home_lat!=null && veh.home_lng!=null)};
 }
 var VEH_FAR_KM=40;   /* ห่างเกินนี้ถือว่าไม่ควรอยู่คิวเดียวกัน */
 
@@ -3830,9 +3879,9 @@ function renderSchedule(){
           var nFree=(S.plan||[]).filter(function(a){ return a.work_date===d && !a.vehicle_id; }).length;
           if(!q.length) return '<td class="pcell" data-vq="'+v.id+'|'+d+'">'+
             (nFree? '<div class="padd">+</div>' : '')+'</td>';
-          var sp=vehSpan(q);
+          var sp=vehSpan(q, v);
           return '<td class="pcell'+(sp.far?' clash':'')+'" data-vq="'+v.id+'|'+d+'">'+
-            '<div class="vq-h">'+(q.length>1? q.length+' คิว · '+sp.km+' กม.' : '1 คิว')+
+            '<div class="vq-h">'+(q.length+' คิว'+(sp.km? (' · '+sp.km+' กม.'+(sp.noHome?'*':'')) : ''))+
               (q[0].driver_name?' · '+esc(q[0].driver_name):'')+
               (sp.far?' <b style="color:#c26c00">ไกลผิดปกติ</b>':'')+'</div>'+
             q.map(function(a){ var si=siteOf(a.site_id), t=teamOf(a.team_id), st=astOf(a);
@@ -4397,11 +4446,11 @@ function printSchedule(opt){
         var dt=new Date(x+'T00:00:00');
         var q=vehQueue(v.id, x);
         if(!q.length) return '<td'+(isHoliday(x)?' class="hol"':(dt.getDay()===0?' class="sun"':''))+'></td>';
-        var sp=vehSpan(q);
+        var sp=vehSpan(q, v);
         var drv={}; q.forEach(function(a){ if(a.driver_name) drv[a.driver_name]=1; });
         var dn=Object.keys(drv);
         return '<td'+(sp.far?' class="clash"':'')+'><div class="vqh">'+
-            (q.length>1? (q.length+' คิว · '+sp.km+' กม.') : '1 คิว')+
+            (q.length+' คิว'+(sp.km? (' · '+sp.km+' กม.'+(sp.noHome?'*':'')) : ''))+
             (dn.length? (' · '+esc(dn.join(', '))) : '')+
             (sp.far? ' ⚠ ไกลผิดปกติ' : '')+'</div>'+
           q.map(function(a){
@@ -4448,6 +4497,7 @@ function printSchedule(opt){
     return '<div class="lg"><span><b style="color:#111">เลขหน้าไซต์</b> = ลำดับคิวที่รถต้องวิ่ง</span>'+
       '<span><span class="bx" style="background:#fff5e6;border-color:#d98800"></span>ระยะระหว่างจุดไกลผิดปกติ (เกิน '+VEH_FAR_KM+' กม.) ควรทบทวนคิว</span>'+
       '<span>ช่องว่าง = วันนั้นรถคันนี้ยังไม่มีคิว</span>'+
+      '<span>ระยะ = จุดตั้งต้นรถ → ทุกไซต์ตามลำดับ (ไม่นับขากลับ) · * = ยังไม่ได้ตั้งจุดตั้งต้น</span>'+
     '</div>';
   }
   function sigHTML(){
