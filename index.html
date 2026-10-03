@@ -623,7 +623,7 @@ body.preview #previewBar{display:flex}
 
 <script>
 /* ── ยามเฝ้า splash: อยู่นอกสคริปต์หลัก ถ้าสคริปต์หลักพัง ตัวนี้ยังทำงาน ── */
-window.APP_VER='14.4';
+window.APP_VER='14.5';
 (function(){
   var fill=function(){
     var a=document.querySelectorAll('.ver');
@@ -802,6 +802,21 @@ window.APP_VER='14.4';
           </div>
           <div id="demoNote" class="hide" style="font-size:11px;color:var(--text3);margin-top:8px">
             เฉพาะผู้จัดการขึ้นไปที่กดปุ่มเหล่านี้ได้</div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:12px">
+        <div class="card-h"><span>นำเข้าแผนงานสำเร็จรูป</span></div>
+        <div style="padding:12px 14px 14px">
+          <div style="font-size:11.5px;color:var(--text2);line-height:1.75;margin-bottom:10px">
+            ใส่แผนที่เตรียมไว้ให้ทีเดียวจบ แทนการคีย์ทีละใบ — ที่ใส่เข้าไปเป็น<b>ข้อมูลจริง</b> ไม่ใช่ข้อมูลตัวอย่าง
+            กดปุ่ม “ลบข้อมูลตัวอย่าง” แล้วจะไม่หาย · หลังนำเข้าแล้ว <b>แก้ไข ลบ ย้ายวัน ใส่พิกัด เพิ่มลูกทีม ได้ตามปกติทุกจุด</b>
+            · กดซ้ำได้ ของที่มีอยู่แล้วจะไม่ถูกสร้างซ้ำ
+          </div>
+          <button class="btn ghost sm hide" id="impOct" style="text-align:left;line-height:1.5">📥 ใส่แผนงานต้นแบบ 1–10 ต.ค. 69<br><span style="font-size:10.5px;opacity:.75">ทีมชาญ · ทีมอารมณ์ · รถ ฬ 7536 · คนขับ ปัญญา · 18 ใบงาน</span></button>
+          <div id="impNote" class="hide" style="font-size:11px;color:var(--text3);margin-top:8px">
+            เฉพาะผู้จัดการขึ้นไปที่นำเข้าได้</div>
+          <div id="impLog" style="font-size:11.5px;color:var(--text2);line-height:1.8;margin-top:9px"></div>
         </div>
       </div>
     </div>
@@ -1550,10 +1565,169 @@ function otPromote(x){
   };
 }
 
+/* ═════ แผนงานต้นแบบ 1–10 ต.ค. 2569 — นำเข้าด้วยปุ่มเดียว ═════
+   ทุกแถวที่ใส่เข้าเป็นข้อมูลจริง แก้ไขเองได้ทั้งหมด และไม่หายตอนกดลบข้อมูลตัวอย่าง   */
+var OCT69_TEAMS=[{code:'ชาญ',name:'ทีมชาญ'},{code:'อารมณ์',name:'ทีมอารมณ์'}];
+var OCT69_STAFF=[{emp:'CHAN', name:'ชาญ',  team:'ชาญ',  lead:true},
+                 {emp:'AROM', name:'อารมณ์',team:'อารมณ์',lead:true},
+                 {emp:'PANYA',name:'ปัญญา', team:null,  lead:false}];
+var OCT69_VEH={code:'ฬ7536', plate:'ฬ 7536', kind:'รถบรรทุก', driver_name:'ปัญญา', color_hue:30};
+var OCT69_SITES=[{name:'CDD',           category:'โชว์รูม', start_date:'2026-10-01'},
+                 {name:'CDC',           category:'โชว์รูม', start_date:'2026-10-02'},
+                 {name:'ลิฟวิ่ง สายใต้',category:'โชว์รูม', start_date:'2026-10-01'},
+                 {name:'แพนแปซิฟิก',  category:'โรงแรม', start_date:'2026-10-05'}];
+var OCT69_CK={
+  'ติดตั้งซุ้มงานโชว์':
+    ['ตรวจพื้นที่และระยะก่อนตั้ง','ประกอบโครงซุ้ม','ติดตั้งแผงและไฟ',
+     'เก็บงาน ทำความสะอาด','ถ่ายรูปส่งงาน'],
+  'ติดตั้งชุดโชว์':
+    ['เช็กของตามใบส่งของ','จัดวางตามแปลน','ติดตั้งและปรับระดับ',
+     'เก็บรายละเอียดผิวงาน','ถ่ายรูปส่งงาน'],
+  'ติดตั้งงานต้นแบบ':
+    ['เช็กแบบกับหน้างาน','ประกอบงานต้นแบบ','ติดตั้งและปรับแนว',
+     'ตรวจความเรียบร้อย','ถ่ายรูปส่งงาน'],
+  'ติดตั้งออฟฟิศเฟอร์นิเจอร์':
+    ['เช็กของหน้างาน','ประกอบโต๊ะ–ตู้','ติดตั้งเข้าตำแหน่ง',
+     'ปรับบานและระดับ','เก็บงาน ถ่ายรูปส่ง'],
+  'เข้ารื้อออฟฟิศเฟอร์นิเจอร์':
+    ['ถ่ายรูปก่อนรื้อ','ถอดและแยกชิ้นส่วน','ตรวจความเสียหาย','เคลียร์พื้นที่'],
+  'รื้อแพ็คงานออฟฟิศเฟอร์นิเจอร์':
+    ['ถ่ายรูปก่อนรื้อ','รื้อและแพ็คลงลัง','ติดป้ายระบุชิ้นงาน','ขึ้นรถ ตรวจจำนวน']
+};
+/* [วันที่, 'C'=ทีมชาญ คิวรถที่ 1 / 'A'=ทีมอารมณ์ คิวที่ 2, ไซต์, งาน, สถานะ, %] */
+var OCT69_JOBS=[
+  ['2026-10-01','C','CDD','ติดตั้งซุ้มงานโชว์','done',100],
+  ['2026-10-01','A','ลิฟวิ่ง สายใต้','ติดตั้งออฟฟิศเฟอร์นิเจอร์','done',100],
+  ['2026-10-02','C','CDC','ติดตั้งชุดโชว์','done',100],
+  ['2026-10-02','A','ลิฟวิ่ง สายใต้','ติดตั้งออฟฟิศเฟอร์นิเจอร์','done',100],
+  ['2026-10-03','C','CDC','ติดตั้งชุดโชว์','working',60],
+  ['2026-10-03','A','ลิฟวิ่ง สายใต้','ติดตั้งออฟฟิศเฟอร์นิเจอร์','working',40],
+  ['2026-10-05','C','แพนแปซิฟิก','ติดตั้งงานต้นแบบ','assigned',0],
+  ['2026-10-05','A','ลิฟวิ่ง สายใต้','ติดตั้งออฟฟิศเฟอร์นิเจอร์','assigned',0],
+  ['2026-10-06','C','แพนแปซิฟิก','ติดตั้งงานต้นแบบ','assigned',0],
+  ['2026-10-06','A','ลิฟวิ่ง สายใต้','ติดตั้งออฟฟิศเฟอร์นิเจอร์','assigned',0],
+  ['2026-10-07','C','แพนแปซิฟิก','ติดตั้งงานต้นแบบ','assigned',0],
+  ['2026-10-07','A','ลิฟวิ่ง สายใต้','ติดตั้งออฟฟิศเฟอร์นิเจอร์','assigned',0],
+  ['2026-10-08','C','แพนแปซิฟิก','ติดตั้งงานต้นแบบ','assigned',0],
+  ['2026-10-08','A','CDC','เข้ารื้อออฟฟิศเฟอร์นิเจอร์','assigned',0],
+  ['2026-10-09','C','แพนแปซิฟิก','ติดตั้งงานต้นแบบ','assigned',0],
+  ['2026-10-09','A','CDC','รื้อแพ็คงานออฟฟิศเฟอร์นิเจอร์','assigned',0],
+  ['2026-10-10','C','แพนแปซิฟิก','ติดตั้งงานต้นแบบ','assigned',0],
+  ['2026-10-10','A','ลิฟวิ่ง สายใต้','ติดตั้งออฟฟิศเฟอร์นิเจอร์','assigned',0]
+];
+function oct69Ck(scope, pg){
+  var L=OCT69_CK[scope]||[], n=L.length||1;
+  return L.map(function(l,i){
+    var on = Math.round((i+1)*100/n) <= pg;
+    return {label:l, st:(on?100:0), done:on, w:1};
+  });
+}
+async function importOct69(){
+  if(rank(S.me)<2) return toast('เฉพาะผู้จัดการขึ้นไปที่นำเข้าได้', 3200);
+  if(!confirm('ใส่แผนงานต้นแบบ 1–10 ต.ค. 2569\n\n'+
+    '• ทีมชาญ และ ทีมอารมณ์ (หัวหน้า ชาญ / อารมณ์)\n'+
+    '• ปัญญา คนขับ · รถ ฬ 7536\n'+
+    '• ไซต์ CDD · CDC · ลิฟวิ่ง สายใต้ · แพนแปซิฟิก (ยังไม่ใส่พิกัด)\n'+
+    '• ใบงาน 18 ใบ จัดคิวรถให้ครบ\n\n'+
+    'ของที่มีอยู่แล้วจะไม่ถูกสร้างซ้ำ ยืนยันหรือไม่?')) return;
+
+  var btn=$('impOct'), html=btn? btn.innerHTML : '';
+  if(btn){ btn.disabled=true; btn.textContent='กำลังนำเข้า…'; }
+  var log=$('impLog'), lines=[];
+  var say=function(t){ lines.push(t); if(log) log.innerHTML=lines.map(function(x){return esc(x);}).join('<br>'); };
+  var ck=function(r){ if(r && r.error) throw new Error(r.error.message||'บันทึกไม่สำเร็จ'); return r; };
+  try{
+    /* ทีม */
+    var tmap={}, allT=(ck(await db.from('it_teams').select('*')).data)||[];
+    for(var i=0;i<OCT69_TEAMS.length;i++){
+      var t=OCT69_TEAMS[i];
+      var hit=allT.filter(function(x){ return x.code===t.code || x.name===t.name; })[0];
+      if(!hit){
+        hit=ck(await db.from('it_teams').insert({code:t.code,name:t.name,active:true,pin:'-'}).select().single()).data;
+        say('✓ สร้างทีม '+t.name);
+      }else say('· มีทีม '+hit.name+' อยู่แล้ว');
+      tmap[t.code]=hit.id;
+    }
+    /* พนักงาน */
+    var smap={}, allS=(ck(await db.from('it_staff').select('*')).data)||[];
+    for(i=0;i<OCT69_STAFF.length;i++){
+      var p=OCT69_STAFF[i], tid=p.team? tmap[p.team] : null;
+      var h2=allS.filter(function(x){ return x.emp_code===p.emp; })[0];
+      if(!h2){
+        h2=ck(await db.from('it_staff').insert({emp_code:p.emp,name:p.name,team_id:tid,is_leader:!!p.lead,
+          role:'staff',approved:true,active:true}).select().single()).data;
+        say('✓ เพิ่มพนักงาน '+p.name+' ('+p.emp+')');
+      }else{
+        ck(await db.from('it_staff').update({team_id:tid,is_leader:!!p.lead,approved:true,active:true}).eq('id',h2.id));
+        say('· อัปเดตพนักงาน '+p.name);
+      }
+      smap[p.emp]=h2.id;
+    }
+    /* ให้มีหัวหน้าทีมละคน */
+    await db.from('it_staff').update({is_leader:false}).eq('team_id',tmap['ชาญ']).neq('id',smap.CHAN);
+    await db.from('it_staff').update({is_leader:false}).eq('team_id',tmap['อารมณ์']).neq('id',smap.AROM);
+    /* รถ */
+    var allV=(ck(await db.from('it_vehicles').select('*')).data)||[];
+    var vh=allV.filter(function(x){ return x.code===OCT69_VEH.code || x.plate===OCT69_VEH.plate; })[0];
+    if(!vh){
+      var vb={code:OCT69_VEH.code,plate:OCT69_VEH.plate,kind:OCT69_VEH.kind,
+              driver_name:OCT69_VEH.driver_name,color_hue:OCT69_VEH.color_hue,active:true};
+      var rv=await db.from('it_vehicles').insert(vb).select().single();
+      if(rv.error && /color_hue/i.test(rv.error.message||'')){ delete vb.color_hue;
+        rv=await db.from('it_vehicles').insert(vb).select().single(); }
+      vh=ck(rv).data; say('✓ เพิ่มรถ '+OCT69_VEH.code+' คนขับ '+OCT69_VEH.driver_name);
+    }else say('· มีรถ '+vh.code+' อยู่แล้ว');
+    /* ไซต์ — รันรหัสต่อจากของเดิม */
+    var allSi=(ck(await db.from('it_sites').select('*')).data)||[];
+    var nxt=3000;
+    allSi.forEach(function(x){ var c=String(x.code||''); if(/^\d+$/.test(c)) nxt=Math.max(nxt,+c); });
+    nxt++;
+    var simap={};
+    for(i=0;i<OCT69_SITES.length;i++){
+      var s=OCT69_SITES[i];
+      var h3=allSi.filter(function(x){ return x.name===s.name; })[0];
+      if(!h3){
+        var sb={code:String(nxt),name:s.name,category:s.category,status:'active',start_date:s.start_date};
+        var rs=await db.from('it_sites').insert(sb).select().single();
+        if(rs.error && /category/i.test(rs.error.message||'')){ delete sb.category;
+          rs=await db.from('it_sites').insert(sb).select().single(); }
+        h3=ck(rs).data; nxt++;
+        say('✓ เพิ่มไซต์ '+s.name+' รหัส '+h3.code);
+      }else say('· มีไซต์ '+s.name+' อยู่แล้ว');
+      simap[s.name]=h3.id;
+    }
+    /* ใบงาน */
+    var rows=OCT69_JOBS.map(function(j){
+      return {site_id:simap[j[2]], team_id:(j[1]==='C'? tmap['ชาญ'] : tmap['อารมณ์']),
+              work_date:j[0], scope:j[3], checklist:oct69Ck(j[3], j[5]),
+              status:j[4], progress:j[5],
+              vehicle_id:vh.id, vehicle_seq:(j[1]==='C'?1:2),
+              driver_id:smap.PANYA, driver_name:'ปัญญา'};
+    });
+    ck(await db.from('it_assignments').upsert(rows,
+        {onConflict:'site_id,team_id,work_date', ignoreDuplicates:true}));
+    say('✓ ใส่ใบงาน '+rows.length+' ใบ พร้อมคิวรถแล้ว');
+
+    /* เปิดหน้าแผนงานไปที่ 1 ต.ค. ให้เห็นเลย */
+    S.planFrom='2026-10-01';
+    if($('pnFrom')) $('pnFrom').value='2026-10-01';
+    await loadMgr();
+    var tab=document.querySelector('#mgr .tab[data-p="pn"]');
+    if(tab) tab.click();
+    toast('นำเข้าแผนงาน 1–10 ต.ค. 69 เรียบร้อย — เปิดหน้าแผนงานให้แล้ว', 5200);
+  }catch(e){
+    say('✗ หยุดกลางคัน — '+(e.message||''));
+    toast('นำเข้าไม่สำเร็จ: '+(e.message||''), 7000);
+  }
+  if(btn){ btn.disabled=false; btn.innerHTML=html; }
+}
+
 function renderDemo(){
   if(!$('demoCnt')) return;
   var may=rank(S.me)>=2;
   showEl('demoSeed', may); showEl('demoClear', may); showEl('demoNote', !may);
+  showEl('impOct', may); showEl('impNote', !may);
+  if($('impOct')) $('impOct').onclick=importOct69;
   var demoShow=async function(){
     try{
       var r=await db.rpc('it_demo_count');
