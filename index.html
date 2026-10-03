@@ -623,7 +623,7 @@ body.preview #previewBar{display:flex}
 
 <script>
 /* ── ยามเฝ้า splash: อยู่นอกสคริปต์หลัก ถ้าสคริปต์หลักพัง ตัวนี้ยังทำงาน ── */
-window.APP_VER='15.9';
+window.APP_VER='16.2';
 (function(){
   var fill=function(){
     var a=document.querySelectorAll('.ver');
@@ -1718,12 +1718,24 @@ var SCOPE_WORK=[
   ['Mock up','ตามการร้องขอ','\ud83d\udcde']
 ];
 
+/* หัวข้อที่ระบบเคยใส่ให้ตอนทำแผน ต.ค. — ไม่ใช่ของจริง เอาออกตอนนำเข้า Job Scope */
+var SCOPE_DROP=[
+  'ติดตั้งซุ้มงานโชว์','ติดตั้งชุดโชว์','ติดตั้งงานต้นแบบ',
+  'ติดตั้งออฟฟิศเฟอร์นิเจอร์','เข้ารื้อออฟฟิศเฟอร์นิเจอร์','รื้อแพ็คงานออฟฟิศเฟอร์นิเจอร์'
+];
+/* เปลี่ยนชื่อทีมให้ตรงกับที่ใช้เรียกจริง [หาจาก, รหัสใหม่, ชื่อใหม่] */
+var SCOPE_RENAME=[
+  [['ชาญ','ทีมชาญ'], 'ชาญเมทา', 'ทีมชาญเมทา']
+];
+
 async function importScope(){
   if(rank(S.me)<3) return toast('เฉพาะเจ้าของระบบที่นำเข้าข้อมูลได้', 3600);
   if(!confirm('นำเข้าข้อมูลตามไฟล์ Job Scope\n\n'+
     '• ทีม QA 1 และ ทีม QA 2\n'+
     '• พนักงาน 6 คน (ยังไม่จัดเข้าทีม คุณจัดเองภายหลัง)\n'+
     '• หัวข้องาน 8 หัวข้อ (QA 4 · Mock up 4)\n\n'+
+    '• เปลี่ยนชื่อ ทีมชาญ → ทีมชาญเมทา\n'+
+    '• ลบหัวข้องานหมวด “งานต้นแบบ” ที่ระบบเคยใส่ไว้ให้ ให้เหลือเฉพาะหัวข้อจริง\n'+
     'และจะยุบรายการงานเดิมในคลังงานให้เหลือหัวข้อเดียวด้วย\n'+
     '(ขั้นตอนย่อยจะหาย — ใบงานที่มอบหมายไปแล้วไม่กระทบ)\n\nยืนยันหรือไม่?')) return;
 
@@ -1733,8 +1745,17 @@ async function importScope(){
   var say=function(t){ lines.push(t); if(log) log.innerHTML=lines.map(function(x){return esc(x);}).join('<br>'); };
   var ck=function(r){ if(r&&r.error){ var e=new Error(r.error.message); e.db=true; throw e; } return r; };
   try{
-    /* ทีม */
+    /* เปลี่ยนชื่อทีมก่อน จะได้ไม่ชนกับทีมใหม่ */
     var allT=(ck(await db.from('it_teams').select('*')).data)||[];
+    for(var z=0;z<SCOPE_RENAME.length;z++){
+      var fr=SCOPE_RENAME[z][0], nc=SCOPE_RENAME[z][1], nn=SCOPE_RENAME[z][2];
+      var old=allT.filter(function(x){ return fr.indexOf(x.code)>=0 || fr.indexOf(x.name)>=0; })[0];
+      if(old && old.name!==nn){
+        ck(await db.from('it_teams').update({code:nc, name:nn}).eq('id',old.id));
+        old.code=nc; old.name=nn;
+        say('✓ เปลี่ยนชื่อทีมเป็น '+nn);
+      }
+    }
     for(var i=0;i<SCOPE_TEAMS.length;i++){
       var t=SCOPE_TEAMS[i];
       if(allT.filter(function(x){ return x.code===t.code || x.name===t.name; }).length){ say('· มี '+t.name+' อยู่แล้ว'); continue; }
@@ -1755,6 +1776,15 @@ async function importScope(){
     }
     /* คลังงาน — ยุบของเดิมให้เหลือหัวข้อเดียว แล้วเติมของใหม่ */
     var allW=(ck(await db.from('it_work_items').select('*')).data)||[];
+    /* เอาหัวข้อที่ระบบเคยใส่ไว้เองออก ใบงานที่มอบหมายไปแล้วไม่กระทบ */
+    var dropped=0;
+    for(var y=allW.length-1;y>=0;y--){
+      var dw=allW[y];
+      if(SCOPE_DROP.indexOf(String(dw.label||''))<0) continue;
+      var rdw=await db.from('it_work_items').delete().eq('id',dw.id);
+      if(!rdw.error){ allW.splice(y,1); dropped++; }
+    }
+    if(dropped) say('✓ ลบหัวข้อที่ระบบเคยใส่ไว้เอง '+dropped+' หัวข้อ');
     var flat=0;
     for(i=0;i<allW.length;i++){
       var w=allW[i], tk=Array.isArray(w.tasks)?w.tasks:[];
@@ -1862,32 +1892,6 @@ async function importOct69(){
       }else say('· มีไซต์ '+s.name+' อยู่แล้ว');
       simap[s.name]=h3.id;
     }
-    /* คลังงาน — ใส่ขั้นตอนการทำงานทั้ง 6 แบบ ครั้งต่อไปจะกดเลือกได้เลย ไม่ต้องพิมพ์เอง */
-    var allW=(ck(await db.from('it_work_items').select('*')).data)||[];
-    var wsort=allW.reduce(function(n,x){ return Math.max(n, +x.sort||0); },0)+10;
-    var wIcon={'ติดตั้งซุ้มงานโชว์':'\ud83c\udfd7',
-               'ติดตั้งชุดโชว์':'\ud83d\udecb',
-               'ติดตั้งงานต้นแบบ':'\ud83d\udcd0',
-               'ติดตั้งออฟฟิศเฟอร์นิเจอร์':'\ud83e\ude91',
-               'เข้ารื้อออฟฟิศเฟอร์นิเจอร์':'\ud83d\udd27',
-               'รื้อแพ็คงานออฟฟิศเฟอร์นิเจอร์':'\ud83d\udce6'};
-    var wkeys=Object.keys(OCT69_CK), wNew=0;
-    for(i=0;i<wkeys.length;i++){
-      var lb=wkeys[i];
-      if(allW.filter(function(x){ return String(x.label||'')===lb; }).length) continue;
-      var wp={category:'งานต้นแบบ', label:lb, icon:wIcon[lb]||'\ud83d\udd27',
-              tasks:OCT69_CK[lb].slice(), item_mode:'work', check_mode:false,
-              sort:wsort, active:true};
-      var rw=await db.from('it_work_items').insert(wp);
-      if(rw.error && /(check_mode|item_mode)/i.test(rw.error.message||'')){
-        delete wp.check_mode; delete wp.item_mode;
-        rw=await db.from('it_work_items').insert(wp);
-      }
-      ck(rw); wsort++; wNew++;
-    }
-    say(wNew? ('✓ เพิ่มขั้นตอนการทำงานเข้าคลังงาน '+wNew+' รายการ · หมวด งานต้นแบบ')
-            : '· ขั้นตอนการทำงานมีในคลังงานอยู่แล้ว');
-
     /* ใบงาน */
     var rows=OCT69_JOBS.map(function(j){
       return {site_id:simap[j[2]], team_id:(j[1]==='C'? tmap['ชาญ'] : tmap['อารมณ์']),
@@ -2804,7 +2808,7 @@ async function loadMgr(){
   live('busy','กำลังโหลด…');
   var jobs=[
     ['ไซต์งาน (it_sites)', db.from('it_sites').select('*').order('code')],
-    ['ทีม (it_teams)',     db.from('it_teams').select('*').order('code')],
+    ['ทีม (it_teams)',     db.from('it_teams').select('*').order('sort',{ascending:true,nullsFirst:false}).order('code')],
     ['งานที่มอบหมาย (it_assignments)', db.from('it_assignments').select('*').eq('work_date',S.date)],
     ['พนักงาน (it_staff)', db.from('it_staff').select('*').order('emp_code')],
     ['คลังงาน (it_work_items)', db.from('it_work_items').select('*').eq('active',true).order('sort')],
@@ -2830,7 +2834,10 @@ async function loadMgr(){
          else res.push(r.data||[]); }
     catch(e){ errs.push(jobs[i][0]+' → '+(e.message||e)); res.push([]); }
   }
-  S.sites=res[0]; S.teams=res[1]; S.asgs=res[2]; S.staff=res[3]; S.work=res[4]; S.pins=res[5]; S.icats=res[6]; S.hols=res[7]; S.issues=res[8];
+  /* ถ้าฐานยังไม่มีคอลัมน์ sort จะได้ null มา เรียงต่อด้วยรหัสให้เอง */
+  S.sites=res[0]; S.teams=(res[1]||[]).slice().sort(function(a,b){
+    var x=(a.sort==null?9999:+a.sort), y=(b.sort==null?9999:+b.sort);
+    return x!==y? x-y : String(a.code||'').localeCompare(String(b.code||''),'th'); }); S.asgs=res[2]; S.staff=res[3]; S.work=res[4]; S.pins=res[5]; S.icats=res[6]; S.hols=res[7]; S.issues=res[8];
   S.vehicles=res[9]||[];
   S.sassign=res[10]||[];
   S.unclosed=(res[11]||[]).filter(function(x){ return x.status!=='done' && x.status!=='partial'; });
@@ -3474,12 +3481,9 @@ function ckStates(c){
   return (c && c.kind==='other') ? CK_STATES_OTHER : CK_STATES;
 }
 /* ข้อไหนบังคับให้กรอกเหตุผล — งานเพิ่มเติมทุกข้อ และหัวข้อตรวจรับที่ตอบไม่ผ่านหรืออื่น ๆ */
-function ckNeedNote(c){
-  if(!c) return false;
-  if(c.kind==='other') return true;
-  if(c.mode==='check' && ckPct(c)!==100) return true;
-  return false;
-}
+/* ทุกหัวข้อต้องมีรายละเอียดเสมอ — หัวข้อเป็นแค่ชื่องานกว้าง ๆ
+   สิ่งที่ออฟฟิศต้องรู้คือรายละเอียดที่ทีมพิมพ์กับรูปหน้างาน ไม่กรอกจะส่งรายงานไม่ได้ */
+function ckNeedNote(c){ return !!c; }
 function ckPct(c){
   if(!c) return 0;
   if(c.st!=null) return Math.max(0, Math.min(100, +c.st||0));
@@ -5701,6 +5705,27 @@ function renderWorkLib(){
   host.querySelectorAll('[data-down]').forEach(function(b){ b.onclick=function(){ moveWork(lib, +b.dataset.down, 1); }; });
 }
 
+/* สลับลำดับทีมในตารางแผนงาน — เก็บที่คอลัมน์ sort ของ it_teams
+   ถ้าฐานยังไม่มีคอลัมน์นี้ จะบอกให้รู้แทนที่จะเงียบไปเฉย ๆ */
+async function moveTeam(i, dir){
+  if(rank(S.me)<2) return toast('เฉพาะผู้จัดการขึ้นไปที่สลับลำดับทีมได้', 3200);
+  var list=S.teams||[], j=i+dir;
+  if(i<0||j<0||i>=list.length||j>=list.length) return;
+  var a=list[i], b=list[j];
+  /* ค่าว่างหรือซ้ำกัน ให้ไล่เลขใหม่ตามลำดับที่เห็นอยู่ก่อน */
+  var sa=(a.sort==null? (i+1)*10 : +a.sort), sb=(b.sort==null? (j+1)*10 : +b.sort);
+  if(sa===sb){ sb = sa + (dir>0? 1 : -1); }
+  var r1=await db.from('it_teams').update({sort:sb}).eq('id',a.id);
+  if(r1.error) return toast(/column .*sort/i.test(r1.error.message||'')
+    ? 'สลับลำดับยังใช้ไม่ได้ — ต้องเพิ่มคอลัมน์ sort ในตาราง it_teams ก่อน'
+    : ('สลับลำดับไม่สำเร็จ: '+r1.error.message), 6500);
+  var r2=await db.from('it_teams').update({sort:sa}).eq('id',b.id);
+  if(r2.error) return toast('สลับลำดับไม่สำเร็จ: '+r2.error.message, 6500);
+  a.sort=sb; b.sort=sa;
+  await loadMgr();
+  toast('ย้าย '+(a.name||'')+' '+(dir<0?'ขึ้น':'ลง')+'แล้ว', 2600);
+}
+
 async function moveWork(lib, i, dir){
   var j=i+dir; if(j<0||j>=lib.length) return;
   var a=lib[i], b=lib[j];
@@ -5948,8 +5973,13 @@ function renderPlan(){
   }
   $('siteList').querySelectorAll('[data-sid]').forEach(function(r){ r.onclick=function(){ siteForm(r.dataset.sid); }; });
 
-  $('teamList').innerHTML = S.teams.length? S.teams.map(function(t){
+  var mayMove = rank(S.me)>=2 && S.teams.length>1;
+  $('teamList').innerHTML = S.teams.length? S.teams.map(function(t,ti){
     return '<div class="brow" data-tid="'+t.id+'"><div class="brow-t"><span class="nm">'+esc(t.name)+'</span>'+
+      (mayMove? ('<button class="tb-btn" data-tup="'+ti+'"'+(ti===0?' disabled style="opacity:.3"':'')+
+            ' title="ย้ายขึ้น">↑</button>'+
+          '<button class="tb-btn" data-tdn="'+ti+'"'+(ti===S.teams.length-1?' disabled style="opacity:.3"':'')+
+            ' title="ย้ายลง">↓</button>') : '')+
       '<span class="chip '+(t.active?'c-green':'c-gray')+'">'+(t.active?'ใช้งาน':'ปิด')+'</span></div>'+
       '<div class="brow-s"><span class="tm">'+esc(t.code)+'</span>'+
       (function(){ var mem=teamStaff(t.id), ld=teamLeader(t.id);
@@ -5958,6 +5988,10 @@ function renderPlan(){
       '</div></div>';
   }).join('') : '<div class="empty"><b>ยังไม่มีทีม</b>กด “เพิ่มทีม” เพื่อเริ่ม</div>';
   $('teamList').querySelectorAll('[data-tid]').forEach(function(r){ r.onclick=function(){ teamForm(r.dataset.tid); }; });
+  $('teamList').querySelectorAll('[data-tup]').forEach(function(b){
+    b.onclick=function(e){ e.stopPropagation(); moveTeam(+b.dataset.tup, -1); }; });
+  $('teamList').querySelectorAll('[data-tdn]').forEach(function(b){
+    b.onclick=function(e){ e.stopPropagation(); moveTeam(+b.dataset.tdn, 1); }; });
 
   (function(){
     var cs=[], byC={};
@@ -7054,7 +7088,9 @@ document.querySelectorAll('#tNav button').forEach(function(b){
 async function loadTeamData(){
   if(!S.me) return;
   if(isMgr(S.me) && (!S.teams || !S.teams.length)){
-    try{ var tt=await db.from('it_teams').select('*').eq('active',true).order('code'); S.teams=tt.data||[]; }catch(e){}
+    try{ var tt=await db.from('it_teams').select('*').eq('active',true)
+          .order('sort',{ascending:true,nullsFirst:false}).order('code');
+      S.teams=tt.data||[]; }catch(e){}
   }
   /* ดึงข้อมูลตัวเองใหม่ทุกครั้ง เผื่อผู้จัดการเพิ่งจัดเข้าทีม */
   try{
@@ -7437,7 +7473,8 @@ function renderJob(){
           if(chk){ lbl = pc===100? null : (pc===0? 'ไม่ผ่านเพราะอะไร · ต้องกรอก' : 'อธิบายเงื่อนไข · ต้องกรอก');
                    ph  = pc===0? 'เช่น รอยต่อไม่เสมอ ต้องแก้ก่อนส่งมอบ' : 'เช่น ผ่านแบบมีเงื่อนไข รอลูกค้ายืนยันสี'; }
           else if(other){ lbl='รายละเอียดงาน · ต้องกรอก'; ph='งานอะไร ทำอะไรบ้าง เช่น ตรวจสอบงานพิเศษจากหัวหน้า'; }
-          else { lbl = partial? 'ทำถึงไหนแล้ว · ไม่บังคับ' : null; ph='เหลืออะไรอีก เช่น ยึดตู้แล้ว 3 จาก 5 ตู้ รอช่างไฟเดินสาย'; }
+          else { lbl='รายละเอียดงาน · ต้องกรอก';
+                 ph='ทำอะไรไปบ้าง เหลืออะไร เช่น ยึดตู้แล้ว 3 จาก 5 ตู้ รอช่างไฟเดินสาย'; }
           return '<div class="ck2'+(pc>=100?' on':partial?' mid':'')+'" style="border-left-color:'+cur.c+'">'+
             '<div class="ck2-l">'+esc(c.label)+
               (chk?'<span class="ck2-tag">ตรวจรับ</span>':'')+'</div>'+
@@ -7496,7 +7533,7 @@ function renderJob(){
   /* ปุ่มที่ยังกดส่งไม่ได้ — บอกเหตุผลแล้วพาไปที่ช่องที่ต้องกรอกเลย ไม่ปล่อยให้กดแล้วเงียบ */
   if($('bReportLock')) $('bReportLock').onclick=function(){
     var i=ckFirstMissing(a.checklist);
-    toast('ยังไม่ได้ใส่รายละเอียดงานเพิ่มเติม — กรอกก่อนถึงจะส่งรายงานได้', 4200);
+    toast('ยังไม่ได้กรอกรายละเอียดงาน — ทุกหัวข้อต้องกรอกก่อนถึงจะส่งรายงานได้', 4200);
     if(i<0) return;
     var inp=$('tBody').querySelector('[data-note="'+i+'"]');
     if(!inp) return;
@@ -7858,7 +7895,7 @@ function reportSheet(a){
 
   var send=async function(alsoClose, btn){
     var miss=ckMissingNote(a.checklist);
-    if(miss) return toast('มีหัวข้อ "อื่น ๆ" '+miss+' ข้อที่ยังไม่ได้กรอกรายละเอียด — กรอกให้ครบก่อนส่ง', 4200);
+    if(miss) return toast('ยังมี '+miss+' หัวข้อที่ยังไม่ได้กรอกรายละเอียดงาน — ทุกหัวข้อต้องกรอกก่อนส่ง', 4200);
     if(!photos.length) return toast('ต้องแนบรูปหน้างานอย่างน้อย 1 รูป', 3200);
     var note=$('nt').value.trim();
     var wantIssue = !full && why==='issue';
