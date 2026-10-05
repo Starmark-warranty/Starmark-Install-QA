@@ -656,7 +656,7 @@ body.preview #previewBar{display:flex}
 
 <script>
 /* ── ยามเฝ้า splash: อยู่นอกสคริปต์หลัก ถ้าสคริปต์หลักพัง ตัวนี้ยังทำงาน ── */
-window.APP_VER='17.6';
+window.APP_VER='17.8';
 (function(){
   var fill=function(){
     var a=document.querySelectorAll('.ver');
@@ -2382,6 +2382,13 @@ function odoClearCache(){ _odoCache={}; }
 function odoAlloc(vid, list){
   var out={}, l=(list||[]).slice().sort(function(a,b){
     return a.read_on<b.read_on? -1 : (a.read_on>b.read_on? 1 : 0); });
+  var byDay={}; l.forEach(function(x){ byDay[x.read_on]=x; });
+  /* วันที่กรอกเลขหน้าปัดทั้งตอนเริ่มและตอนจบ รู้ระยะของวันนั้นเป๊ะเลย ไม่ต้องเกลี่ย */
+  var exactKm=function(x){
+    if(!x || x.odo_start==null || x.odo_start==='') return null;
+    var k=(+x.odo)-(+x.odo_start);
+    return (k>=0)? k : null;
+  };
   for(var i=1;i<l.length;i++){
     var a=l[i-1], b=l[i];
     var km=(+b.odo)-(+a.odo);
@@ -2389,21 +2396,41 @@ function odoAlloc(vid, list){
     var days=[], d=addDays(a.read_on,1), guard=0;
     while(d<=b.read_on && guard++<500){ days.push(d); d=addDays(d,1); }
     if(!days.length) continue;
-    if(days.length===1){
-      out[days[0]]={km:km, how:'exact', from:a, to:b, spanKm:km, spanDays:1};
+
+    /* แยกวันที่รู้เป๊ะออกมาก่อน ที่เหลือค่อยหารส่วนที่ยังเหลือของช่วง */
+    var rest=[], knownSum=0;
+    days.forEach(function(x){
+      var k=exactKm(byDay[x]);
+      if(k!=null){
+        knownSum+=k;
+        out[x]={km:k, how:'exact', from:byDay[x], to:byDay[x], spanKm:k, spanDays:1};
+      }else rest.push(x);
+    });
+    if(!rest.length) continue;
+    var left=km-knownSum; if(left<0) left=0;
+
+    /* เหลือวันเดียว = เอาส่วนที่เหลือทั้งก้อน ซึ่งก็เป๊ะเหมือนกัน เพราะยอดช่วงกับวันที่รู้แล้วเป๊ะทั้งคู่ */
+    if(rest.length===1){
+      out[rest[0]]={km:left, how:'exact', from:a, to:b, spanKm:km, spanDays:days.length};
       continue;
     }
-    var w=days.map(function(x){ var r=runOf(vid,x); return (r && r.route_km!=null)? +r.route_km : 0; });
+    var w=rest.map(function(x){ var r=runOf(vid,x); return (r && r.route_km!=null)? +r.route_km : 0; });
     var sw=w.reduce(function(p,c){ return p+c; },0), how='plan';
     if(sw<=0){
-      w=days.map(function(x){ return (runOf(vid,x) || vehQueue(vid,x).length)? 1 : 0; });
+      w=rest.map(function(x){ return (runOf(vid,x) || vehQueue(vid,x).length)? 1 : 0; });
       sw=w.reduce(function(p,c){ return p+c; },0); how='runday';
     }
-    if(sw<=0){ w=days.map(function(){ return 1; }); sw=days.length; how='flat'; }
-    days.forEach(function(x,k){
-      out[x]={km: km*(w[k]/sw), how:how, from:a, to:b, spanKm:km, spanDays:days.length};
+    if(sw<=0){ w=rest.map(function(){ return 1; }); sw=rest.length; how='flat'; }
+    rest.forEach(function(x,k){
+      out[x]={km: left*(w[k]/sw), how:how, from:a, to:b, spanKm:km, spanDays:days.length};
     });
   }
+  /* ครั้งแรกสุดไม่อยู่ในช่วงไหน แต่ถ้ากรอกทั้งเริ่มและจบก็รู้ระยะของวันนั้นอยู่ดี */
+  l.forEach(function(x){
+    var k=exactKm(x);
+    if(k!=null && !out[x.read_on])
+      out[x.read_on]={km:k, how:'exact', from:x, to:x, spanKm:k, spanDays:1};
+  });
   return out;
 }
 function odoDays(vid){
@@ -2433,9 +2460,13 @@ function odoSpanTxt(a){
 }
 
 /* ── ตรวจเลขไมล์ก่อนบันทึก — ผิดต้องฟ้อง ไม่ใช่ปล่อยผ่านแล้วคำนวณมั่วทั้งช่วง ── */
+/* ตรวจเลขหน้าปัด — ผูกกับทะเบียนรถคันนั้นคันเดียว ไม่ปนกับคันอื่น
+   ลำดับที่ถูกต้องคือ  จบของวันก่อน ≤ เริ่มวันนี้ ≤ จบวันนี้ ≤ เริ่มของวันถัดไป
+   เลขของวันไหนต่ำกว่าวันก่อน ๆ ต้องฟ้องและบันทึกไม่ได้ ไม่งั้นระยะจะติดลบทั้งช่วง */
 function odoCheck(vid, d, val, ignoreId){
   if(!isFinite(val)) return 'ใส่เลขไมล์เป็นตัวเลขก่อน';
   if(val<0) return 'เลขไมล์ติดลบไม่ได้';
+  var vc=(vehOf(vid).code||'คันนี้');
   var lo=null, hi=null;
   odoList(vid).forEach(function(x){
     if(ignoreId && x.id===ignoreId) return;
@@ -2443,11 +2474,16 @@ function odoCheck(vid, d, val, ignoreId){
     if(x.read_on>d && (hi===null || x.read_on<hi.read_on)) hi=x;
   });
   if(lo && val < +lo.odo)
-    return 'เลขไมล์ของ '+dayText(d)+' ต้องไม่น้อยกว่า '+odoFmt(lo.odo)+
+    return 'รถ '+vc+' · เลขไมล์ของ '+dayText(d)+' ('+odoFmt(val)+') ต้องไม่น้อยกว่า '+odoFmt(lo.odo)+
            ' ที่กรอกไว้เมื่อ '+dayText(lo.read_on)+' — เลขหน้าปัดเดินถอยหลังไม่ได้';
-  if(hi && val > +hi.odo)
-    return 'เลขไมล์ของ '+dayText(d)+' ต้องไม่เกิน '+odoFmt(hi.odo)+
-           ' ที่กรอกไว้เมื่อ '+dayText(hi.read_on)+' — ไม่งั้นช่วงถัดไปจะกลายเป็นระยะติดลบ';
+  if(hi){
+    /* วันถัดไปถ้ากรอกเลขตอนเริ่มวันไว้ ให้ใช้เลขนั้นเป็นเพดาน เพราะมันมาก่อนเลขตอนจบ */
+    var cap=(hi.odo_start!=null && hi.odo_start!=='')? +hi.odo_start : +hi.odo;
+    var capL=(hi.odo_start!=null && hi.odo_start!=='')? 'ตอนเริ่มวัน' : '';
+    if(val > cap)
+      return 'รถ '+vc+' · เลขไมล์ของ '+dayText(d)+' ('+odoFmt(val)+') ต้องไม่เกิน '+odoFmt(cap)+
+             ' '+capL+' ที่กรอกไว้เมื่อ '+dayText(hi.read_on)+' — ไม่งั้นช่วงถัดไปจะกลายเป็นระยะติดลบ';
+  }
   return null;
 }
 
@@ -2484,22 +2520,40 @@ function odoQuick(vid, d, after){
              (nx? ('<br>ครั้งถัดไป <b>'+esc(dayText(nx.read_on))+'</b> · เลขไมล์ <b>'+odoFmt(nx.odo)+'</b>') : '')+
              (planKm!=null? ('<br>แผนของวันนี้ <b>'+kmTxt(planKm)+'</b>') : '')+
            '</div>'+
-           '<div class="fld"><label>เลขไมล์บนหน้าปัด ตอนจบงานวันนี้ <span style="font-weight:500;color:var(--text3)">(ใส่ทีหลังได้)</span></label>'+
-             '<input id="od_v" inputmode="decimal" value="'+(cur? cur.odo : '')+'" placeholder="เว้นว่างไว้ก่อนก็ได้ ค่อยมากรอกตอนจบวัน"></div>'+
+           '<div class="row">'+
+             '<div class="fld"><label>เลขหน้าปัด ตอนเริ่มวัน <span style="font-weight:500;color:var(--text3)">(ไม่บังคับ)</span></label>'+
+               '<input id="od_v0" inputmode="decimal" value="'+((cur&&cur.odo_start!=null)? cur.odo_start : '')+'" placeholder="'+
+                 (pv? ('ครั้งก่อนจบที่ '+odoFmt(pv.odo)) : 'เช่น 184000')+'"></div>'+
+             '<div class="fld"><label>เลขหน้าปัด ตอนจบวัน <span style="font-weight:500;color:var(--text3)">(ใส่ทีหลังได้)</span></label>'+
+               '<input id="od_v" inputmode="decimal" value="'+(cur? cur.odo : '')+'" placeholder="เว้นว่างไว้ก่อนก็ได้"></div>'+
+           '</div>'+
+           '<div style="font-size:10.5px;color:var(--text2);line-height:1.7;margin:-6px 0 11px">'+
+             'กรอกทั้งสองช่อง = รู้ระยะของวันนี้เป๊ะเลย ไม่ต้องเกลี่ยจากช่วง<br>'+
+             'กรอกแค่ช่องจบวัน = ระบบย้อนไปลบกับครั้งก่อนหน้าให้ เหมือนเดิม</div>'+
            '<div id="od_calc" style="margin-bottom:13px"></div>')
 
-        : ('<div style="font-size:11.5px;color:var(--text2);line-height:1.75;margin-bottom:12px">'+
-             'ใช้ตอนไม่ได้กรอกทุกวัน — เลือกช่วงแล้วใส่กิโลที่วิ่งรวมทั้งช่วง<br>'+
-             'ระบบจะเกลี่ยลงรายวันตามสัดส่วนแผนของแต่ละวันให้เอง วันที่รถไม่ได้ออกจะได้ 0</div>'+
-           '<div class="row"><div class="fld"><label>ตั้งแต่วันที่</label>'+
-             '<input type="date" id="od_f" value="'+esc(addDays(d,-6))+'"></div>'+
-             '<div class="fld"><label>ถึงวันที่</label>'+
-             '<input type="date" id="od_t" value="'+esc(d)+'"></div></div>'+
-           '<div class="fld"><label>เลขไมล์ตอนเริ่มช่วง</label>'+
-             '<input id="od_s" inputmode="decimal" placeholder="เลขหน้าปัดของวันเริ่ม"></div>'+
-           '<div class="fld"><label>ช่วงนี้วิ่งไปกี่กิโล</label>'+
-             '<input id="od_km" inputmode="decimal" placeholder="เช่น 1000"></div>'+
-           '<div id="od_prev" style="margin-bottom:13px"></div>'))+
+        : (function(){
+             /* ตั้งต้นให้ฉลาด — เริ่มจากวันที่กรอกเลขไมล์ไว้ล่าสุด ถึงวันที่กดเข้ามา
+                จะได้ตรงกับที่คนใช้คิดว่า “ตั้งแต่ครั้งที่แล้วถึงวันนี้” */
+             var pv0=odoPrev(vid,d);
+             var f0=(pv0 && pv0.read_on<d)? pv0.read_on : addDays(d,-6);
+             return '<div style="font-size:11.5px;color:var(--text2);line-height:1.75;margin-bottom:12px">'+
+               'ใช้ตอนไม่ได้กรอกทุกวัน เช่นอาทิตย์ละครั้ง หรือเดือนละครั้ง<br>'+
+               '<b style="color:var(--text)">กรอกแค่ 2 อย่าง</b> — เลขหน้าปัดตอนเริ่ม กับ'+
+               'อีกอย่างจะเป็นเลขหน้าปัดตอนจบ หรือกิโลที่วิ่งก็ได้ ใส่อันใดอันหนึ่ง อีกช่องเติมให้เอง<br>'+
+               'แล้วระบบจะเกลี่ยลงรายวันตามสัดส่วนแผนของแต่ละวัน วันที่รถไม่ได้ออกจะได้ 0</div>'+
+             '<div class="row"><div class="fld"><label>ตั้งแต่วันที่</label>'+
+               '<input type="date" id="od_f" value="'+esc(f0)+'"></div>'+
+               '<div class="fld"><label>ถึงวันที่</label>'+
+               '<input type="date" id="od_t" value="'+esc(d)+'"></div></div>'+
+             '<div class="row"><div class="fld"><label>เลขหน้าปัด ณ วันเริ่ม</label>'+
+               '<input id="od_s" inputmode="decimal" placeholder="เช่น 184000"></div>'+
+               '<div class="fld"><label>เลขหน้าปัด ณ วันจบ</label>'+
+               '<input id="od_e" inputmode="decimal" placeholder="เช่น 185000"></div></div>'+
+             '<div class="fld"><label>หรือใส่เป็นกิโลที่วิ่งรวมทั้งช่วง</label>'+
+               '<input id="od_km" inputmode="decimal" placeholder="เช่น 1000"></div>'+
+             '<div id="od_prev" style="margin-bottom:13px"></div>';
+           })())+
 
       (mode==='odo'
         ? ('<div class="sec-h" style="margin:4px 0 7px">วันนี้รถคันนี้ไปที่ไหนบ้าง</div>'+
@@ -2578,11 +2632,36 @@ function odoQuick(vid, d, after){
       var calc=function(){
         var box=$('od_calc'); if(!box) return;
         var val=parseFloat($('od_v').value);
-        if(!isFinite(val)){ box.innerHTML=''; return; }
+        var st0=parseFloat($('od_v0').value);
+        var bad=function(m){ box.innerHTML='<div style="background:rgba(255,59,48,.08);border:1px solid rgba(255,59,48,.3);'+
+          'border-radius:10px;padding:9px 11px;font-size:11.5px;line-height:1.7;color:#c9251c">⛔ '+esc(m)+'</div>'; };
+        if(isFinite(st0)){
+          if(pv && st0 < (+pv.odo))
+            return bad('เลขตอนเริ่มวัน ('+odoFmt(st0)+') น้อยกว่าเลขของ '+dayText(pv.read_on)+' ('+odoFmt(pv.odo)+') — หน้าปัดเดินถอยหลังไม่ได้');
+          if(isFinite(val) && val < st0)
+            return bad('เลขตอนจบวัน ('+odoFmt(val)+') น้อยกว่าตอนเริ่มวัน ('+odoFmt(st0)+')');
+        }
+        if(!isFinite(val)){
+          box.innerHTML = isFinite(st0)
+            ? '<div style="background:var(--orange-dim);border:1px solid rgba(255,149,0,.32);border-radius:10px;'+
+              'padding:9px 11px;font-size:11.5px;line-height:1.7;color:#8a4b00">'+
+              'ใส่เลขตอนจบวันด้วยถึงจะบันทึกได้ — ระบบเก็บเป็นคู่<br>'+
+              'ถ้ายังไม่จบงาน ให้ลบเลขตอนเริ่มวันออกก่อน แล้วค่อยมากรอกทั้งคู่ทีเดียวตอนจบวัน</div>' : '';
+          return;
+        }
         var err=odoCheck(vid, d, val, cur? cur.id : null);
-        if(err){
-          box.innerHTML='<div style="background:rgba(255,59,48,.08);border:1px solid rgba(255,59,48,.3);'+
-            'border-radius:10px;padding:9px 11px;font-size:11.5px;line-height:1.7;color:#c9251c">⛔ '+esc(err)+'</div>';
+        if(err) return bad(err);
+        if(isFinite(st0)){
+          var dayKm=val-st0, pk0=odoPlanKm(vid,d);
+          box.innerHTML='<div style="background:var(--accent-glow);border:1px solid rgba(0,122,255,.28);'+
+            'border-radius:10px;padding:9px 11px;font-size:12px;line-height:1.8">'+
+            'วันนี้วิ่ง <b style="font-size:15px">'+kmTxt(dayKm)+'</b> '+
+            '<span style="color:var(--text2)">เป๊ะ — มาจากเลขหน้าปัดของวันนี้เอง ไม่ได้เกลี่ยมา</span>'+
+            (pk0!=null? ('<br>แผนไว้ '+kmTxt(pk0)+' · <b style="color:'+((dayKm-pk0)>0?'#c26c00':'var(--green)')+'">'+
+              ((dayKm-pk0)>=0?'เกินแผน ':'น้อยกว่าแผน ')+kmTxt(Math.abs(dayKm-pk0))+'</b>') : '')+
+            (pv && st0>(+pv.odo)? ('<br><span style="color:#8a4b00">หมายเหตุ: ห่างจากครั้งก่อน '+
+              kmTxt(st0-(+pv.odo))+' ที่ยังไม่มีใครบันทึกว่าวิ่งวันไหน</span>') : '')+
+          '</div>';
           return;
         }
         if(!pv){ box.innerHTML='<div style="font-size:11.5px;color:var(--text2);line-height:1.7">'+
@@ -2599,7 +2678,9 @@ function odoQuick(vid, d, after){
                 ((run-pk)>=0?'เกินแผน ':'น้อยกว่าแผน ')+kmTxt(Math.abs(run-pk))+'</b>') : '')+
         '</div>';
       };
-      $('od_v').oninput=calc; calc(); $('od_v').focus();
+      $('od_v').oninput=calc;
+      if($('od_v0')) $('od_v0').oninput=calc;
+      calc(); $('od_v').focus();
 
       if($('od_del')) $('od_del').onclick=async function(){
         if(!confirm('ลบเลขไมล์ของ '+dayText(d)+' ?\nระยะของช่วงนี้จะถูกคิดใหม่')) return;
@@ -2614,19 +2695,37 @@ function odoQuick(vid, d, after){
 
     /* ── โหมดระยะที่วิ่ง ── */
     if(mode==='km'){
+      /* ซิงก์สองช่องให้ตรงกัน ใครพิมพ์ล่าสุดคนนั้นเป็นตัวตั้ง อีกช่องคำนวณตาม */
+      var sync=function(src){
+        var sv0=parseFloat($('od_s').value);
+        var ev0=parseFloat($('od_e').value);
+        var kv0=parseFloat($('od_km').value);
+        if(!isFinite(sv0)) return;
+        if(src==='e' && isFinite(ev0)) $('od_km').value=Math.round((ev0-sv0)*10)/10;
+        else if(src==='km' && isFinite(kv0)) $('od_e').value=Math.round((sv0+kv0)*10)/10;
+        else if(src==='s'){
+          if(isFinite(kv0)) $('od_e').value=Math.round((sv0+kv0)*10)/10;
+          else if(isFinite(ev0)) $('od_km').value=Math.round((ev0-sv0)*10)/10;
+        }
+      };
       var prev=function(){
         var box=$('od_prev'); if(!box) return;
-        var f=$('od_f').value, t=$('od_t').value, km=parseFloat($('od_km').value);
-        var sv=parseFloat($('od_s').value);
-        var ex=f? odoAt(vid,f) : null;
-        if(ex && !$('od_s').value){ $('od_s').value=ex.odo; sv=+ex.odo; }
-        $('od_s').placeholder = ex? ('มีอยู่แล้ว '+odoFmt(ex.odo)) : 'เลขหน้าปัดของวันเริ่ม';
+        var f=$('od_f').value, t=$('od_t').value;
+        var ex=f? odoAt(vid,f) : null, exT=t? odoAt(vid,t) : null;
+        if(ex && !$('od_s').value){ $('od_s').value=ex.odo; }
+        $('od_s').placeholder = ex? ('กรอกไว้แล้ว '+odoFmt(ex.odo)) : 'เช่น 184000';
+        $('od_e').placeholder = exT? ('กรอกไว้แล้ว '+odoFmt(exT.odo)) : 'เช่น 185000';
+        var km=parseFloat($('od_km').value), sv=parseFloat($('od_s').value);
         if(!f||!t||!(t>f)){
-          box.innerHTML='<div style="font-size:11.5px;color:#c9251c">⛔ วันสิ้นสุดต้องอยู่หลังวันเริ่ม</div>'; return; }
-        if(!isFinite(km)||km<0){ box.innerHTML=''; return; }
+          box.innerHTML='<div style="background:rgba(255,59,48,.08);border:1px solid rgba(255,59,48,.3);'+
+            'border-radius:10px;padding:9px 11px;font-size:11.5px;color:#c9251c">⛔ วันจบต้องอยู่หลังวันเริ่ม '+
+            '— ตอนนี้เลือก '+esc(dayText(f||d))+' ถึง '+esc(dayText(t||d))+'</div>'; return; }
         if(!isFinite(sv)){
-          box.innerHTML='<div style="font-size:11.5px;color:#8a4b00">ใส่เลขหน้าปัดของวันเริ่มด้วย '+
-            'ระบบถึงจะรู้ว่าปลายช่วงเลขเท่าไหร่</div>'; return; }
+          box.innerHTML='<div style="font-size:11.5px;color:#8a4b00;line-height:1.7">'+
+            'ใส่เลขหน้าปัด ณ วันเริ่มก่อน ('+esc(dayText(f))+') แล้วค่อยใส่อีกช่องหนึ่ง</div>'; return; }
+        if(!isFinite(km)||km<0){
+          box.innerHTML='<div style="font-size:11.5px;color:var(--text2);line-height:1.7">'+
+            'ใส่เลขหน้าปัด ณ วันจบ ('+esc(dayText(t))+') หรือกิโลที่วิ่งรวม อย่างใดอย่างหนึ่ง</div>'; return; }
         var endOdo=sv+km;
         /* จำลองด้วยสูตรเดียวกับของจริง รวมถึงเลขไมล์ที่เคยกรอกไว้กลางช่วง
            ไม่งั้นตัวอย่างจะสวยแต่ผลจริงออกมาคนละอย่าง */
@@ -2657,8 +2756,12 @@ function odoQuick(vid, d, after){
                           ' อยู่นอกช่วง '+odoFmt(sv)+'–'+odoFmt(endOdo)+' — บันทึกไม่ได้ ต้องแก้วันนั้นก่อน</b>') : '')+
             '</div>') : '');
       };
-      ['od_f','od_t','od_km','od_s'].forEach(function(id){ if($(id)) $(id).oninput=prev; });
+      if($('od_s'))  $('od_s').oninput =function(){ sync('s');  prev(); };
+      if($('od_e'))  $('od_e').oninput =function(){ sync('e');  prev(); };
+      if($('od_km')) $('od_km').oninput=function(){ sync('km'); prev(); };
+      ['od_f','od_t'].forEach(function(id){ if($(id)) $(id).oninput=prev; });
       if($('od_f')) $('od_f').onchange=function(){ $('od_s').value=''; prev(); };
+      if($('od_t')) $('od_t').onchange=function(){ prev(); };
       prev();
     }
 
@@ -2709,6 +2812,15 @@ function odoQuick(vid, d, after){
       var raw=String($('od_v').value).trim();
       var val=raw? parseFloat(raw) : null;
       if(raw!=='' && !isFinite(val)) return toast('เลขไมล์ต้องเป็นตัวเลข หรือเว้นว่างไว้ก่อนก็ได้', 5000);
+      var raw0=String($('od_v0').value).trim();
+      var st0v=raw0? parseFloat(raw0) : null;
+      if(raw0!=='' && !isFinite(st0v)) return toast('เลขตอนเริ่มวันต้องเป็นตัวเลข หรือเว้นว่างไว้', 5000);
+      if(st0v!=null && pv && st0v < (+pv.odo))
+        return toast('เลขตอนเริ่มวันน้อยกว่าเลขของ '+dayText(pv.read_on)+' ('+odoFmt(pv.odo)+') — หน้าปัดเดินถอยหลังไม่ได้', 8000);
+      if(st0v!=null && val!=null && val<st0v)
+        return toast('เลขตอนจบวันต้องไม่น้อยกว่าตอนเริ่มวัน', 6000);
+      if(st0v!=null && val==null)
+        return toast('ใส่เลขตอนเริ่มวันแล้ว ต้องใส่ตอนจบวันด้วย ถึงจะคิดระยะได้ — หรือลบเลขเริ่มวันออกก่อน', 7000);
       if(val!=null){
         var err=odoCheck(vid, d, val, cur? cur.id : null);
         if(err) return toast(err, 8000);
@@ -2719,8 +2831,8 @@ function odoQuick(vid, d, after){
       }
       btn.disabled=true; btn.textContent='กำลังบันทึก…';
       if(val!=null){
-        var w=await odoPut(vid, d, val, $('od_n').value.trim()||null);
-        if(w){ toast(w, 7000); btn.disabled=false; btn.textContent='บันทึกเลขไมล์'; return; }
+        var w=await odoPut(vid, d, val, $('od_n').value.trim()||null, st0v);
+        if(w){ toast(w, 7000); btn.disabled=false; btn.textContent='บันทึก'; return; }
       }else if(cur && $('od_n').value.trim()!==String(cur.note||'')){
         await db.from('it_odo').update({note:$('od_n').value.trim()||null}).eq('id', cur.id);
       }
@@ -2757,16 +2869,19 @@ function odoQuick(vid, d, after){
 }
 
 /* เขียนเลขไมล์หนึ่งค่า — คืนข้อความ error ถ้าไม่สำเร็จ คืน null ถ้าผ่าน */
-async function odoPut(vid, day, val, note){
+async function odoPut(vid, day, val, note, odoStart){
   var ex=odoAt(vid, day);
   var p={vehicle_id:vid, read_on:day, odo:val, by_name:meName()};
+  if(odoStart!==undefined) p.odo_start=(odoStart===null? null : odoStart);
   if(note!==undefined && note!==null) p.note=note;
   var r = ex? await db.from('it_odo').update(p).eq('id',ex.id) : await db.from('it_odo').insert(p);
   if(r.error) return /relation .*it_odo/i.test(r.error.message||'')
     ? 'ฐานข้อมูลยังไม่มีตาราง it_odo — ต้องสร้างก่อนถึงจะเก็บเลขไมล์ได้'
     : ('บันทึกวันที่ '+dayText(day)+' ไม่สำเร็จ: '+r.error.message);
   /* อัปเดตในหน่วยความจำทันที ไม่งั้น odoCheck ของค่าถัดไปจะยังเห็นของเก่า */
-  if(ex) ex.odo=val; else (S.odo=S.odo||[]).push({id:'tmp'+Date.now(), vehicle_id:vid, read_on:day, odo:val});
+  if(ex){ ex.odo=val; if(odoStart!==undefined) ex.odo_start=odoStart; }
+  else (S.odo=S.odo||[]).push({id:'tmp'+Date.now(), vehicle_id:vid, read_on:day, odo:val,
+         odo_start:(odoStart===undefined? null : odoStart)});
   odoClearCache();
   return null;
 }
