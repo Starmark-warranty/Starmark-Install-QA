@@ -241,6 +241,18 @@ body.dragmode .pjob:active{cursor:grabbing}
 .vq-n{flex:0 0 16px;height:16px;border-radius:50%;color:#fff;font-size:9.5px;font-weight:700;
   display:flex;align-items:center;justify-content:center}
 .vq-s{flex:1;min-width:0;font-size:10px;line-height:1.35}
+.vq-leg{font-size:9px;color:var(--text3);padding:1px 0 3px 23px;line-height:1.25;white-space:nowrap}
+.vq-leg.far{color:#c26c00;font-weight:700}
+.vq-leg.none{font-style:italic}
+.vq-h2{font-size:9px;color:var(--text2);margin:-2px 0 4px;line-height:1.4}
+.vq-n.start{background:transparent!important;border:1px dashed currentColor;font-size:7px}
+.drv-wrap{cursor:pointer;border-radius:9px;padding:1px}
+.drv-wrap:hover{background:rgba(0,0,0,.035)}
+.odo-v{font-size:11px;font-weight:700;color:var(--text);line-height:1.5}
+.odo-v.none{font-weight:600;color:#c26c00}
+.odo-km{font-size:11px;color:var(--text2);line-height:1.5}
+.odo-km b{font-size:12.5px;color:var(--text)}
+.odo-p{font-size:9.5px;color:var(--text3);line-height:1.5}
 .vq-s b{display:block;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .vq-s i{display:inline-block;width:6px;height:6px;border-radius:50%;margin-right:3px;vertical-align:1px}
 .sab{border:1px solid;border-radius:9px;padding:5px 7px;font-size:10px;line-height:1.45}
@@ -627,7 +639,7 @@ body.preview #previewBar{display:flex}
 
 <script>
 /* ── ยามเฝ้า splash: อยู่นอกสคริปต์หลัก ถ้าสคริปต์หลักพัง ตัวนี้ยังทำงาน ── */
-window.APP_VER='16.8';
+window.APP_VER='17.1';
 (function(){
   var fill=function(){
     var a=document.querySelectorAll('.ver');
@@ -723,6 +735,7 @@ window.APP_VER='16.8';
       <span id="pnDragHint" class="hide">⇧ Shift หรือ Ctrl ค้างไว้ = ลากย้ายงาน</span>
       <button class="tb-btn hide pn-x" id="pnShift">⏩ เลื่อนงานยกชุด</button>
       <button class="tb-btn hide pn-x" id="pnHol">🏖 วันหยุด</button>
+      <button class="tb-btn pn-x hide" id="pnVMode">🗺 เส้นทางเต็ม</button>
       <button class="tb-btn" id="pnView">📋 รายวัน</button>
       <button class="tb-btn pn-x" id="pnPrint">🖨 พิมพ์</button>
       <button class="tb-btn pn-x" id="pnXls">📊 Excel</button>
@@ -791,6 +804,13 @@ window.APP_VER='16.8';
       <div class="card" style="margin-top:12px">
         <div class="card-h"><span>รถและคนขับ</span><button class="tb-btn" id="btnAddVeh">+ เพิ่มรถ</button></div>
         <div id="vehList" style="max-height:380px;overflow:auto"></div>
+      </div>
+      <div class="card" style="margin-top:12px">
+        <div class="card-h"><span>เลขไมล์รถ</span></div>
+        <div style="padding:10px 14px 0;font-size:11px;color:var(--text2);line-height:1.7">
+          กรอกถี่แค่ไหนก็ได้ ทุกวัน สัปดาห์ละครั้ง หรือเดือนละครั้ง ระบบคิดระยะจากผลต่างของเลขหน้าปัดให้เอง
+        </div>
+        <div id="odoList" style="max-height:300px;overflow:auto"></div>
       </div>
       <div class="card" style="margin-top:12px">
         <div class="card-h"><span>ข้อมูลตัวอย่างสำหรับสาธิต</span></div>
@@ -1014,7 +1034,7 @@ var S = {
   role:'team', mgrName:'', team:null, me:null, staff:[],
   date: todayISO(),
   sites:[], teams:[], asgs:[], issues:[],
-  work:[], pins:[], icats:[], hols:[], plan:[], runs:[], unclosed:[], sassign:[], vehicles:[], showRoutes:true, geoCheck:false, asTeam:null, asStaff:null, forcedField:false, planFrom:null, planDays:14, pnQ:'', pnBusy:false, pnList:null, pnSec:null,
+  work:[], pins:[], icats:[], hols:[], plan:[], runs:[], odo:[], unclosed:[], sassign:[], vehicles:[], pnVMode:null, showRoutes:true, geoCheck:false, asTeam:null, asStaff:null, forcedField:false, planFrom:null, planDays:14, pnQ:'', pnBusy:false, pnList:null, pnSec:null,
   ovFilter:'all', ovQ:'', isFilter:'open', isQ:'', isAllDates:true,
   tView:'jobs', tJob:null, map:null, markers:[], mapLayer:null
 };
@@ -2313,6 +2333,312 @@ async function roadRoute(pts){
   }
 }
 
+
+/* ═══════════ เลขไมล์รถ ═══════════
+   เก็บ “เลขบนหน้าปัด ณ วันที่” ไม่ใช่ “วันนี้วิ่งกี่กิโล”
+   ระยะระหว่างสองครั้งที่กรอก = ลบกัน เป๊ะเสมอ ไม่ว่าจะกรอกถี่หรือห่าง
+   ช่วงที่กินหลายวัน เกลี่ยลงรายวันตามสัดส่วนระยะที่วางแผนไว้ ไม่ใช่หารเท่า ๆ กัน
+   เพราะบางวันรถไม่ได้ออกเลย ถ้าหารเท่ากัน วันนั้นจะได้ตัวเลขที่ไม่มีอยู่จริง */
+function odoList(vid){
+  return (S.odo||[]).filter(function(x){ return x.vehicle_id===vid; })
+    .sort(function(a,b){ return a.read_on<b.read_on? -1 : (a.read_on>b.read_on? 1 : 0); });
+}
+function odoAt(vid,d){ return odoList(vid).filter(function(x){ return x.read_on===d; })[0]||null; }
+function odoPrev(vid,d){ var l=odoList(vid).filter(function(x){ return x.read_on<d; }); return l[l.length-1]||null; }
+function odoNext(vid,d){ return odoList(vid).filter(function(x){ return x.read_on>d; })[0]||null; }
+function odoFmt(n){ var v=Math.round(+n||0); return String(v).replace(/\B(?=(\d{3})+(?!\d))/g, ','); }
+
+var ODO_HOW={
+  exact : {s:'',  l:'เป๊ะ — มาจากเลขไมล์สองครั้งที่กรอกติดกัน'},
+  plan  : {s:'~', l:'ค่าประมาณ — เกลี่ยจากช่วงที่กรอก ตามสัดส่วนระยะที่วางแผนไว้ของแต่ละวัน'},
+  runday: {s:'~', l:'ค่าประมาณ — เกลี่ยเท่า ๆ กันเฉพาะวันที่รถมีงาน เพราะช่วงนั้นยังไม่มีแผนระยะ'},
+  flat  : {s:'~', l:'ค่าประมาณ — เกลี่ยเท่า ๆ กันทุกวันในช่วง เพราะช่วงนั้นไม่มีงานบันทึกไว้เลย'}
+};
+
+var _odoCache={};
+function odoClearCache(){ _odoCache={}; }
+function odoDays(vid){
+  if(_odoCache[vid]) return _odoCache[vid];
+  var out={}, l=odoList(vid);
+  for(var i=1;i<l.length;i++){
+    var a=l[i-1], b=l[i];
+    var km=(+b.odo)-(+a.odo);
+    if(km<0) km=0;                       /* เลขถอยหลัง = ข้อมูลผิด ไม่เอามาคิดเป็นระยะติดลบ */
+    var days=[], d=addDays(a.read_on,1), guard=0;
+    while(d<=b.read_on && guard++<500){ days.push(d); d=addDays(d,1); }
+    if(!days.length) continue;
+    if(days.length===1){
+      out[days[0]]={km:km, how:'exact', from:a, to:b, spanKm:km, spanDays:1};
+      continue;
+    }
+    var w=days.map(function(x){ var r=runOf(vid,x); return (r && r.route_km!=null)? +r.route_km : 0; });
+    var sw=w.reduce(function(p,c){ return p+c; },0), how='plan';
+    if(sw<=0){
+      w=days.map(function(x){ return (runOf(vid,x) || vehQueue(vid,x).length)? 1 : 0; });
+      sw=w.reduce(function(p,c){ return p+c; },0); how='runday';
+    }
+    if(sw<=0){ w=days.map(function(){ return 1; }); sw=days.length; how='flat'; }
+    days.forEach(function(x,k){
+      out[x]={km: km*(w[k]/sw), how:how, from:a, to:b, spanKm:km, spanDays:days.length};
+    });
+  }
+  _odoCache[vid]=out;
+  return out;
+}
+function odoDay(vid,d){ return odoDays(vid)[d]||null; }
+function odoPlanKm(vid,d){ var r=runOf(vid,d); return (r && r.route_km!=null)? +r.route_km : null; }
+/* ส่วนต่างจากแผน — บวกคือวิ่งเกินแผน */
+function odoGap(vid,d){
+  var a=odoDay(vid,d), p=odoPlanKm(vid,d);
+  if(!a || p==null || p<=0) return null;
+  return {km:a.km-p, pct:((a.km-p)/p)*100};
+}
+function gapTxt(g){
+  if(!g) return '';
+  var sign=g.km>=0?'+':'−';
+  return sign+kmTxt(Math.abs(g.km)).replace(' กม.','')+' กม. ('+sign+Math.abs(Math.round(g.pct))+'%)';
+}
+
+/* ── ช่วงเลขไมล์ที่ครอบวันนั้น ใช้บอกที่มาของตัวเลขประมาณ ── */
+function odoSpanTxt(a){
+  if(!a || a.how==='exact') return '';
+  return 'มาจากช่วง '+dayText(a.from.read_on)+' → '+dayText(a.to.read_on)+
+         ' รวม '+kmTxt(a.spanKm)+' ใน '+a.spanDays+' วัน';
+}
+
+/* ── ตรวจเลขไมล์ก่อนบันทึก — ผิดต้องฟ้อง ไม่ใช่ปล่อยผ่านแล้วคำนวณมั่วทั้งช่วง ── */
+function odoCheck(vid, d, val, ignoreId){
+  if(!isFinite(val)) return 'ใส่เลขไมล์เป็นตัวเลขก่อน';
+  if(val<0) return 'เลขไมล์ติดลบไม่ได้';
+  var lo=null, hi=null;
+  odoList(vid).forEach(function(x){
+    if(ignoreId && x.id===ignoreId) return;
+    if(x.read_on<d && (lo===null || x.read_on>lo.read_on)) lo=x;
+    if(x.read_on>d && (hi===null || x.read_on<hi.read_on)) hi=x;
+  });
+  if(lo && val < +lo.odo)
+    return 'เลขไมล์ของ '+dayText(d)+' ต้องไม่น้อยกว่า '+odoFmt(lo.odo)+
+           ' ที่กรอกไว้เมื่อ '+dayText(lo.read_on)+' — เลขหน้าปัดเดินถอยหลังไม่ได้';
+  if(hi && val > +hi.odo)
+    return 'เลขไมล์ของ '+dayText(d)+' ต้องไม่เกิน '+odoFmt(hi.odo)+
+           ' ที่กรอกไว้เมื่อ '+dayText(hi.read_on)+' — ไม่งั้นช่วงถัดไปจะกลายเป็นระยะติดลบ';
+  return null;
+}
+
+/* ── กรอกเลขไมล์ของคันเดียว วันเดียว — ทางลัดจากช่องในตารางแผนงาน ── */
+function odoQuick(vid, d, after){
+  if(rank(S.me)<1) return toast('เฉพาะแอดมินขึ้นไปที่กรอกเลขไมล์ได้', 3400);
+  var v=vehOf(vid), cur=odoAt(vid,d), pv=odoPrev(vid,d), nx=odoNext(vid,d);
+  var planKm=odoPlanKm(vid,d);
+  sheet('เลขไมล์ '+esc(v.code||'')+' · '+esc(dayText(d)),
+    '<div style="background:var(--s1);border:1px solid var(--border);border-radius:11px;padding:11px 13px;'+
+      'margin-bottom:13px;font-size:12px;line-height:1.8">'+
+      (pv? ('ครั้งก่อน <b>'+dayText(pv.read_on)+'</b> · เลขไมล์ <b>'+odoFmt(pv.odo)+'</b>')
+         : '<span style="color:#8a4b00">ยังไม่เคยกรอกเลขไมล์ของคันนี้ — ครั้งแรกจะยังคิดระยะไม่ได้ ต้องมีอย่างน้อย 2 ครั้ง</span>')+
+      (nx? ('<br>ครั้งถัดไป <b>'+dayText(nx.read_on)+'</b> · เลขไมล์ <b>'+odoFmt(nx.odo)+'</b>') : '')+
+      (planKm!=null? ('<br>แผนของวันนี้ <b>'+kmTxt(planKm)+'</b>') : '')+
+    '</div>'+
+    '<div class="fld"><label>เลขไมล์บนหน้าปัด ตอนจบงานวันนี้</label>'+
+      '<input id="od_v" inputmode="decimal" value="'+(cur? cur.odo : '')+'" placeholder="เช่น 184398"></div>'+
+    '<div id="od_calc" style="margin-bottom:13px"></div>'+
+    '<div class="fld"><label>หมายเหตุ</label>'+
+      '<input id="od_n" value="'+esc((cur&&cur.note)||'')+'" placeholder="เช่น เติมน้ำมันที่ปั๊มบางนา"></div>',
+    '<div class="row">'+(cur?'<button class="btn ghost sm" id="od_del" style="flex:0 0 80px">ลบ</button>':'')+
+      '<button class="btn sm" id="od_ok">บันทึกเลขไมล์</button></div>');
+
+  var calc=function(){
+    var box=$('od_calc'); if(!box) return;
+    var val=parseFloat($('od_v').value);
+    if(!isFinite(val)){ box.innerHTML=''; return; }
+    var err=odoCheck(vid, d, val, cur? cur.id : null);
+    if(err){
+      box.innerHTML='<div style="background:rgba(255,59,48,.08);border:1px solid rgba(255,59,48,.3);'+
+        'border-radius:10px;padding:9px 11px;font-size:11.5px;line-height:1.7;color:#c9251c">⛔ '+esc(err)+'</div>';
+      return;
+    }
+    if(!pv){ box.innerHTML='<div style="font-size:11.5px;color:var(--text2);line-height:1.7">'+
+      'บันทึกไว้เป็นจุดตั้งต้น ครั้งหน้าที่กรอกจะคิดระยะให้อัตโนมัติ</div>'; return; }
+    var run=val-(+pv.odo), gapD=0, dd=pv.read_on;
+    while(dd<d && gapD<500){ dd=addDays(dd,1); gapD++; }
+    var pk=odoPlanKm(vid,d);
+    box.innerHTML='<div style="background:var(--accent-glow);border:1px solid rgba(0,122,255,.28);'+
+      'border-radius:10px;padding:9px 11px;font-size:12px;line-height:1.8">'+
+      'วิ่งจากครั้งก่อนถึงวันนี้ <b style="font-size:14px">'+kmTxt(run)+'</b>'+
+      (gapD>1? (' <span style="color:var(--text2)">ใน '+gapD+' วัน — ระบบจะเกลี่ยลงรายวันตามแผนให้</span>') : '')+
+      ((gapD===1 && pk!=null)
+        ? ('<br>แผนไว้ '+kmTxt(pk)+' · <b style="color:'+((run-pk)>0?'#c26c00':'var(--green)')+'">'+
+            ((run-pk)>=0?'เกินแผน ':'น้อยกว่าแผน ')+kmTxt(Math.abs(run-pk))+'</b>') : '')+
+    '</div>';
+  };
+  $('od_v').oninput=calc; calc();
+  $('od_v').focus();
+
+  if($('od_del')) $('od_del').onclick=async function(){
+    if(!confirm('ลบเลขไมล์ของ '+dayText(d)+' ?\nระยะของช่วงนี้จะถูกคิดใหม่')) return;
+    this.disabled=true;
+    var r=await db.from('it_odo').delete().eq('id', cur.id);
+    if(r.error){ toast('ลบไม่สำเร็จ: '+r.error.message,5000); this.disabled=false; return; }
+    closeSheet(); toast('ลบเลขไมล์แล้ว'); odoClearCache();
+    await loadMgr(); try{ await loadSchedule(); }catch(e){}
+    if(after) after();
+  };
+  $('od_ok').onclick=async function(){
+    var val=parseFloat($('od_v').value);
+    var err=odoCheck(vid, d, val, cur? cur.id : null);
+    if(err) return toast(err, 8000);
+    this.disabled=true; this.textContent='กำลังบันทึก…';
+    var p={vehicle_id:vid, read_on:d, odo:val, note:$('od_n').value.trim()||null, by_name:meName()};
+    var r = cur? await db.from('it_odo').update(p).eq('id',cur.id) : await db.from('it_odo').insert(p);
+    if(r.error){
+      toast(/relation .*it_odo/i.test(r.error.message||'')
+        ? 'ฐานข้อมูลยังไม่มีตาราง it_odo — ต้องสร้างก่อนถึงจะเก็บเลขไมล์ได้'
+        : ('บันทึกไม่สำเร็จ: '+r.error.message), 7000);
+      this.disabled=false; this.textContent='บันทึกเลขไมล์'; return;
+    }
+    closeSheet(); toast('บันทึกเลขไมล์ '+odoFmt(val)+' ของ '+(v.code||'')+' แล้ว', 3400);
+    odoClearCache();
+    await loadMgr(); try{ await loadSchedule(); }catch(e){}
+    if(after) after();
+  };
+}
+
+/* ── หน้าเลขไมล์ของรถคันหนึ่ง — ดูย้อนหลังและกรอกทีเดียวหลายวัน ── */
+function odoSheet(vid){
+  if(rank(S.me)<1) return toast('เฉพาะแอดมินขึ้นไปที่กรอกเลขไมล์ได้', 3400);
+  var v=vehOf(vid), l=odoList(vid).slice().reverse();
+  var last=l[0]||null;
+  var days=[], d0=addDays(todayISO(), -13);
+  for(var i=0;i<14;i++) days.push(addDays(d0,i));
+
+  sheet('เลขไมล์ ' + esc(v.code||''),
+    '<div style="background:var(--s1);border:1px solid var(--border);border-radius:11px;padding:11px 13px;'+
+      'margin-bottom:14px;font-size:12px;line-height:1.8">'+
+      (last? ('ล่าสุด <b>'+dayText(last.read_on)+'</b> · เลขไมล์ <b style="font-size:15px">'+odoFmt(last.odo)+'</b>'+
+              '<br><span style="color:var(--text2)">กรอกมาแล้ว '+odoList(vid).length+' ครั้ง</span>')
+           : '<b style="color:#8a4b00">ยังไม่เคยกรอกเลขไมล์ของคันนี้</b><br>'+
+             '<span style="color:var(--text2)">กรอกครั้งแรกเป็นจุดตั้งต้น ครั้งที่สองเป็นต้นไปจะคิดระยะให้เอง</span>')+
+    '</div>'+
+    '<div style="font-size:11.5px;color:var(--text2);line-height:1.75;margin-bottom:12px">'+
+      'กรอกถี่แค่ไหนก็ได้ — ทุกวัน สัปดาห์ละครั้ง หรือเดือนละครั้ง ระบบใช้วิธีเดียวกันหมด<br>'+
+      'ช่วงที่เว้นหลายวัน จะเกลี่ยลงรายวัน<b>ตามสัดส่วนระยะที่วางแผนไว้</b> วันที่รถไม่ออกจะได้ 0 ไม่ใช่เฉลี่ยเท่ากัน<br>'+
+      'ตัวเลขที่เกลี่ยมาจะมี <b>~</b> นำหน้าเสมอ จะได้รู้ว่าอันไหนเป๊ะ อันไหนประมาณ</div>'+
+
+    '<div class="sec-h" style="margin:4px 0 7px">กรอกย้อนหลัง 14 วัน — ช่องไหนไม่ได้กรอกก็เว้นไว้</div>'+
+    '<div id="od_grid"></div>'+
+    '<button class="btn ghost sm" id="od_save" style="margin-top:9px;width:100%">บันทึกทุกช่องที่แก้</button>'+
+
+    '<div class="sec-h" style="margin:20px 0 7px">ที่กรอกไว้แล้ว</div>'+
+    '<div id="od_hist"></div>',
+    '');
+
+  var drawGrid=function(){
+    $('od_grid').innerHTML=days.map(function(d){
+      var rec=odoAt(vid,d), a=odoDay(vid,d), pk=odoPlanKm(vid,d);
+      var hint = a? ((ODO_HOW[a.how]||ODO_HOW.flat).s+kmTxt(a.km)) : (pk!=null? ('แผน '+kmTxt(pk)) : '');
+      return '<div style="display:flex;align-items:center;gap:8px;background:'+(rec?'var(--accent-glow)':'var(--s1)')+
+        ';border:1px solid '+(rec?'rgba(0,122,255,.25)':'var(--border)')+';border-radius:10px;padding:7px 10px;margin-bottom:5px">'+
+        '<span style="flex:0 0 96px;font-size:12px;font-weight:600">'+esc(dayText(d))+'</span>'+
+        '<input data-od="'+d+'" inputmode="decimal" value="'+(rec? rec.odo : '')+'" placeholder="เลขไมล์"'+
+          ' style="flex:1;min-width:0;height:30px;font-size:12.5px">'+
+        '<span style="flex:0 0 92px;text-align:right;font-size:10.5px;color:var(--text2)">'+esc(hint)+'</span>'+
+      '</div>';
+    }).join('');
+  };
+  var drawHist=function(){
+    var rows=odoList(vid).slice().reverse();
+    $('od_hist').innerHTML = rows.length? rows.map(function(x,i){
+      var prev=rows[i+1];
+      var run=prev? ((+x.odo)-(+prev.odo)) : null;
+      var nd=0; if(prev){ var dd=prev.read_on; while(dd<x.read_on && nd<500){ dd=addDays(dd,1); nd++; } }
+      return '<div class="brow" data-ode="'+x.read_on+'"><div class="brow-t">'+
+        '<span class="nm">'+esc(dayText(x.read_on))+' · '+odoFmt(x.odo)+'</span>'+
+        (run!=null? ('<span class="chip '+(nd>1?'c-gray':'c-blue')+'">'+kmTxt(run)+(nd>1?(' / '+nd+' วัน'):'')+'</span>') : '<span class="chip c-gray">จุดตั้งต้น</span>')+
+        '</div>'+
+        '<div class="brow-s">'+(x.note?('<span>'+esc(x.note)+'</span>'):'')+
+          (x.by_name?('<span>โดย '+esc(x.by_name)+'</span>'):'')+'</div></div>';
+    }).join('') : '<div class="empty" style="padding:16px;font-size:12px">ยังไม่มีประวัติ</div>';
+    $('od_hist').querySelectorAll('[data-ode]').forEach(function(el){
+      el.onclick=function(){ odoQuick(vid, el.dataset.ode, function(){ odoSheet(vid); }); };
+    });
+  };
+  drawGrid(); drawHist();
+
+  $('od_save').onclick=async function(){
+    /* ตรวจทั้งคอลัมน์ให้เรียงไม่ถอยหลังก่อน แล้วค่อยเขียนลงฐานทีเดียว
+       ถ้าเขียนไปตรวจไป เจอผิดกลางทางจะเหลือข้อมูลครึ่ง ๆ กลาง ๆ */
+    var want=[], seen={};
+    days.forEach(function(d){
+      var el=$('od_grid').querySelector('[data-od="'+d+'"]');
+      if(!el) return;
+      var raw=String(el.value).trim();
+      var rec=odoAt(vid,d);
+      if(!raw){ if(rec) want.push({d:d, del:true, rec:rec}); return; }
+      var val=parseFloat(raw);
+      if(!isFinite(val)) return want.push({d:d, err:'ช่อง '+dayText(d)+' ไม่ใช่ตัวเลข'});
+      want.push({d:d, val:val, rec:rec});
+      seen[d]=val;
+    });
+    var bad=want.filter(function(x){ return x.err; })[0];
+    if(bad) return toast(bad.err, 6000);
+
+    /* เรียงทุกค่าที่จะมีหลังบันทึก แล้วเช็กว่าไม่มีตัวไหนถอยหลัง */
+    var merged={};
+    odoList(vid).forEach(function(x){ merged[x.read_on]=+x.odo; });
+    want.forEach(function(x){ if(x.del) delete merged[x.d]; else merged[x.d]=x.val; });
+    var keys=Object.keys(merged).sort();
+    for(var i=1;i<keys.length;i++){
+      if(merged[keys[i]] < merged[keys[i-1]])
+        return toast('เลขไมล์วันที่ '+dayText(keys[i])+' ('+odoFmt(merged[keys[i]])+') '+
+          'น้อยกว่าวันที่ '+dayText(keys[i-1])+' ('+odoFmt(merged[keys[i-1]])+') — เลขหน้าปัดเดินถอยหลังไม่ได้ แก้ก่อนแล้วค่อยบันทึก', 9000);
+    }
+
+    var todo=want.filter(function(x){
+      if(x.del) return true;
+      return !x.rec || (+x.rec.odo)!==x.val;
+    });
+    if(!todo.length) return toast('ไม่มีช่องไหนเปลี่ยน');
+    this.disabled=true; this.textContent='กำลังบันทึก '+todo.length+' ช่อง…';
+    var fail=null;
+    for(var i=0;i<todo.length;i++){
+      var x=todo[i], r;
+      if(x.del) r=await db.from('it_odo').delete().eq('id', x.rec.id);
+      else if(x.rec) r=await db.from('it_odo').update({odo:x.val, by_name:meName()}).eq('id', x.rec.id);
+      else r=await db.from('it_odo').insert({vehicle_id:vid, read_on:x.d, odo:x.val, by_name:meName()});
+      if(r.error){ fail=(x.d+' → '+r.error.message); break; }
+    }
+    odoClearCache();
+    await loadMgr(); try{ await loadSchedule(); }catch(e){}
+    if(fail){ toast('บันทึกไม่ครบ หยุดที่ '+fail, 8000); this.disabled=false; this.textContent='บันทึกทุกช่องที่แก้'; return; }
+    closeSheet(); toast('บันทึกเลขไมล์ '+todo.length+' ช่องแล้ว', 3400);
+  };
+}
+
+/* ── ช่องรถในตารางแผนงาน โหมด “เลขไมล์อย่างเดียว” ── */
+function odoCell(v, d){
+  var rec=odoAt(v.id,d), a=odoDay(v.id,d), r=runOf(v.id,d), q=vehQueue(v.id,d);
+  if(!rec && !a && !r && !q.length) return null;
+  var pk=odoPlanKm(v.id,d), g=odoGap(v.id,d);
+  var how=a? (ODO_HOW[a.how]||ODO_HOW.flat) : null;
+  var lines=[];
+  lines.push('<div class="vq-h">🚚 '+esc(v.code||'—')+
+    ((r&&r.driver_name)? (' · '+esc(r.driver_name)) : ((q[0]&&q[0].driver_name)? (' · '+esc(q[0].driver_name)) : ''))+'</div>');
+  /* วันที่กรอกเลขไมล์ไว้เอง กับวันที่อยู่กลางช่วง ต้องเขียนให้ต่างกัน
+     ไม่งั้นวันกลางช่วงจะขึ้นว่า “ยังไม่ได้กรอก” ทั้งที่มีตัวเลขวิ่งอยู่ข้างล่าง คนอ่านจะงง */
+  if(rec) lines.push('<div class="odo-v">เลขไมล์ '+odoFmt(rec.odo)+'</div>');
+  else if(a) lines.push('<div class="odo-p">ในช่วง '+esc(dayText(a.from.read_on))+' → '+esc(dayText(a.to.read_on))+'</div>');
+  else lines.push('<div class="odo-v none">ยังไม่ได้กรอกเลขไมล์</div>');
+
+  if(a){
+    var zero=(a.km<0.05);
+    lines.push('<div class="odo-km" title="'+esc(how.l+(odoSpanTxt(a)? (' · '+odoSpanTxt(a)) : ''))+'">'+
+      (zero? '<b style="color:var(--text3)">ไม่ได้ออกรถ</b>' : ('วิ่ง <b>'+how.s+kmTxt(a.km)+'</b>'))+'</div>');
+  }
+  if(pk!=null) lines.push('<div class="odo-p">แผน '+kmTxt(pk)+
+    (g? (' · <b style="color:'+(g.km>=0?'#c26c00':'var(--green)')+'">'+gapTxt(g)+'</b>') : '')+'</div>');
+  if(!rec && !a) lines.push('<div class="odo-p" style="color:#c26c00">แตะเพื่อกรอก</div>');
+  return {html:lines.join(''), hasRec:!!rec};
+}
+
 /* ตั้งจุดตั้งต้นของรถแบบกล่องซ้อน — เปิดจากตรงไหนก็ตั้งได้เลย ฟอร์มที่กรอกค้างไว้ไม่หาย
    ข้อมูลที่บันทึกเป็นชุดเดียวกับที่ Work & Site → รถและคนขับ */
 function vehHomeSheet(vid, done){
@@ -2675,9 +3001,11 @@ function runForm(o){
 
     /* ใบงานของทีมที่ติ๊กไว้ ให้ผูกกับรถคันนี้ตามลำดับจุดในเส้นทาง
        คิวรถกับใบงานขนส่งจะได้เป็นเรื่องเดียวกัน ไม่ต้องไปจัดซ้ำอีกที่ */
-    var order={};
-    stops.forEach(function(s,i){ if(s.site_id && order[s.site_id]==null) order[s.site_id]=i+1; });
-    var nextSeq=stops.length;   /* ไซต์ที่ไม่ได้อยู่ในเส้นทาง ต่อท้ายคิวไปตามลำดับ */
+    /* เลขคิวนับเฉพาะจุดที่ไปส่งจริง ไม่นับจุดตั้งต้นกับจุดแวะที่ไม่ใช่ไซต์
+       ไม่งั้นคิวจะเริ่มที่เลข 2 แล้วคนอ่านจะหาเลข 1 ไม่เจอ */
+    var order={}, nSite=0;
+    stops.forEach(function(s){ if(s.site_id && order[s.site_id]==null) order[s.site_id]=(++nSite); });
+    var nextSeq=nSite;   /* ไซต์ที่ไม่ได้อยู่ในเส้นทาง ต่อท้ายคิวไปตามลำดับ */
     var today=(S.plan||[]).filter(function(a){ return a.work_date===d; });
     for(var i=0;i<today.length;i++){
       var a=today[i], want=picked.indexOf(a.team_id)>=0;
@@ -2692,6 +3020,100 @@ function runForm(o){
     toast('บันทึกใบงานขนส่งแล้ว · '+kmTxt(rkm)+(rsrc==='line'?' (เส้นตรง)':'')+' · ส่ง '+picked.length+' ทีม', 4200);
     await loadMgr(); try{ await loadSchedule(); }catch(e){}
   };
+}
+
+/* ── เนื้อในช่องของรถหนึ่งคันในวันหนึ่ง ──
+   ใช้ตัวเดียวกันทั้งแถวกลุ่มคนขับรถและแถวคิวรถ สองแถวจะได้เห็นเหมือนกันเป๊ะ
+   เลขบนการ์ดนับเฉพาะจุดที่ไปส่งจริง จุดตั้งต้นไม่กินเลข เพราะมันไม่ใช่คิว */
+/* ── ข้อมูลดิบของช่องรถ แยกออกจากการวาด ──
+   หน้าจอกับกระดาษวาดคนละแบบ แต่ต้องอ่านจากชุดข้อมูลเดียวกัน
+   ไม่งั้นแก้ที่หนึ่งแล้วลืมอีกที่ แล้วสองที่พูดไม่ตรงกันอีกรอบ */
+function vehDayParts(v, d){
+  var r=runOf(v.id, d), q=vehQueue(v.id, d);
+  if(!r && !q.length) return null;
+  var info=function(sid){
+    var hit=q.filter(function(a){ return a.site_id===sid; });
+    if(!hit.length) return {teams:[], dot:null, stl:null};
+    var o={}; hit.forEach(function(a){ o[teamLabel(teamOf(a.team_id))]=1; });
+    var st=astOf(hit[0]);
+    return {teams:Object.keys(o).filter(Boolean), dot:st.x, stl:st.l};
+  };
+  var seq=[], legs=[], head='', hasRun=!!r;
+
+  if(r){
+    var ss=runStops(r), lg=runLegs(r), n=0;
+    ss.forEach(function(st2,i){
+      if(i>0) legs.push(lg[i-1]||null);
+      if(st2.kind==='site'){
+        n++; var inf=info(st2.site_id);
+        seq.push({n:n, name:st2.label, teams:inf.teams, dot:inf.dot, stl:inf.stl});
+      }else seq.push({name:st2.label,
+                      tag:(i===0? 'จุดเริ่ม' : (i===ss.length-1? 'จุดจบ' : 'จุดแวะ'))});
+    });
+    /* ไซต์ที่อยู่ในคิวแต่ไม่ได้อยู่ในเส้นทาง (ส่วนใหญ่เพราะยังไม่มีพิกัด)
+       ต้องยังเห็นอยู่ ไม่ใช่หายไปเงียบ ๆ ทั้งที่รถต้องแวะจริง */
+    var inRoute={}; ss.forEach(function(x){ if(x.site_id) inRoute[x.site_id]=1; });
+    var seen={};
+    q.forEach(function(a){
+      if(inRoute[a.site_id] || seen[a.site_id]) return;
+      seen[a.site_id]=1; n++;
+      var inf2=info(a.site_id);
+      legs.push({off:true});
+      seq.push({n:n, name:(siteOf(a.site_id).name||'—'), teams:inf2.teams, dot:inf2.dot, stl:inf2.stl, off:true});
+    });
+    head=(r.route_km!=null? (kmTxt(+r.route_km)+(r.route_src==='line'?'*':'')) : 'ยังไม่ได้คำนวณระยะ')+
+         (r.route_min? (' · '+minTxt(+r.route_min)) : '')+
+         (r.driver_name? (' · '+r.driver_name) : '');
+  }else{
+    var pts=[];
+    if(v.home_lat!=null && v.home_lng!=null){
+      seq.push({name:v.home_label||'จุดตั้งต้น', tag:'จุดเริ่ม'});
+      pts.push({lat:+v.home_lat, lng:+v.home_lng});
+    }
+    q.forEach(function(a,i){
+      var si=siteOf(a.site_id), inf3=info(a.site_id);
+      seq.push({n:i+1, name:si.name||'—', teams:inf3.teams, dot:inf3.dot, stl:inf3.stl});
+      pts.push((si.lat!=null&&si.lng!=null)? {lat:+si.lat, lng:+si.lng} : null);
+    });
+    var tot=0, any=false;
+    for(var k=1;k<pts.length;k++){
+      if(pts[k-1] && pts[k]){
+        var km=dist(pts[k-1].lat,pts[k-1].lng,pts[k].lat,pts[k].lng)/1000;
+        legs.push({km:km, min:null}); tot+=km; any=true;
+      }else legs.push(null);
+    }
+    head=q.length+' จุด'+(any? (' · '+kmTxt(tot)+'* เส้นตรง') : '')+
+         ((q[0]&&q[0].driver_name)? (' · '+q[0].driver_name) : '');
+  }
+  return {head:head, seq:seq, legs:legs, hasRun:hasRun, runId:(r?r.id:null)};
+}
+
+function vehDayCell(v, d){
+  var P=vehDayParts(v, d); if(!P) return null;
+  var vt=vehTint(v), seq=P.seq, legs=P.legs;
+  var subOf=function(x){
+    if(!x.teams || !x.teams.length) return '';
+    return '<i style="background:'+(x.dot||vt.ink)+'" title="'+esc(x.stl||'')+'"></i>ส่งให้ '+esc(x.teams.join(', '));
+  };
+
+  var legHTML=function(l){
+    if(l && l.off) return '<div class="vq-leg none">— ยังไม่ได้ใส่ในเส้นทาง —</div>';
+    if(!l) return '<div class="vq-leg none">↓ ไม่มีพิกัด คำนวณไม่ได้</div>';
+    return '<div class="vq-leg'+(l.km>VEH_FAR_KM?' far':'')+'">↓ '+kmTxt(l.km)+
+      (l.min? (' · '+minTxt(l.min)) : '')+'</div>';
+  };
+  var body=seq.map(function(x,i){
+    return (i>0? legHTML(legs[i-1]) : '')+
+      '<div class="vq" style="background:'+(x.off? 'var(--orange-dim)' : vt.bg)+
+          ';border-color:'+(x.off? 'rgba(255,149,0,.35)' : vt.line)+'">'+
+        (x.n? ('<span class="vq-n" style="background:'+(x.off? '#c26c00' : vt.ink)+'">'+x.n+'</span>')
+            : ('<span class="vq-n start" style="color:'+vt.ink+'">▶</span>'))+
+        '<span class="vq-s"><b>'+esc(x.name)+'</b>'+
+          (x.tag? ('<i style="background:'+vt.ink+'"></i>'+esc(x.tag)) : subOf(x))+
+        '</span></div>';
+  }).join('');
+
+  return {head:esc(P.head), body:body, hasRun:P.hasRun, runId:P.runId, nStop:seq.length};
 }
 
 /* แถว “กลุ่มคนขับรถ” ในตารางแผนงาน — การ์ดละคัน อ่านจากใบงานขนส่งใบเดียวกับคิวรถ */
@@ -2710,28 +3132,18 @@ function planDriverRow(t, days, today, mv){
       /* รถที่มีคิวของวันนั้นแต่ยังไม่มีใบงานขนส่ง ต้องขึ้นการ์ดด้วย ไม่งั้นแถวนี้ว่าง
          ทั้งที่แถวคิวรถข้างล่างมีของ คนดูจะงงว่าตกลงวันนี้รถวิ่งหรือไม่วิ่ง */
       var inner=(S.vehicles||[]).filter(function(v){ return v.active!==false; }).map(function(v){
-        var r=runOf(v.id, d), q=vehQueue(v.id, d);
-        if(!r && !q.length) return '';
-        var vt=vehTint(v);
-        if(!r){
-          var qn={}; q.forEach(function(a){ qn[teamOf(a.team_id).code||'']=1; });
-          var qs=Object.keys(qn).filter(Boolean);
-          return '<div class="pjob" data-runnew="'+v.id+'|'+d+'" style="border-left-color:var(--orange);'+
-              'background:var(--orange-dim);border-top-color:rgba(255,149,0,.3);border-right-color:rgba(255,149,0,.3);'+
-              'border-bottom-color:rgba(255,149,0,.3)" title="'+esc((v.code||'')+' มีคิว '+q.length+' จุด แต่ยังไม่มีใบงานขนส่ง')+'">'+
-            '<b>🚚 '+esc(v.code||'—')+'</b>'+
-            '<span class="sc">'+(qs.length? 'ส่งให้ '+esc(qs.join(', ')) : (q.length+' จุดในคิว'))+'</span>'+
-            '<span class="st" style="color:#8a4b00">ยังไม่มีใบงานขนส่ง · แตะเพื่อสร้าง</span></div>';
+        if(vehMode()==='odo'){
+          var oc=odoCell(v, d);
+          if(!oc) return '';
+          return '<div class="drv-wrap" data-odo="'+v.id+'|'+d+'" title="แตะเพื่อกรอกเลขไมล์">'+oc.html+'</div>';
         }
-        var tn=(r.deliver_teams||[]).map(function(id){ return teamOf(id).code||''; }).filter(Boolean);
-        return '<div class="pjob" data-run="'+r.id+'" style="border-left-color:'+vt.ink+';background:'+vt.bg+
-            ';border-top-color:'+vt.line+';border-right-color:'+vt.line+';border-bottom-color:'+vt.line+'" title="'+
-            esc((v.code||'')+' · '+(r.scope||'')+' · '+(r.driver_name||''))+'">'+
-          '<b>🚚 '+esc(v.code||'—')+'</b>'+
-          '<span class="sc">'+(tn.length? 'ส่งให้ '+esc(tn.join(', ')) : 'ยังไม่ได้เลือกทีม')+'</span>'+
-          '<span class="st" style="color:'+vt.ink+'">'+(r.driver_name? esc(r.driver_name)+' · ' : '')+
-            (r.route_km!=null? (kmTxt(+r.route_km)+(r.route_src==='line'?'*':'')) : 'ยังไม่มีระยะ')+
-            (r.route_min? (' · '+minTxt(+r.route_min)) : '')+'</span></div>';
+        var c=vehDayCell(v, d);
+        if(!c) return '';
+        return '<div class="drv-wrap" '+(c.hasRun? ('data-run="'+c.runId+'"') : ('data-runnew="'+v.id+'|'+d+'"'))+
+            ' title="'+esc((v.code||'')+' · '+(c.hasRun?'แตะเพื่อแก้ใบงานขนส่ง':'ยังไม่มีใบงานขนส่ง แตะเพื่อสร้าง'))+'">'+
+          '<div class="vq-h">🚚 '+esc(v.code||'—')+
+            (c.hasRun? '' : ' · <b style="color:#c26c00">ยังไม่มีใบงานขนส่ง</b>')+'</div>'+
+          '<div class="vq-h2">'+c.head+'</div>'+c.body+'</div>';
       }).join('');
       return '<td class="'+cls+'" data-runadd="'+d+'">'+inner+'<div class="padd">+</div></td>';
     }).join('')+'</tr>';
@@ -3373,6 +3785,7 @@ $('pnTeam').onchange=function(){ S.pnTeam=this.value; renderSchedule(); };
 $('pnHol').onclick=holidayManager;
 $('pnShift').onclick=shiftTool;
 $('pnView').onclick=function(){ setPlanView(!planListMode()); };
+if($('pnVMode')) $('pnVMode').onclick=function(){ setVehMode(vehMode()==='odo'?'route':'odo'); };
 $('pnSec').onchange=function(){ setPlanSec(this.value); };
 /* ย่อ/คลี่แถบเครื่องมือของแผนงาน — จำค่าไว้ในเครื่อง */
 $('pnMore').onclick=function(){
@@ -3462,7 +3875,9 @@ async function loadMgr(){
         .gte('end_date', addDays(todayISO(),-14)).order('start_date')],
     ['งานค้างปิด', db.from('it_assignments').select('*')
         .lt('work_date', todayISO()).gte('work_date', addDays(todayISO(),-21))
-        .not('checkin_at','is',null).order('work_date',{ascending:false}).limit(200)]
+        .not('checkin_at','is',null).order('work_date',{ascending:false}).limit(200)],
+    /* เลขไมล์ — โหลดทั้งหมด เพราะต้องใช้ครั้งก่อนหน้าช่วงที่ดูอยู่มาคิดระยะของวันแรก */
+    ['เลขไมล์รถ (it_odo)', db.from('it_odo').select('*').order('read_on')]
   ];
   var res=[], errs=[];
   for(var i=0;i<jobs.length;i++){
@@ -3477,6 +3892,8 @@ async function loadMgr(){
   S.vehicles=res[9]||[];
   S.sassign=res[10]||[];
   S.unclosed=(res[11]||[]).filter(function(x){ return x.status!=='done' && x.status!=='partial'; });
+  S.odo=res[12]||[];
+  odoClearCache();
 
   try{ renderAll(); }
   catch(e){ errs.push('แสดงผลหน้าจอ → '+(e.message||e)); }
@@ -3732,7 +4149,28 @@ function siteLabel(v){
 }
 function teamOf(id){ return S.teams.filter(function(t){return t.id===id;})[0]||{}; }
 
-function renderAll(){ renderKPI(); renderChips(); renderBoard(); renderMap(); renderIssues(); renderPlan(); renderStaff(); renderSA(); renderWorkLib(); renderPins(); renderVeh(); renderDemo(); renderOther(); }
+function renderOdo(){
+  var box=$('odoList'); if(!box) return;
+  var vs=(S.vehicles||[]).filter(function(v){ return v.active!==false; });
+  if(!vs.length){ box.innerHTML='<div class="empty" style="padding:16px;font-size:12px">ยังไม่มีรถในระบบ</div>'; return; }
+  var td=todayISO();
+  box.innerHTML=vs.map(function(v){
+    var l=odoList(v.id), last=l[l.length-1]||null, gap=null;
+    if(last){ var dd=last.read_on, n=0; while(dd<td && n<900){ dd=addDays(dd,1); n++; } gap=n; }
+    return '<div class="brow" data-odv="'+v.id+'"><div class="brow-t">'+
+      '<span class="vcell">'+vehIcon(v,26)+'<span class="nm">'+esc(v.code)+'</span></span>'+
+      (last? ('<span class="chip c-blue">'+odoFmt(last.odo)+' กม.</span>')
+           : '<span class="chip c-orange">ยังไม่เคยกรอก</span>')+
+      ((gap!=null && gap>7)? ('<span class="chip c-orange">ไม่ได้กรอกมา '+gap+' วัน</span>') : '')+
+      '</div><div class="brow-s">'+
+      (last? ('<span class="tm">ล่าสุด '+esc(dayText(last.read_on))+'</span><span>กรอกแล้ว '+l.length+' ครั้ง</span>')
+           : '<span>กดเพื่อเริ่มกรอก — ครั้งแรกเป็นจุดตั้งต้น</span>')+
+      '</div></div>';
+  }).join('');
+  box.querySelectorAll('[data-odv]').forEach(function(el){ el.onclick=function(){ odoSheet(el.dataset.odv); }; });
+}
+
+function renderAll(){ renderKPI(); renderChips(); renderBoard(); renderMap(); renderIssues(); renderPlan(); renderStaff(); renderSA(); renderWorkLib(); renderPins(); renderVeh(); renderOdo(); renderDemo(); renderOther(); }
 
 function renderKPI(){
   var a=S.asgs, tot=a.length;
@@ -4060,8 +4498,11 @@ async function loadSchedule(){
   try{
     var r=await db.from('it_assignments').select('*').gte('work_date',S.planFrom).lte('work_date',to).order('work_date');
     S.plan = r.error? [] : (r.data||[]);
-    /* ใบงานขนส่งของกลุ่มคนขับรถ — ฐานรุ่นเก่ายังไม่มีตารางนี้ ให้เป็นลิสต์ว่างไปก่อน ไม่ต้องขึ้น error */
-    var rr=await db.from('it_runs').select('*').gte('work_date',S.planFrom).lte('work_date',to).order('work_date');
+    /* ใบงานขนส่งของกลุ่มคนขับรถ — ฐานรุ่นเก่ายังไม่มีตารางนี้ ให้เป็นลิสต์ว่างไปก่อน ไม่ต้องขึ้น error
+       ดึงกว้างกว่าช่วงที่ดูอยู่ เพราะช่วงเลขไมล์มักคาบไปก่อนหน้าจอที่เปิดดู
+       ถ้าดึงแค่ช่วงที่เห็น วันนอกจอจะถูกนับว่า “ไม่มีแผน” แล้วการเกลี่ยระยะจะเพี้ยนทั้งช่วง */
+    var rr=await db.from('it_runs').select('*')
+      .gte('work_date', addDays(S.planFrom,-60)).lte('work_date', addDays(to,30)).order('work_date');
     S.runs = rr.error? [] : (rr.data||[]);
   }catch(e){ S.plan=[]; S.runs=[]; }
   renderSchedule();
@@ -4278,6 +4719,32 @@ function fitPlanHeight(){
 window.addEventListener('resize', fitPlanHeight);
 window.addEventListener('orientationchange', function(){ setTimeout(fitPlanHeight, 250); });
 
+/* มุมมองแถวรถในตารางแผนงาน
+   route = เส้นทางเต็มทุกจุดพร้อมระยะต่อช่วง · odo = เลขไมล์อย่างเดียว แล้วคำนวณระยะให้
+   ช่วงแรกที่คนหน้างานยังไม่พร้อมลงรายละเอียด ใช้ odo จะเบากว่ามาก กรอกเลขเดียวจบ */
+var PN_VMODE_KEY='it_pn_vmode';
+function vehMode(){
+  if(S.pnVMode===null || S.pnVMode===undefined){
+    var v=null; try{ v=localStorage.getItem(PN_VMODE_KEY); }catch(e){}
+    S.pnVMode=(v==='odo')? 'odo' : 'route';
+  }
+  return S.pnVMode;
+}
+function setVehMode(m){
+  S.pnVMode=m;
+  try{ localStorage.setItem(PN_VMODE_KEY, m); }catch(e){}
+  renderSchedule();
+}
+function syncVehModeBtn(){
+  var b=$('pnVMode'); if(!b) return;
+  var sec=planSec();
+  b.classList.toggle('hide', planListMode() || !(sec==='all'||sec==='veh'));
+  b.textContent = vehMode()==='odo' ? '🧭 เลขไมล์' : '🗺 เส้นทางเต็ม';
+  b.title = vehMode()==='odo'
+    ? 'ตอนนี้แถวรถแสดงแค่เลขไมล์กับระยะที่คำนวณได้ — กดเพื่อสลับไปดูเส้นทางทุกจุด'
+    : 'ตอนนี้แถวรถแสดงเส้นทางทุกจุดพร้อมระยะต่อช่วง — กดเพื่อสลับไปดูแค่เลขไมล์';
+}
+
 function syncPlanViewBtn(){
   var b=$('pnView'); if(!b) return;
   b.textContent = planListMode()? '▦ ตาราง' : '📋 รายวัน';
@@ -4348,7 +4815,8 @@ function renderSchedule(){
     '</th>';
   }).join('')+'</tr>';
 
-  syncPlanViewBtn(); syncPlanSec();
+  syncPlanViewBtn(); syncPlanSec(); syncVehModeBtn();
+  odoClearCache();
   var nClash=0, SM=seriesMap();
   var mayMoveTeam = rank(S.me)>=2 && teams.length>1;
   var mvBtns=function(t, ti){
@@ -4485,27 +4953,20 @@ function renderSchedule(){
               (v.driver_name?'<small>'+esc(v.driver_name)+'</small>':'')+
             '</span></span></td>'+
         days.map(function(d){
-          var q=vehQueue(v.id, d);
-          var rn=runOf(v.id, d);
+          if(vehMode()==='odo'){
+            var oc=odoCell(v, d);
+            return '<td class="pcell" data-odo="'+v.id+'|'+d+'">'+
+              (oc? oc.html : '<div class="padd">+</div>')+'</td>';
+          }
+          var c=vehDayCell(v, d);
           var nFree=(S.plan||[]).filter(function(a){ return a.work_date===d && !a.vehicle_id; }).length;
-          if(!q.length && !rn) return '<td class="pcell" data-vq="'+v.id+'|'+d+'">'+
+          if(!c) return '<td class="pcell" data-vq="'+v.id+'|'+d+'">'+
             (nFree? '<div class="padd">+</div>' : '')+'</td>';
-          var sp=vehSpan(q, v);
-          /* มีใบงานขนส่งแล้วให้ใช้ระยะถนนจริงจากใบนั้น ไม่งั้นค่อยถอยไปใช้เส้นตรงของคิว */
-          var kmLine = (rn && rn.route_km!=null)
-            ? (kmTxt(+rn.route_km)+(rn.route_src==='line'?'*':'')+(rn.route_min? (' · '+minTxt(+rn.route_min)) : ''))
-            : (sp.km? (sp.km+' กม.'+(sp.noHome?'*':'')) : '');
-          var who=(rn&&rn.driver_name)||(q.length&&q[0].driver_name)||'';
-          return '<td class="pcell'+(sp.far?' clash':'')+'" data-vq="'+v.id+'|'+d+'">'+
-            '<div class="vq-h">'+(q.length? (q.length+' คิว') : 'ใบขนส่ง')+(kmLine? (' · '+kmLine) : '')+
-              (who?' · '+esc(who):'')+
-              (sp.far?' <b style="color:#c26c00">ไกลผิดปกติ</b>':'')+'</div>'+
-            q.map(function(a){ var si=siteOf(a.site_id), t=teamOf(a.team_id), st=astOf(a);
-              return '<div class="vq" style="background:'+vt.bg+';border-color:'+vt.line+'">'+
-                '<span class="vq-n" style="background:'+vt.ink+'">'+(a.vehicle_seq||'?')+'</span>'+
-                '<span class="vq-s"><b>'+esc(si.name||'—')+'</b>'+
-                  '<i style="background:'+st.x+'"></i>ส่งให้ '+esc(teamLabel(t))+'</span></div>'; }).join('')+
-          '</td>';
+          var sp=vehSpan(vehQueue(v.id,d), v);
+          return '<td class="pcell'+(sp.far&&!c.hasRun?' clash':'')+'" data-vq="'+v.id+'|'+d+'">'+
+            '<div class="vq-h">'+c.head+
+              (c.hasRun? '' : ' · <b style="color:#c26c00">ยังไม่มีใบขนส่ง</b>')+'</div>'+
+            c.body+'</td>';
         }).join('')+'</tr>';
       }).join('');
     }
@@ -4600,6 +5061,9 @@ function renderSchedule(){
   });
   wrap.querySelectorAll('[data-add]').forEach(function(td){
     td.onclick=function(){ var v=td.dataset.add.split('|'); quickAssign(v[0], v[1]); };
+  });
+  wrap.querySelectorAll('[data-odo]').forEach(function(el){
+    el.onclick=function(e){ e.stopPropagation(); var q=el.dataset.odo.split('|'); odoQuick(q[0], q[1]); };
   });
   wrap.querySelectorAll('[data-ptup]').forEach(function(b){
     b.onclick=function(e){ e.stopPropagation(); movePlanTeam(b.dataset.ptup, -1); }; });
@@ -4882,16 +5346,16 @@ function printOpt(){
   try{
     var o=JSON.parse(localStorage.getItem(PN_PRINT_KEY)||'null');
     if(o && typeof o==='object')
-      return {site:!!o.site, person:!!o.person, veh:!!o.veh, sig:!!o.sig};
+      return {site:!!o.site, person:!!o.person, veh:!!o.veh, odo:!!o.odo, sig:!!o.sig};
   }catch(e){}
   /* ครั้งแรก เอาส่วนที่กำลังเห็นอยู่บนจอเป็นค่าตั้งต้น */
   var sec=(typeof planSec==='function')? planSec() : 'all';
-  if(sec==='all') return {site:true, person:true, veh:true, sig:true};
-  return {site:sec==='site', person:sec==='person', veh:sec==='veh', sig:true};
+  if(sec==='all') return {site:true, person:true, veh:true, odo:true, sig:true};
+  return {site:sec==='site', person:sec==='person', veh:sec==='veh', odo:sec==='veh', sig:true};
 }
 function savePrintOpt(o){
   try{ localStorage.setItem(PN_PRINT_KEY, JSON.stringify(
-    {site:!!o.site, person:!!o.person, veh:!!o.veh, sig:!!o.sig})); }catch(e){}
+    {site:!!o.site, person:!!o.person, veh:!!o.veh, odo:!!o.odo, sig:!!o.sig})); }catch(e){}
 }
 /* รายการมอบหมายรายคนในช่วงวันที่กำลังดู ใช้ร่วมกันทั้งบนจอและตอนพิมพ์ */
 function saGrid(days){
@@ -4916,9 +5380,11 @@ function printSheet(){
     return a.vehicle_id && a.work_date>=days[0] && a.work_date<=days[days.length-1]; }).length;
 
   var o=printOpt();
+  var nOdo=vehs.reduce(function(n,v){
+    return n+days.filter(function(x){ return odoAt(v.id,x); }).length; },0);
   if(!sg.ids.length) o.person=false;
-  if(!vehs.length)   o.veh=false;
-  if(!o.site && !o.person && !o.veh) o.site=true;
+  if(!vehs.length){ o.veh=false; o.odo=false; }
+  if(!o.site && !o.person && !o.veh && !o.odo) o.site=true;
 
   var dt0=new Date(days[0]+'T00:00:00'), dt1=new Date(days[days.length-1]+'T00:00:00');
   var period=dt0.getDate()+' '+MO_TH[dt0.getMonth()]+' — '+dt1.getDate()+' '+MO_TH[dt1.getMonth()]+' '+(dt1.getFullYear()+543);
@@ -4935,13 +5401,17 @@ function printSheet(){
      s:'รถคันไหนวันนั้นวิ่งกี่ไซต์ ลำดับไหน ใครขับ และระยะรวม',
      n:vehs.length? (vehs.length+' คัน · '+nStop+' จุดส่ง')
                   : 'ยังไม่มีรถในทะเบียนรถ', ok:!!vehs.length},
+    {k:'odo', t:'\ud83e\udded เลขไมล์และระยะทาง',
+     s:'เลขหน้าปัดที่กรอกไว้ ระยะที่วิ่งจริงรายวัน เทียบกับแผน และยอดรวมทั้งช่วง',
+     n:vehs.length? (nOdo? (nOdo+' วันที่กรอกเลขไมล์ไว้ในช่วงนี้') : 'ช่วงนี้ยังไม่ได้กรอกเลขไมล์เลย — จะพิมพ์เป็นตารางเปล่าไว้กรอกมือ')
+                  : 'ยังไม่มีรถในทะเบียนรถ', ok:!!vehs.length},
     {k:'sig', t:'\u270d\ufe0f ช่องลายเซ็นท้ายเอกสาร',
      s:'ผู้จัดทำ / ผู้ตรวจสอบ / ผู้อนุมัติ ต่อท้ายส่วนสุดท้าย',
      n:'สำหรับติดบอร์ดหรือเก็บเข้าแฟ้ม', ok:true}
   ];
 
   function draw(){
-    var nSel=(o.site?1:0)+(o.person?1:0)+(o.veh?1:0);
+    var nSel=(o.site?1:0)+(o.person?1:0)+(o.veh?1:0)+(o.odo?1:0);
     $('shB').innerHTML=
       '<div style="font-size:11.5px;color:var(--text2);line-height:1.75;margin-bottom:13px">'+
         'พิมพ์ช่วง <b>'+esc(period)+'</b> เท่าที่เห็นบนจอ · กระดาษ A4 แนวนอน<br>'+
@@ -4967,7 +5437,7 @@ function printSheet(){
     '<button class="btn sm" id="poGo">\ud83d\udda8 พิมพ์</button></div>');
   draw();
   $('poGo').onclick=function(){
-    if(!o.site && !o.person && !o.veh)
+    if(!o.site && !o.person && !o.veh && !o.odo)
       return toast('เลือกอย่างน้อย 1 ส่วนที่จะพิมพ์', 3000);
     savePrintOpt(o); closeSheet(); printSchedule(o);
   };
@@ -5076,21 +5546,28 @@ function printSchedule(opt){
       '</span></span></td>'+
       days.map(function(x){
         var dt=new Date(x+'T00:00:00');
-        var q=vehQueue(v.id, x);
-        if(!q.length) return '<td'+(isHoliday(x)?' class="hol"':(dt.getDay()===0?' class="sun"':''))+'></td>';
-        var sp=vehSpan(q, v);
-        var drv={}; q.forEach(function(a){ if(a.driver_name) drv[a.driver_name]=1; });
-        var dn=Object.keys(drv);
-        return '<td'+(sp.far?' class="clash"':'')+'><div class="vqh">'+
-            (q.length+' คิว'+(sp.km? (' · '+sp.km+' กม.'+(sp.noHome?'*':'')) : ''))+
-            (dn.length? (' · '+esc(dn.join(', '))) : '')+
-            (sp.far? ' ⚠ ไกลผิดปกติ' : '')+'</div>'+
-          q.map(function(a){
-            var si=siteOf(a.site_id), tm=teamOf(a.team_id), st=astOf(a);
-            return '<div class="vq" style="background:'+vt.bg+';border-color:'+vt.line+'">'+
-              '<span class="n" style="background:'+vt.ink+'">'+(a.vehicle_seq||'?')+'</span>'+
-              '<span><b>'+esc(si.name||'—')+'</b>'+
-                '<span class="t"><i style="background:'+st.x+'"></i>ส่งให้ '+esc(teamLabel(tm))+'</span></span></div>';
+        var cls=(isHoliday(x)?' class="hol"':(dt.getDay()===0?' class="sun"':''));
+        var Pp=vehDayParts(v, x);
+        if(!Pp) return '<td'+cls+'></td>';
+        var legTxt=function(l){
+          if(l && l.off) return '<div class="vleg">— ยังไม่ได้ใส่ในเส้นทาง —</div>';
+          if(!l) return '<div class="vleg">↓ ไม่มีพิกัด คำนวณไม่ได้</div>';
+          return '<div class="vleg">↓ '+kmTxt(l.km)+(l.min? (' · '+minTxt(l.min)) : '')+'</div>';
+        };
+        return '<td'+cls+'><div class="vqh">'+esc(Pp.head)+(Pp.hasRun?'':' · ยังไม่มีใบขนส่ง')+'</div>'+
+          Pp.seq.map(function(y,i){
+            return (i>0? legTxt(Pp.legs[i-1]) : '')+
+              '<div class="vq" style="background:'+(y.off?'#fff4e6':vt.bg)+
+                ';border-color:'+(y.off?'#f0c088':vt.line)+'">'+
+                '<span class="n" style="'+(y.n
+                   ? ('background:'+(y.off?'#c26c00':vt.ink))
+                   : ('background:#fff;color:'+vt.ink+';border:1px dashed '+vt.line))+'">'+(y.n||'▶')+'</span>'+
+                '<span><b>'+esc(y.name)+'</b>'+
+                  (y.tag? ('<span class="t">'+esc(y.tag)+'</span>')
+                        : ((y.teams&&y.teams.length)
+                            ? ('<span class="t"><i style="background:'+(y.dot||vt.ink)+'"></i>ส่งให้ '+esc(y.teams.join(', '))+'</span>')
+                            : ''))+
+                '</span></div>';
           }).join('')+'</td>';
       }).join('')+'</tr>';
   }).join('');
@@ -5098,13 +5575,14 @@ function printSchedule(opt){
   /* ส่วนไหนที่จะพิมพ์ ตามที่เลือกจากกล่องตัวเลือก */
   var o=opt||printOpt();
   if(!sg.ids.length) o.person=false;
-  if(!vehs.length)   o.veh=false;
-  if(!o.site && !o.person && !o.veh) o.site=true;
+  if(!vehs.length){ o.veh=false; o.odo=false; }
+  if(!o.site && !o.person && !o.veh && !o.odo) o.site=true;
   function secNames(){
     var a=[];
     if(o.site)   a.push('แผนงานหน้าไซต์');
     if(o.person) a.push('มอบหมายรายคน');
     if(o.veh)    a.push('คิวรถ');
+    if(o.odo)    a.push('เลขไมล์และระยะทาง');
     return a.join(' + ');
   }
   function lgSite(){
@@ -5125,6 +5603,51 @@ function printSchedule(opt){
       '<span>พื้นสี = สีประจำไซต์ ตรงกับตารางแผนงาน</span>'+
     '</div>';
   }
+  /* หัวตารางแบบมีคอลัมน์ “รวมทั้งช่วง” ต่อท้าย ใช้กับตารางเลขไมล์ */
+  function headTot(label, totLabel){
+    return headPlain(label).replace('</tr>', '<th class="tot">'+totLabel+'</th></tr>');
+  }
+  /* ตารางเลขไมล์ — เลขหน้าปัดที่กรอกจริง ระยะรายวัน เทียบแผน และยอดรวมทั้งช่วง
+     ค่าที่เกลี่ยมาจากช่วงที่กรอกห่าง ๆ จะมี ~ นำหน้า บนกระดาษก็ต้องแยกให้ออกเหมือนบนจอ */
+  var obody=vehs.map(function(v){
+    var sumA=0, sumP=0, nEx=0, nEst=0, anyA=false;
+    var tds=days.map(function(x){
+      var dt=new Date(x+'T00:00:00');
+      var cls=(isHoliday(x)?' class="hol"':(dt.getDay()===0?' class="sun"':''));
+      var rec=odoAt(v.id,x), a=odoDay(v.id,x), pk=odoPlanKm(v.id,x);
+      if(a){ sumA+=a.km; anyA=true; if(a.how==='exact') nEx++; else nEst++; }
+      if(pk!=null) sumP+=pk;
+      if(!rec && !a && pk==null) return '<td'+cls+'></td>';
+      var g=odoGap(v.id,x), zero=(a && a.km<0.05);
+      return '<td'+cls+'>'+
+        (rec? ('<div class="odr">'+odoFmt(rec.odo)+'</div>') : '')+
+        (a? ('<div class="odk'+(zero?' z':'')+'">'+
+             (zero? 'ไม่ได้ออกรถ' : ((ODO_HOW[a.how]||ODO_HOW.flat).s+kmTxt(a.km)))+'</div>') : '')+
+        (pk!=null? ('<div class="odp">แผน '+kmTxt(pk)+(g? (' · '+gapTxt(g)) : '')+'</div>') : '')+
+      '</td>';
+    }).join('');
+    var gp=(anyA && sumP>0)? {km:sumA-sumP, pct:((sumA-sumP)/sumP)*100} : null;
+    var l=odoList(v.id), last=l[l.length-1]||null;
+    return '<tr><td class="tc"><span class="vc">'+vehIcon(v,26)+
+      '<span><b>'+esc(v.code||'—')+'</b><br>'+
+      '<span class="sm">'+esc(v.plate||v.kind||'—')+'</span>'+
+      (last? ('<br><span class="sm">หน้าปัดล่าสุด '+odoFmt(last.odo)+'</span>') : '')+
+      '</span></span></td>'+tds+
+      '<td class="tot">'+(anyA? ('<b>'+kmTxt(sumA)+'</b>') : '—')+
+        (sumP>0? ('<div class="odp">แผน '+kmTxt(sumP)+(gp? ('<br>'+gapTxt(gp)) : '')+'</div>') : '')+
+        ((nEx||nEst)? ('<div class="odp">เป๊ะ '+nEx+' วัน · ประมาณ '+nEst+' วัน</div>') : '')+
+      '</td></tr>';
+  }).join('');
+  function lgOdo(){
+    return '<div class="lg">'+
+      '<span><b style="color:#111">ตัวเลขบน</b> = เลขหน้าปัดที่กรอกไว้วันนั้น</span>'+
+      '<span><b style="color:#111">ตัวเลขกลาง</b> = ระยะที่วิ่งจริงของวันนั้น</span>'+
+      '<span><b style="color:#111">~</b> = ค่าประมาณ เกลี่ยจากช่วงที่กรอกห่างกันหลายวัน ตามสัดส่วนระยะที่วางแผนไว้</span>'+
+      '<span>ไม่มี ~ = เป๊ะ มาจากเลขหน้าปัดสองครั้งที่กรอกติดกัน</span>'+
+      '<span>ยอดรวมท้ายแถวเป๊ะเสมอ ไม่ว่าจะกรอกถี่หรือห่าง เพราะมาจากผลต่างของเลขหน้าปัด</span>'+
+    '</div>';
+  }
+
   function lgVeh(){
     return '<div class="lg"><span><b style="color:#111">เลขหน้าไซต์</b> = ลำดับคิวที่รถต้องวิ่ง</span>'+
       '<span><span class="bx" style="background:#fff5e6;border-color:#d98800"></span>ระยะระหว่างจุดไกลผิดปกติ (เกิน '+VEH_FAR_KM+' กม.) ควรทบทวนคิว</span>'+
@@ -5201,6 +5724,13 @@ function printSchedule(opt){
     '.sab b{display:block;font-size:9.5px;line-height:1.3}'+
     '.sab .k{display:block;font-size:8.5px;color:#444;line-height:1.35}'+
     '.sab .k i{display:inline-block;width:6px;height:6px;border-radius:50%;margin-right:3px}'+
+    '.vleg{font-size:7.5px;color:#777;padding:0 0 1px 15px;line-height:1.25}'+
+    '.odr{font-size:10px;font-weight:700;color:#111;line-height:1.35}'+
+    '.odk{font-size:9.5px;font-weight:700;color:#111;line-height:1.35}'+
+    '.odk.z{font-weight:400;color:#777}'+
+    '.odp{font-size:8px;color:#555;line-height:1.35}'+
+    'td.tot{background:#f4f6f8;font-size:10px}'+
+    'th.tot{background:#e9edf1}'+
     '@media print{.noprint{display:none}}'+
     '</style></head><body>'+
     '<div class="hd"><div><h1>แผนงานติดตั้ง — Install-QA Tracker</h1>'+
@@ -5221,6 +5751,11 @@ function printSchedule(opt){
         out+=(out? '<div class="brk"></div>' : '')+
           '<h2 class="sh">\ud83d\ude9a ส่วนที่ '+((o.site?1:0)+(o.person?1:0)+1)+' · คิวรถ ('+vehs.length+' คัน)</h2>'+
           '<table><thead>'+headPlain('รถ')+'</thead><tbody>'+vbody+'</tbody></table>'+lgVeh();
+      if(o.odo)
+        out+=(out? '<div class="brk"></div>' : '')+
+          '<h2 class="sh">\ud83e\udded ส่วนที่ '+((o.site?1:0)+(o.person?1:0)+(o.veh?1:0)+1)+
+            ' · เลขไมล์และระยะทาง ('+vehs.length+' คัน)</h2>'+
+          '<table><thead>'+headTot('รถ','รวมทั้งช่วง')+'</thead><tbody>'+obody+'</tbody></table>'+lgOdo();
       return out;
     })()+
     (o.sig? sigHTML() : '')+
@@ -5275,7 +5810,35 @@ function exportSchedule(){
     csv('แผนงาน_รายการ_'+days[0]+'_ถึง_'+days[days.length-1], flat);
   }, 900);
 
-  toast('ดาวน์โหลด 2 ไฟล์ — ตารางและรายการ', 4200);
+  /* แผ่นที่ 3 — เลขไมล์กับระยะทางรายวัน เอาไปทำสรุปค่าน้ำมันต่อได้เลย
+     คอลัมน์ “ที่มา” บอกตรง ๆ ว่าแถวไหนเป็นเลขจริง แถวไหนเกลี่ยมา */
+  var vs=(S.vehicles||[]).filter(function(v){ return v.active!==false; });
+  var odoRows=[];
+  vs.forEach(function(v){
+    days.forEach(function(x){
+      var rec=odoAt(v.id,x), a=odoDay(v.id,x), pk=odoPlanKm(v.id,x), g=odoGap(v.id,x);
+      if(!rec && !a && pk==null) return;
+      var dt=new Date(x+'T00:00:00');
+      odoRows.push({
+        วันที่:x, วัน:DW_TH[dt.getDay()],
+        รถ:v.code||'', ทะเบียน:v.plate||'',
+        เลขไมล์ที่กรอก: rec? rec.odo : '',
+        ระยะจริงกม: a? (Math.round(a.km*10)/10) : '',
+        ที่มาของระยะ: a? (a.how==='exact'? 'เป๊ะ (เลขไมล์สองครั้งติดกัน)' : 'ประมาณ (เกลี่ยจากช่วง '+a.from.read_on+' ถึง '+a.to.read_on+')') : '',
+        แผนกม: pk!=null? pk : '',
+        ส่วนต่างกม: g? (Math.round(g.km*10)/10) : '',
+        ส่วนต่างเปอร์เซ็นต์: g? (Math.round(g.pct)+'%') : '',
+        คนขับ: (function(){ var r=runOf(v.id,x); return (r&&r.driver_name)||''; })(),
+        หมายเหตุ: (rec&&rec.note)||''
+      });
+    });
+  });
+  if(odoRows.length) setTimeout(function(){
+    csv('เลขไมล์และระยะทาง_'+days[0]+'_ถึง_'+days[days.length-1], odoRows);
+  }, 1800);
+
+  toast('ดาวน์โหลด '+(2+(odoRows.length?1:0))+' ไฟล์ — ตาราง รายการ'+
+        (odoRows.length?' และเลขไมล์':''), 4200);
 }
 
 /* ═════ เลื่อนงานยกชุด — ใช้ตอนโรงงานประกาศหยุดเพิ่มหรือแผนเลื่อนทั้งก้อน ═════ */
