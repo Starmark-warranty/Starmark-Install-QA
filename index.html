@@ -260,6 +260,8 @@ body.dragmode .pjob:active{cursor:grabbing}
 .odo-km{font-size:11px;color:var(--text2);line-height:1.5}
 .odo-km b{font-size:12.5px;color:var(--text)}
 .odo-p{font-size:9.5px;color:var(--text3);line-height:1.5}
+.odo-note{font-size:9.5px;color:var(--text2);line-height:1.55;background:var(--s1);
+  border:1px solid var(--border);border-radius:6px;padding:3px 6px;margin-top:4px;white-space:normal}
 .odo-stops{font-size:10px;line-height:1.5;color:var(--text2);margin:1px 0 3px}
 .odo-stops b{color:var(--text);font-weight:600}
 .odo-stops i{display:inline-block;width:5px;height:5px;border-radius:50%;margin-right:4px;vertical-align:1px}
@@ -656,7 +658,7 @@ body.preview #previewBar{display:flex}
 
 <script>
 /* ── ยามเฝ้า splash: อยู่นอกสคริปต์หลัก ถ้าสคริปต์หลักพัง ตัวนี้ยังทำงาน ── */
-window.APP_VER='17.8';
+window.APP_VER='18.1';
 (function(){
   var fill=function(){
     var a=document.querySelectorAll('.ver');
@@ -2100,7 +2102,7 @@ function vehForm(id){
     f('หมายเหตุ','v_note',v.note,'')+
     '<label style="display:flex;gap:7px;align-items:center;font-size:12.5px;margin-top:4px">'+
       '<input type="checkbox" id="v_act"'+(v.active!==false?' checked':'')+'> เปิดใช้งานรถคันนี้</label>',
-    '<div class="row">'+(id?'<button class="btn ghost sm" id="v_del" style="flex:0 0 90px">ลบ</button>':'')+
+    '<div class="row">'+(id?'<button class="btn ghost sm" id="v_del" style="flex:0 0 92px">ลบรถ</button>':'')+
       '<button class="btn sm" id="v_save">บันทึก</button></div>');
 
   /* กล่องปักพิกัดเอง — สร้างแผนที่ตอนเปิดกล่องครั้งแรก ไม่งั้น Leaflet วัดขนาดไม่ได้ */
@@ -2597,7 +2599,7 @@ function odoQuick(vid, d, after){
       '<div class="fld"><label>หมายเหตุ</label>'+
         '<input id="od_n" value="'+esc((cur&&cur.note)||'')+'" placeholder="เช่น เติมน้ำมันที่ปั๊มบางนา"></div>',
 
-      '<div class="row">'+((mode==='odo'&&cur)?'<button class="btn ghost sm" id="od_del" style="flex:0 0 80px">ลบ</button>':'')+
+      '<div class="row">'+((mode==='odo'&&cur)?'<button class="btn ghost sm" id="od_del" style="flex:0 0 118px">ลบเลขไมล์</button>':'')+
         '<button class="btn sm" id="od_ok">'+(mode==='odo'?'บันทึก':'บันทึกระยะของช่วงนี้')+'</button></div>');
 
     document.querySelectorAll('#od_mode [data-om]').forEach(function(b){
@@ -2913,8 +2915,13 @@ function odoSheet(vid){
   if(rank(S.me)<1) return toast('เฉพาะแอดมินขึ้นไปที่กรอกเลขไมล์ได้', 3400);
   var v=vehOf(vid), l=odoList(vid).slice().reverse();
   var last=l[0]||null;
-  var days=[], d0=addDays(todayISO(), -13);
-  for(var i=0;i<14;i++) days.push(addDays(d0,i));
+  /* ช่วงที่กรอกได้ ให้ตรงกับช่วงที่กำลังดูในตารางแผนงาน
+     ของเดิมล็อกย้อนหลัง 14 วันตายตัว วันที่อยู่นอกช่วงเลยหายไปจากกริดทั้งที่มีข้อมูลอยู่ */
+  var gDays=Math.max(7, Math.min(+S.planDays||14, 31));
+  var gFrom=S.planFrom || addDays(todayISO(), -(gDays-1));
+  var days=[];
+  var mkDays=function(){ days=[]; for(var i=0;i<gDays;i++) days.push(addDays(gFrom,i)); };
+  mkDays();
 
   sheet('เลขไมล์ ' + esc(v.code||''),
     '<div style="background:var(--s1);border:1px solid var(--border);border-radius:11px;padding:11px 13px;'+
@@ -2929,15 +2936,32 @@ function odoSheet(vid){
       'ช่วงที่เว้นหลายวัน จะเกลี่ยลงรายวัน<b>ตามสัดส่วนระยะที่วางแผนไว้</b> วันที่รถไม่ออกจะได้ 0 ไม่ใช่เฉลี่ยเท่ากัน<br>'+
       'ตัวเลขที่เกลี่ยมาจะมี <b>~</b> นำหน้าเสมอ จะได้รู้ว่าอันไหนเป๊ะ อันไหนประมาณ</div>'+
 
-    '<div class="sec-h" style="margin:4px 0 7px">กรอกย้อนหลัง 14 วัน — ช่องไหนไม่ได้กรอกก็เว้นไว้</div>'+
+    '<div class="sec-h" style="margin:4px 0 7px" id="od_range"></div>'+
+    '<div class="row" style="margin-bottom:8px">'+
+      '<button class="btn ghost sm" type="button" id="od_prevw" style="flex:0 0 76px">‹ ก่อน</button>'+
+      '<button class="btn ghost sm" type="button" id="od_today">วันนี้</button>'+
+      '<button class="btn ghost sm" type="button" id="od_nextw" style="flex:0 0 76px">ถัดไป ›</button>'+
+    '</div>'+
     '<div id="od_grid"></div>'+
     '<button class="btn ghost sm" id="od_save" style="margin-top:9px;width:100%">บันทึกทุกช่องที่แก้</button>'+
 
     '<div class="sec-h" style="margin:20px 0 7px">ที่กรอกไว้แล้ว</div>'+
-    '<div id="od_hist"></div>',
+    '<div id="od_hist"></div>'+
+    /* ปุ่มล้างทั้งคัน — ล้างเฉพาะตาราง it_odo ตารางอื่นไม่แตะ
+       ใช้ตอนทดลองระบบหรือตอนเปลี่ยนหน้าปัดรถ */
+    ((rank(S.me)>=2 && odoList(vid).length)
+      ? ('<div class="sec-h" style="margin:22px 0 7px;color:var(--red)">ล้างทั้งคัน</div>'+
+         '<div style="font-size:11px;color:var(--text2);line-height:1.75;margin-bottom:9px">'+
+           'ลบเลขไมล์ของ '+esc(v.code||'')+' ทุกครั้งที่เคยกรอก ('+odoList(vid).length+' ครั้ง) กู้คืนไม่ได้<br>'+
+           '<b style="color:var(--text)">ลบเฉพาะเลขไมล์เท่านั้น</b> — คิวรถ ใบงานของทีม ใบงานขนส่ง '+
+           'และทีม/สถานที่ที่ติ๊กไว้ ยังอยู่ครบทุกอย่าง</div>'+
+         '<button class="btn danger sm" id="od_wipe" style="width:100%">🗑 ล้างเลขไมล์ทั้งหมดของ '+esc(v.code||'คันนี้')+'</button>')
+      : ''),
     '');
 
   var drawGrid=function(){
+    if($('od_range')) $('od_range').textContent=
+      'กรอกช่วง '+dayText(days[0])+' – '+dayText(days[days.length-1])+' · ช่องไหนไม่ได้กรอกก็เว้นไว้';
     $('od_grid').innerHTML=days.map(function(d){
       var rec=odoAt(vid,d), a=odoDay(vid,d), pk=odoPlanKm(vid,d);
       var hint = a? ((ODO_HOW[a.how]||ODO_HOW.flat).s+kmTxt(a.km)) : (pk!=null? ('แผน '+kmTxt(pk)) : '');
@@ -2968,6 +2992,41 @@ function odoSheet(vid){
     });
   };
   drawGrid(); drawHist();
+
+  /* เลื่อนช่วงวัน — ค่าที่พิมพ์ค้างไว้ยังไม่ได้บันทึกจะหาย จึงเตือนก่อนถ้ามีของค้าง */
+  var dirty=function(){
+    var any=false;
+    days.forEach(function(d){
+      var el=$('od_grid').querySelector('[data-od="'+d+'"]'); if(!el) return;
+      var rec=odoAt(vid,d);
+      var raw=String(el.value).trim();
+      if(raw!==(rec? String(rec.odo) : '')) any=true;
+    });
+    return any;
+  };
+  var shift=function(n){
+    if(dirty() && !confirm('มีช่องที่แก้ไว้แต่ยังไม่ได้บันทึก\nเลื่อนช่วงวันแล้วค่าที่พิมพ์จะหาย\n\nเลื่อนต่อหรือไม่?')) return;
+    gFrom=(n===0)? addDays(todayISO(), -(gDays-1)) : addDays(gFrom, n*gDays);
+    mkDays(); drawGrid();
+  };
+  if($('od_prevw')) $('od_prevw').onclick=function(){ shift(-1); };
+  if($('od_nextw')) $('od_nextw').onclick=function(){ shift(1); };
+  if($('od_today'))  $('od_today').onclick=function(){ shift(0); };
+
+  if($('od_wipe')) $('od_wipe').onclick=async function(){
+    var n=odoList(vid).length;
+    if(!confirm('ล้างเลขไมล์ของ '+(v.code||'')+' ทั้งหมด '+n+' ครั้ง?\n\n'+
+      'ลบเฉพาะเลขไมล์เท่านั้น\n'+
+      'คิวรถ ใบงานของทีม ใบงานขนส่ง และทีม/สถานที่ที่ติ๊กไว้ ไม่ถูกแตะ\n\n'+
+      'กู้คืนไม่ได้')) return;
+    this.disabled=true; this.textContent='กำลังล้าง…';
+    var r=await db.from('it_odo').delete().eq('vehicle_id', vid);
+    if(r.error){ toast('ล้างไม่สำเร็จ: '+r.error.message, 6000);
+      this.disabled=false; this.textContent='🗑 ล้างเลขไมล์ทั้งหมด'; return; }
+    odoClearCache();
+    closeSheet(); toast('ล้างเลขไมล์ของ '+(v.code||'')+' แล้ว '+n+' ครั้ง', 3600);
+    await loadMgr(); try{ await loadSchedule(); }catch(e){}
+  };
 
   $('od_save').onclick=async function(){
     /* ตรวจทั้งคอลัมน์ให้เรียงไม่ถอยหลังก่อน แล้วค่อยเขียนลงฐานทีเดียว
@@ -3053,6 +3112,10 @@ function odoCell(v, d){
     (g? (' · <b style="color:'+(g.km>=0?'#c26c00':'var(--green)')+'">'+gapTxt(g)+'</b>') : '')+'</div>');
   if(!rec && !a) lines.push('<div class="odo-p" style="color:#c26c00">'+
     (q.length? 'แตะเพื่อกรอกเลขไมล์' : 'แตะเพื่อระบุทีมและสถานที่')+'</div>');
+  /* หมายเหตุที่คนกรอกเขียนไว้ ต้องเห็นบนตารางเลย ไม่ใช่ซ่อนอยู่ในกล่อง
+     เพราะมันคือที่เดียวที่บอกว่าวันนั้นแวะไหน เติมน้ำมันที่ไหน หรือเกิดอะไรขึ้น */
+  if(rec && rec.note) lines.push('<div class="odo-note">📝 '+esc(rec.note)+'</div>');
+  if(r && r.note) lines.push('<div class="odo-note">🚚 '+esc(r.note)+'</div>');
   return {html:lines.join(''), hasRec:!!rec};
 }
 
@@ -3167,7 +3230,7 @@ function runForm(o){
     '<div class="fld" style="margin-top:16px"><label>หมายเหตุ</label>'+
       '<input id="rf_note" value="'+esc((r&&r.note)||'')+'" placeholder="เช่น รับของที่คลังก่อน 07:00"></div>',
 
-    '<div class="row">'+(r?'<button class="btn ghost sm" id="rf_del" style="flex:0 0 90px">ลบ</button>':'')+
+    '<div class="row">'+(r?'<button class="btn ghost sm" id="rf_del" style="flex:0 0 136px">ลบใบงานขนส่ง</button>':'')+
       '<button class="btn sm" id="rf_save">บันทึกใบงานขนส่ง</button></div>');
 
   /* ── รายชื่อคนขับ — กลุ่มคนขับรถขึ้นก่อน คนอื่นต่อท้าย ── */
@@ -3543,7 +3606,11 @@ function vehDayCell(v, d){
       '</div>';
   }).join('');
 
-  return {head:esc(P.head), body:body, hasRun:P.hasRun, runId:P.runId, nStop:seq.length};
+  /* หมายเหตุของใบขนส่งและของเลขไมล์ ต่อท้ายการ์ด จะได้รู้ว่าวันนั้นแวะไหนหรือเกิดอะไรขึ้น */
+  var rr0=runOf(v.id,d), rec0=odoAt(v.id,d), notes='';
+  if(rr0 && rr0.note)  notes+='<div class="odo-note">🚚 '+esc(rr0.note)+'</div>';
+  if(rec0 && rec0.note) notes+='<div class="odo-note">📝 '+esc(rec0.note)+'</div>';
+  return {head:esc(P.head), body:body+notes, hasRun:P.hasRun, runId:P.runId, nStop:seq.length};
 }
 
 /* สลับลำดับจุดในคิวรถจากช่องในตารางเลย ไม่ต้องเปิดกล่องคิวรถ
@@ -5755,7 +5822,7 @@ function holidayForm(id){
     '<div class="fld"><label>ชื่อวันหยุด</label><input id="h_name" value="'+esc(h.name||'')+'" placeholder="เช่น วันแม่แห่งชาติ / หยุดประจำปีโรงงาน"></div>'+
     '<div class="fld"><label>หมายเหตุ (ไม่บังคับ)</label><input id="h_note" value="'+esc(h.note||'')+'" placeholder="เช่น หยุดเฉพาะโรงงาน ทีมติดตั้งยังทำงาน"></div>'+
     '<div id="h_hint" style="font-size:11.5px;color:var(--text2);line-height:1.65"></div>',
-    '<div class="row">'+(id?'<button class="btn ghost sm" id="h_del" style="flex:0 0 90px">ลบ</button>':'')+
+    '<div class="row">'+(id?'<button class="btn ghost sm" id="h_del" style="flex:0 0 112px">ลบวันหยุด</button>':'')+
       '<button class="btn sm" id="h_save">บันทึก</button></div>');
 
   var lastSuggest='';
@@ -7385,7 +7452,7 @@ function issueCatForm(code, presetGrp){
       '<div class="icongrid" id="ic_icons"></div></div>'+
     (used? '<p style="font-size:11.5px;color:var(--text3);line-height:1.6">รหัสอ้างอิง <code>'+esc(code)+'</code> '+
            'เปลี่ยนไม่ได้ เพราะปัญหาที่แจ้งไว้แล้วอ้างถึงรหัสนี้อยู่</p>':''),
-    '<div class="row">'+(code?'<button class="btn ghost sm" id="ic_del" style="flex:0 0 90px">ลบ</button>':'')+
+    '<div class="row">'+(code?'<button class="btn ghost sm" id="ic_del" style="flex:0 0 142px">ลบประเภทปัญหา</button>':'')+
       '<button class="btn sm" id="ic_save">บันทึก</button></div>');
 
   var draw=function(){
@@ -7484,7 +7551,7 @@ function pinForm(id, preLat, preLng){
       '<input id="k_note" value="'+esc(x.note||'')+'" placeholder="เช่น จอดรถหลังตึก ลิฟต์ขนของฝั่งซ้าย"></div>'+
     '<p style="font-size:11.5px;color:var(--text2);line-height:1.65">หมุดจะขึ้นเป็นปุ่มลัดในฟอร์มไซต์งาน '+
       'กดครั้งเดียวได้พิกัดทันที เหมาะกับโครงการที่มีหลายห้อง/หลายยูนิตในตึกเดียวกัน</p>',
-    '<div class="row">'+(id?'<button class="btn ghost sm" id="k_del" style="flex:0 0 90px">ลบ</button>':'')+
+    '<div class="row">'+(id?'<button class="btn ghost sm" id="k_del" style="flex:0 0 100px">ลบหมุด</button>':'')+
       '<button class="btn sm" id="k_save">บันทึก</button></div>');
 
   mapPicker({map:'k_map', lat:'k_lat', lng:'k_lng', here:'k_here', paste:'k_paste'}, x.lat, x.lng);
@@ -8283,7 +8350,7 @@ function staffForm(id){
         : (x.pin? '<div style="font-size:11.5px;color:var(--text3);margin-top:7px">ล้าง PIN บัญชีนี้ไม่ได้ — เจ้าของบัญชีเปลี่ยนเองที่ปุ่ม “บัญชีของฉัน”</div>':''))+
     '</div>',
     mayEdit
-      ? ('<div class="row">'+(mayDel?'<button class="btn ghost sm" id="p_del" style="flex:0 0 90px">ลบ</button>':'')+
+      ? ('<div class="row">'+(mayDel?'<button class="btn ghost sm" id="p_del" style="flex:0 0 124px">ลบพนักงาน</button>':'')+
          '<button class="btn sm" id="p_save">บันทึก</button></div>')
       : '<button class="btn ghost sm" onclick="closeSheet()">ปิด</button>');
 
@@ -8584,7 +8651,7 @@ function siteForm(id){
     '<div class="fld"><label>สถานะ</label><select id="f_st">'+
       ['planned','active','done','hold'].map(function(k){ return '<option value="'+k+'"'+(s.status===k?' selected':'')+'>'+k+'</option>'; }).join('')+'</select></div>',
     (id? '<button class="btn ghost sm" id="f_merge" style="margin-bottom:9px">⇄ ย้ายงานทั้งหมดไปไซต์อื่น แล้วลบไซต์นี้</button>' : '')+
-    '<div class="row">'+(id?'<button class="btn ghost sm" id="f_del" style="flex:0 0 90px">ลบ</button>':'')+'<button class="btn sm" id="f_save">บันทึก</button></div>');
+    '<div class="row">'+(id?'<button class="btn ghost sm" id="f_del" style="flex:0 0 100px">ลบไซต์</button>':'')+'<button class="btn sm" id="f_save">บันทึก</button></div>');
   if($('f_merge')) $('f_merge').onclick=function(){ siteMerge(id); };
   mapPicker({map:'pickMap', lat:'f_lat', lng:'f_lng', bar:'pinBar',
             here:'f_here', paste:'f_paste', savePin:'f_pin'}, s.lat, s.lng);
@@ -8683,7 +8750,7 @@ function teamForm(id){
         '<p style="font-size:11.5px;color:var(--text2);line-height:1.65;margin:9px 0 0">'+
           'เข้าครั้งแรกให้ใส่รหัสพนักงานแล้วตั้ง PIN เอง</p>'+
       '</div>'):''),
-    '<div class="row">'+(id?'<button class="btn ghost sm" id="g_del" style="flex:0 0 90px">ลบ</button>':'')+'<button class="btn sm" id="g_save">บันทึก</button></div>');
+    '<div class="row">'+(id?'<button class="btn ghost sm" id="g_del" style="flex:0 0 96px">ลบทีม</button>':'')+'<button class="btn sm" id="g_save">บันทึก</button></div>');
 
   document.querySelectorAll('[data-mv]').forEach(function(sel){
     sel.onchange=async function(){
