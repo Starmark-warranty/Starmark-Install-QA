@@ -87,11 +87,48 @@ button,input,select,textarea{font-family:inherit;color:inherit}
 .fld input,.fld select,.fld textarea{width:100%;background:#fff;border:1px solid var(--border2);border-radius:10px;
   padding:11px 13px;font-size:14px;outline:none;transition:.15s}
 .fld input:focus,.fld select:focus,.fld textarea:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-glow)}
-/* ช่องพิมพ์ค้นหาที่อยู่คู่กับ select เลือกโครงการ — โครงการเยอะแล้วเลื่อนหาตาลาย */
+/* ช่องพิมพ์ค้นหาที่อยู่คู่กับรายการแบบ brow (ไม่ใช่ select) */
 .pick-q{width:100%;background:var(--s1);border:1px solid var(--border2);border-radius:9px;
   padding:8px 11px;font-size:12.5px;outline:none;margin-bottom:6px;font-family:inherit;color:var(--text)}
 .pick-q:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-glow);background:#fff}
 .pick-n{font-size:10.5px;color:var(--text3);line-height:1.5;margin-top:4px;min-height:1px}
+
+/* ── ช่องเลือกแบบพิมพ์ค้นหาได้ ──
+   <select> ของเบราว์เซอร์พิมพ์ค้นหาไม่ได้ ต้องเลื่อนหาเอง รายการเยอะ ๆ แล้วตาลาย
+   ตัวนี้ครอบ <select> เดิมไว้ กดแล้วมีช่องพิมพ์ พิมพ์ปุ๊บกรองปั๊บ */
+.cb{position:relative;display:block;width:100%}
+.cb>select.cb-real{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none;left:-9999px}
+.cb-btn{width:100%;background:#fff;border:1px solid var(--border2);border-radius:10px;
+  padding:11px 34px 11px 13px;font-size:14px;font-family:inherit;color:var(--text);text-align:left;
+  cursor:pointer;outline:none;transition:.15s;position:relative;line-height:1.35;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block}
+.cb-btn:after{content:'';position:absolute;right:13px;top:50%;margin-top:-2px;
+  border:4px solid transparent;border-top-color:var(--text3)}
+.cb-btn:hover{border-color:var(--border3,var(--border2))}
+.cb-btn:focus,.cb.on>.cb-btn{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-glow)}
+.cb-btn.ph{color:var(--text3)}
+/* ขนาดเล็ก — ใช้ในแถวที่ select เดิมถูกบีบความสูงไว้ */
+.cb.sm>.cb-btn{padding:7px 28px 7px 10px;font-size:12px;border-radius:9px}
+.cb.tin>.cb-btn{padding:8px 28px 8px 11px;font-size:13px}
+.cb-pan{position:fixed;z-index:9000;background:#fff;border:1px solid var(--border2);
+  border-radius:12px;box-shadow:0 14px 40px rgba(0,0,0,.18);padding:8px;display:none;
+  flex-direction:column;max-height:330px;min-width:200px}
+.cb-pan.on{display:flex}
+.cb-q{width:100%;background:var(--s1);border:1px solid var(--border2);border-radius:9px;
+  padding:9px 11px;font-size:13.5px;outline:none;font-family:inherit;color:var(--text);flex:0 0 auto}
+.cb-q:focus{border-color:var(--accent);background:#fff}
+.cb-list{overflow-y:auto;margin-top:7px;flex:1 1 auto;-webkit-overflow-scrolling:touch}
+.cb-grp{font-size:10px;font-weight:700;color:var(--text3);letter-spacing:.4px;
+  padding:9px 9px 4px;text-transform:uppercase}
+.cb-it{padding:9px 10px;border-radius:9px;font-size:13.5px;line-height:1.4;cursor:pointer;
+  color:var(--text);word-break:break-word}
+.cb-it:hover,.cb-it.act{background:var(--accent-glow)}
+.cb-it.cur{font-weight:700}
+.cb-it.cur:before{content:'✓ ';color:var(--accent)}
+.cb-hi{background:rgba(255,204,0,.45);border-radius:3px;font-weight:700}
+.cb-none{padding:14px 10px;font-size:12.5px;color:var(--text3);line-height:1.6;text-align:center}
+.cb-foot{font-size:10.5px;color:var(--text3);padding:6px 9px 2px;border-top:1px solid var(--border);
+  margin-top:5px;flex:0 0 auto}
 .btn{width:100%;background:var(--accent);color:#fff;border:none;border-radius:11px;padding:13px;font-size:14px;
   font-weight:600;cursor:pointer;transition:.15s;box-shadow:0 3px 10px rgba(0,122,255,.24)}
 .btn:hover{background:var(--accent2)}
@@ -663,7 +700,7 @@ body.preview #previewBar{display:flex}
 
 <script>
 /* ── ยามเฝ้า splash: อยู่นอกสคริปต์หลัก ถ้าสคริปต์หลักพัง ตัวนี้ยังทำงาน ── */
-window.APP_VER='18.5';
+window.APP_VER='18.6';
 (function(){
   var fill=function(){
     var a=document.querySelectorAll('.ver');
@@ -751,7 +788,7 @@ window.APP_VER='18.5';
       <input type="date" id="pnFrom" class="tin" style="height:28px;padding:4px 9px">
       <button class="tb-btn pn-more" id="pnMore">⚙ ตัวกรอง</button>
       <span class="pn-x"><select id="pnTeam" class="tin" style="height:28px;padding:4px 8px;max-width:190px"></select></span>
-      <span class="pn-x"><select id="pnDays" class="tin" style="height:28px;padding:4px 8px"></select></span>
+      <span class="pn-x"><select id="pnDays" class="tin" data-nocb style="height:28px;padding:4px 8px"></select></span>
       <span class="pn-x"><input id="pnSearch" class="tin" style="min-width:180px" placeholder="ค้นหาทีม / ไซต์…"></span>
       <label class="pn-x" style="font-size:11.5px;color:var(--text2);align-items:center;gap:5px">
         <input type="checkbox" id="pnBusy"> เฉพาะทีมที่มีงาน</label>
@@ -883,11 +920,11 @@ window.APP_VER='18.5';
       <div class="card">
         <div class="card-h"><span>มอบหมายงาน</span></div>
         <div style="padding:12px 14px;display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end">
-          <div style="flex:1;min-width:190px"><label style="font-size:11px;color:var(--text2);font-weight:600;display:block;margin-bottom:4px">ไซต์</label><input class="pick-q" id="asgSite_q" autocomplete="off" spellcheck="false" placeholder="🔍 พิมพ์ค้นหาโครงการ…"><select id="asgSite" class="tin" style="width:100%"></select><div class="pick-n" id="asgSite_n"></div></div>
+          <div style="flex:1;min-width:190px"><label style="font-size:11px;color:var(--text2);font-weight:600;display:block;margin-bottom:4px">ไซต์</label><select id="asgSite" class="tin" style="width:100%" data-ph="พิมพ์ชื่อ รหัสงาน หรือชื่อลูกค้า…"></select></div>
           <div style="flex:1;min-width:150px"><label style="font-size:11px;color:var(--text2);font-weight:600;display:block;margin-bottom:4px">ทีม</label><select id="asgTeam" class="tin" style="width:100%"></select></div>
           <div><label style="font-size:11px;color:var(--text2);font-weight:600;display:block;margin-bottom:4px">เริ่มวันที่</label><input type="date" id="asgDate" class="tin"></div>
           <div><label style="font-size:11px;color:var(--text2);font-weight:600;display:block;margin-bottom:4px">กี่วัน</label>
-            <select id="asgDays" class="tin"><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option><option value="6">6</option><option value="7">7</option><option value="8">8</option><option value="9">9</option><option value="10">10</option><option value="12">12</option><option value="14">14</option></select></div>
+            <select id="asgDays" class="tin" data-nocb><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option><option value="6">6</option><option value="7">7</option><option value="8">8</option><option value="9">9</option><option value="10">10</option><option value="12">12</option><option value="14">14</option></select></div>
           <label style="font-size:11.5px;color:var(--text2);display:flex;align-items:center;gap:5px;padding-bottom:8px">
             <input type="checkbox" id="asgSkipSun" checked> ข้ามวันอาทิตย์และวันหยุด</label>
           <div style="flex:2;min-width:220px"><label style="font-size:11px;color:var(--text2);font-weight:600;display:block;margin-bottom:4px">ขอบเขตงาน — เข้าไปทำอะไรบ้าง</label><button type="button" id="asgScopeBtn" class="pickbtn"></button></div>
@@ -1171,74 +1208,191 @@ function hrsSince(ts){ return (Date.now()-new Date(ts).getTime())/36e5; }
 function ago(ts){ var h=hrsSince(ts); if(h<1) return Math.max(1,Math.round(h*60))+' นาที'; if(h<48) return Math.round(h)+' ชม.'; return Math.round(h/24)+' วัน'; }
 function toast(m,ms){ var t=$('toast'); t.textContent=m; t.classList.add('on'); clearTimeout(t._t); t._t=setTimeout(function(){t.classList.remove('on');}, ms||2400); }
 
-/* ── ช่องพิมพ์ค้นหาคู่กับ <select> เลือกโครงการ ──
-   โครงการมีหลายสิบรายการ เลื่อนหาในลิสต์ยาว ๆ แล้วตาลาย ทุกที่ที่เลือกโครงการจึงมีช่องค้นหา
-   ยังเป็น <select> ธรรมดา โค้ดเดิมที่อ่าน .value / สั่ง .onchange ใช้ได้เหมือนเดิมไม่ต้องแก้
-   กรองด้วยการถอด <option> ออกจริง ไม่ใช่ display:none — Chrome เก่าบน Windows 7 ซ่อน option ไม่ได้ */
-function pickQ(selId, ph){
-  return '<input class="pick-q" id="'+selId+'_q" autocomplete="off" spellcheck="false" '+
-    'placeholder="'+esc(ph||'🔍 พิมพ์ชื่อหรือรหัสโครงการเพื่อค้นหา…')+'">';
-}
-function pickN(selId){ return '<div class="pick-n" id="'+selId+'_n"></div>'; }
-function pickNorm(s){ return String(s==null?'':s).toLowerCase().replace(/[\s\-_.()]/g,''); }
-function wirePickQ(selId, word){
-  var sel=$(selId), q=$(selId+'_q');
-  if(!sel||!q) return;
-  word=word||'โครงการ';
-  /* เก็บรายการต้นฉบับทั้งก้อน (รวม optgroup) ไว้ก่อน แล้วประกอบใหม่ทุกครั้งที่พิมพ์ */
-  var src=[], kids=sel.children;
-  for(var i=0;i<kids.length;i++){
-    var k=kids[i];
-    if(k.tagName==='OPTGROUP'){
-      var os=[];
-      for(var j=0;j<k.children.length;j++) os.push({html:k.children[j].outerHTML,
-        text:k.children[j].textContent, val:k.children[j].value});
-      src.push({grp:k.getAttribute('label')||'', kids:os});
-    } else src.push({grp:null, kids:[{html:k.outerHTML, text:k.textContent, val:k.value}]});
+/* ── ช่องเลือกแบบพิมพ์ค้นหาได้ (แทนลิสต์ของเบราว์เซอร์) ──
+   <select> ธรรมดาพิมพ์ค้นหาไม่ได้ พอรายการเยอะต้องเลื่อนหาเองจนตาลาย
+   ตัวนี้ครอบ <select> เดิมไว้แล้วซ่อนมันไป โชว์ปุ่มแทน กดแล้วเด้งช่องพิมพ์ + รายการที่กรองสด ๆ
+   <select> ตัวจริงยังอยู่ใน DOM เสมอ โค้ดเดิมทุกที่ที่อ่าน .value สั่ง .value= หรือเรียก .onchange
+   จึงใช้ได้เหมือนเดิมหมด ไม่ต้องไล่แก้ทีละจุด */
+function pickNorm(s){ return String(s==null?'':s).toLowerCase().replace(/[\s\-_.()\u2013\u2014]/g,''); }
+/* ไฮไลต์ตัวอักษรที่ตรงคำค้น จะได้เห็นว่าเจอเพราะอะไร */
+function cbMark(text, w){
+  if(!w) return esc(text);
+  var t=String(text), out='', norm='', map=[];
+  for(var i=0;i<t.length;i++){
+    var c=pickNorm(t[i]);
+    if(c){ norm+=c; for(var k=0;k<c.length;k++) map.push(i); }
   }
-  /* ตัวเลือกพิเศษ (— เลือก — / ＋ เพิ่มใหม่) ต้องอยู่ตลอด ไม่ถูกคำค้นกรองหาย */
-  var special=function(v){ return v==='' || /^__/.test(String(v)); };
-  var apply=function(){
-    var w=pickNorm(q.value), was=sel.value, html='', n=0;
-    for(var i=0;i<src.length;i++){
-      var g=src[i], ok=[];
-      for(var j=0;j<g.kids.length;j++){
-        var o=g.kids[j];
-        var hit = !w || pickNorm(o.text).indexOf(w)>=0;
-        /* ตัวที่เลือกไว้ต้องอยู่ในรายการเสมอ ไม่งั้นพิมพ์ค้นหาแล้ว select เด้งไปตัวอื่นเงียบ ๆ
-           เผลอกดบันทึกก็ได้โครงการผิดไปเลย */
-        if(special(o.val) || hit || o.val===was){ ok.push(o); if(hit && !special(o.val)) n++; }
-      }
-      if(!ok.length || (g.grp!==null && !ok.filter(function(o){ return !special(o.val); }).length)) continue;
-      html += g.grp!==null
-        ? ('<optgroup label="'+esc(g.grp)+'">'+ok.map(function(o){ return o.html; }).join('')+'</optgroup>')
-        : ok.map(function(o){ return o.html; }).join('');
-    }
-    sel.innerHTML=html;
-    /* ของที่เลือกไว้ยังอยู่ในรายการก็คงไว้ ไม่งั้น select จะเด้งไปตัวแรกเงียบ ๆ */
-    var has=false;
-    for(var m=0;m<sel.options.length;m++) if(sel.options[m].value===was) has=true;
-    if(has) sel.value=was;
-    var nb=$(selId+'_n');
-    if(nb){
-      nb.textContent = !q.value.trim()? '' : (n? ('ตรงกับคำค้น '+n+' รายการ')
-        : ('ไม่พบ'+word+'ที่มีคำว่า “'+q.value.trim()+'”'));
-      nb.style.color = (q.value.trim()&&!n)? '#c9251c' : 'var(--text3)';
-    }
-  };
-  q.oninput=apply;
-  /* กด Enter = เลือกตัวแรกที่ตรงคำค้นเลย ไม่ต้องย้ายมือไปแตะ select อีกที */
-  q.onkeydown=function(e){
-    if(e.key==='Enter'||e.keyCode===13){
-      e.preventDefault();
-      for(var m=0;m<sel.options.length;m++){
-        if(!special(sel.options[m].value)){ sel.value=sel.options[m].value; break; }
-      }
-      if(typeof sel.onchange==='function') sel.onchange();
-      try{ sel.focus(); }catch(e2){}
-    }
-  };
+  var at=norm.indexOf(w);
+  if(at<0) return esc(text);
+  var a=map[at], b=map[Math.min(at+w.length-1, map.length-1)];
+  out=esc(t.slice(0,a))+'<span class="cb-hi">'+esc(t.slice(a,b+1))+'</span>'+esc(t.slice(b+1));
+  return out;
 }
+var _cbOpen=null, _cbPans=[];
+function cbShut(){
+  if(!_cbOpen) return;
+  _cbOpen.wrap.classList.remove('on');
+  _cbOpen.pan.classList.remove('on');
+  _cbOpen=null;
+}
+function cbWire(sel, ph){
+  if(!sel || sel.multiple || sel._cb) return;
+  if(sel.getAttribute('data-nocb')!=null) return;
+  sel._cb=1;
+  var wrap=document.createElement('div');
+  wrap.className='cb'+(/\btin\b/.test(sel.className)?' tin':'')+
+    ((parseFloat(sel.style.fontSize)||99)<=12.5 ? ' sm' : '');
+  sel.parentNode.insertBefore(wrap, sel);
+  wrap.appendChild(sel);
+  sel.classList.add('cb-real');
+  var btn=document.createElement('button');
+  btn.type='button'; btn.className='cb-btn';
+  var pan=document.createElement('div');
+  pan.className='cb-pan';
+  pan.innerHTML='<input class="cb-q" autocomplete="off" spellcheck="false" placeholder="'+
+    esc(ph||sel.getAttribute('data-ph')||'พิมพ์เพื่อค้นหา…')+'">'+
+    '<div class="cb-list"></div><div class="cb-foot"></div>';
+  wrap.appendChild(btn);
+  document.body.appendChild(pan);   /* วางไว้ที่ body กันกล่องที่ scroll ได้ตัดหัวตัดท้ายรายการ */
+  _cbPans.push({wrap:wrap, pan:pan});
+  var q=pan.querySelector('.cb-q'), list=pan.querySelector('.cb-list'), foot=pan.querySelector('.cb-foot');
+  var items=[], act=-1;
+
+  var label=function(){
+    var o=sel.options[sel.selectedIndex];
+    var t=o? o.textContent : '';
+    btn.textContent = t || 'เลือก…';
+    btn.className='cb-btn'+((!o||o.value==='')?' ph':'');
+    btn.title=t||'';
+  };
+  /* อ่านรายการจาก <select> ใหม่ทุกครั้งที่เปิด เผื่อโค้ดอื่นเพิ่งเขียน options ใหม่เข้าไป */
+  var read=function(){
+    items=[];
+    var kids=sel.children;
+    for(var i=0;i<kids.length;i++){
+      var k=kids[i];
+      if(k.tagName==='OPTGROUP'){
+        for(var j=0;j<k.children.length;j++)
+          items.push({v:k.children[j].value, t:k.children[j].textContent, g:k.getAttribute('label')||''});
+      } else items.push({v:k.value, t:k.textContent, g:''});
+    }
+  };
+  var paint=function(){
+    var w=pickNorm(q.value), html='', grp=null, n=0, shown=[];
+    for(var i=0;i<items.length;i++){
+      var it=items[i];
+      if(w && pickNorm(it.t).indexOf(w)<0) continue;
+      n++;
+      if(it.g!==grp){ grp=it.g; if(grp) html+='<div class="cb-grp">'+esc(grp)+'</div>'; }
+      html+='<div class="cb-it'+(it.v===sel.value?' cur':'')+'" data-i="'+shown.length+'">'+
+        cbMark(it.t, w)+'</div>';
+      shown.push(i);
+    }
+    list.innerHTML = n? html
+      : '<div class="cb-none">ไม่พบรายการที่มีคำว่า<br><b>“'+esc(q.value.trim())+'”</b></div>';
+    foot.textContent = q.value.trim()
+      ? (n? ('ตรงกับคำค้น '+n+' รายการ · กด Enter เลือกตัวแรก') : 'ลองพิมพ์สั้นลง หรือพิมพ์คำอื่น')
+      : (items.length+' รายการ · พิมพ์เพื่อค้นหา');
+    act = n? 0 : -1;
+    var its=list.querySelectorAll('.cb-it');
+    for(var m=0;m<its.length;m++){
+      (function(el){
+        el.onmousedown=function(e){ e.preventDefault(); };   /* กันช่องพิมพ์เสียโฟกัสก่อนคลิกติด */
+        el.onclick=function(){ pick(shown[+el.dataset.i]); };
+      })(its[m]);
+    }
+    hi();
+  };
+  var hi=function(){
+    var its=list.querySelectorAll('.cb-it');
+    for(var m=0;m<its.length;m++) its[m].classList.toggle('act', m===act);
+    if(act>=0 && its[act]){
+      var e=its[act], top=e.offsetTop, bot=top+e.offsetHeight;
+      if(top<list.scrollTop) list.scrollTop=top;
+      else if(bot>list.scrollTop+list.clientHeight) list.scrollTop=bot-list.clientHeight;
+    }
+  };
+  var pick=function(idx){
+    var it=items[idx]; if(!it) return;
+    var was=sel.value;
+    sel.value=it.v;
+    label(); cbShut();
+    if(was!==it.v && typeof sel.onchange==='function') sel.onchange({target:sel});
+  };
+  var place=function(){
+    var r=btn.getBoundingClientRect();
+    var vh=window.innerHeight||600, vw=window.innerWidth||800;
+    var want=Math.min(330, Math.max(190, vh-28));
+    var below=vh-r.bottom-10, above=r.top-10;
+    var h=Math.min(want, Math.max(below, above));
+    pan.style.width=Math.max(r.width, 220)+'px';
+    pan.style.left=Math.max(8, Math.min(r.left, vw-Math.max(r.width,220)-8))+'px';
+    pan.style.maxHeight=h+'px';
+    if(below>=Math.min(want,240) || below>=above){ pan.style.top=(r.bottom+5)+'px'; pan.style.bottom='auto'; }
+    else { pan.style.bottom=(vh-r.top+5)+'px'; pan.style.top='auto'; }
+  };
+  var open=function(){
+    if(_cbOpen && _cbOpen.pan!==pan) cbShut();
+    read(); q.value=''; paint(); place();
+    wrap.classList.add('on'); pan.classList.add('on');
+    _cbOpen={wrap:wrap, pan:pan, place:place};
+    try{ q.focus(); }catch(e){}
+  };
+  btn.onclick=function(e){
+    e.preventDefault(); e.stopPropagation();
+    if(_cbOpen && _cbOpen.pan===pan) return cbShut();
+    open();
+  };
+  q.oninput=function(){ paint(); place(); };
+  q.onkeydown=function(e){
+    var k=e.key||'', c=e.keyCode;
+    var its=list.querySelectorAll('.cb-it');
+    if(k==='ArrowDown'||c===40){ e.preventDefault(); if(its.length){ act=Math.min(act+1, its.length-1); hi(); } }
+    else if(k==='ArrowUp'||c===38){ e.preventDefault(); if(its.length){ act=Math.max(act-1, 0); hi(); } }
+    else if(k==='Enter'||c===13){ e.preventDefault(); if(act>=0&&its[act]) its[act].onclick(); }
+    else if(k==='Escape'||c===27){ e.preventDefault(); cbShut(); try{ btn.focus(); }catch(e2){} }
+  };
+  pan.onmousedown=function(e){ e.stopPropagation(); };
+  /* โค้ดอื่นสั่ง .value= เองได้ตลอด ป้ายหน้าปุ่มต้องตามไปด้วย */
+  sel._cbSync=label;
+  label();
+}
+/* เก็บแผงที่ลอยค้างอยู่ — กล่องเด้งเขียน innerHTML ใหม่ทีไร ปุ่มกับ select เดิมหายไป
+   แต่แผงอยู่ที่ body จึงไม่หายตามไปด้วย ถ้าไม่เก็บจะค้างสะสมไปเรื่อย ๆ */
+function cbSweep(){
+  for(var i=_cbPans.length-1;i>=0;i--){
+    var r=_cbPans[i];
+    if(!document.body.contains(r.wrap)){
+      if(_cbOpen && _cbOpen.pan===r.pan) _cbOpen=null;
+      if(r.pan.parentNode) r.pan.parentNode.removeChild(r.pan);
+      _cbPans.splice(i,1);
+    }
+  }
+}
+/* ไล่ครอบ <select> ทุกตัวที่มีรายการยาวพอจะต้องค้นหา — เรียกซ้ำได้ ตัวที่ครอบแล้วจะถูกข้าม */
+function cbAll(root){
+  cbSweep();
+  var sels=(root||document).querySelectorAll('select');
+  for(var i=0;i<sels.length;i++){
+    var s=sels[i];
+    if(s._cb || s.multiple || s.getAttribute('data-nocb')!=null) continue;
+    if(s.options.length < 6) continue;   /* รายการสั้น ๆ กดเลือกเลยเร็วกว่า ไม่ต้องมีช่องค้นหา */
+    cbWire(s);
+  }
+}
+/* ป้ายหน้าปุ่มของทุกตัวในหน้า ให้ตรงกับค่าที่โค้ดอื่นเพิ่งตั้งไว้ */
+function cbSync(root){
+  var sels=(root||document).querySelectorAll('select.cb-real');
+  for(var i=0;i<sels.length;i++) if(sels[i]._cbSync) sels[i]._cbSync();
+}
+document.addEventListener('mousedown', function(e){
+  if(!_cbOpen) return;
+  if(_cbOpen.wrap.contains(e.target) || _cbOpen.pan.contains(e.target)) return;
+  cbShut();
+}, true);
+window.addEventListener('resize', function(){ if(_cbOpen) _cbOpen.place(); });
+window.addEventListener('scroll', function(){ if(_cbOpen) _cbOpen.place(); }, true);
+
 function dist(a,b,c,d){ if(a==null||c==null) return null; var R=6371000,r=Math.PI/180,x=(c-a)*r,y=(d-b)*r,
   s=Math.sin(x/2)*Math.sin(x/2)+Math.cos(a*r)*Math.cos(c*r)*Math.sin(y/2)*Math.sin(y/2);
   return Math.round(R*2*Math.atan2(Math.sqrt(s),Math.sqrt(1-s))); }
@@ -2670,7 +2824,6 @@ function odoQuick(vid, d, after){
            '<div style="background:var(--s1);border:1px dashed var(--border2);border-radius:11px;'+
              'padding:10px 12px;margin-bottom:12px">'+
              '<div style="font-size:11.5px;font-weight:700;margin-bottom:7px">＋ เพิ่มทีมและสถานที่</div>'+
-             pickQ('od_ns','🔍 พิมพ์ค้นหาโครงการ…')+
              '<div class="row"><select id="od_nt" style="height:32px;font-size:12px">'+
                '<option value="">— เลือกทีม —</option>'+
                workTeams().map(function(t){ return '<option value="'+t.id+'">'+esc(teamLabel(t))+'</option>'; }).join('')+
@@ -2679,7 +2832,6 @@ function odoQuick(vid, d, after){
                '<option value="">— เลือกไซต์/โครงการ —</option>'+
                siteSorted().map(function(x){ return '<option value="'+x.id+'">'+esc(siteOptText(x))+'</option>'; }).join('')+
              '</select></div>'+
-             pickN('od_ns')+
              '<button class="btn ghost sm" type="button" id="od_nadd" style="margin-top:7px;width:100%">'+
                '＋ เพิ่มเข้าวันนี้</button>'+
              '<div style="font-size:10.5px;color:var(--text3);line-height:1.6;margin-top:6px">'+
@@ -2759,7 +2911,6 @@ function odoQuick(vid, d, after){
       };
     });
 
-    wirePickQ('od_ns');
 
     /* เพิ่มทีม+สถานที่เข้าวันนั้น — กันซ้ำก่อน ฐานมี unique (ไซต์, ทีม, วัน) อยู่แล้ว
        ถ้าไม่เช็กเองจะได้ error ดิบ ๆ จากฐานซึ่งคนใช้อ่านไม่รู้เรื่อง */
@@ -4992,7 +5143,9 @@ function renderOdo(){
   box.querySelectorAll('[data-odv]').forEach(function(el){ el.onclick=function(){ odoSheet(el.dataset.odv); }; });
 }
 
-function renderAll(){ renderKPI(); renderChips(); renderBoard(); renderMap(); renderIssues(); renderPlan(); renderStaff(); renderSA(); renderWorkLib(); renderPins(); renderVeh(); renderOdo(); renderDemo(); renderOther(); }
+function renderAll(){ renderKPI(); renderChips(); renderBoard(); renderMap(); renderIssues(); renderPlan(); renderStaff(); renderSA(); renderWorkLib(); renderPins(); renderVeh(); renderOdo(); renderDemo(); renderOther();
+  /* ทุกแท็บ: ช่องเลือกที่รายการยาวต้องพิมพ์ค้นหาได้ ตัวที่ครอบไว้แล้วจะถูกข้าม */
+  cbAll(document); cbSync(document); }
 
 function renderKPI(){
   var a=S.asgs, tot=a.length;
@@ -6893,9 +7046,9 @@ function quickAssign(teamId, date, opt){
     '<div style="font-size:11.5px;color:var(--text2);line-height:1.7;margin:-6px 0 12px">'+
       'หน้านี้จ่ายงานให้<b>ทั้งทีม</b> · ถ้าต้องแยกว่าใครไปไหนหรือยืมคนข้ามทีม '+
       '<a href="#" id="q_toSa" style="font-weight:600">มอบหมายงานรายคน</a></div>'+
-    '<div class="fld"><label>ไซต์งาน</label>'+pickQ('q_site')+'<select id="q_site">'+
+    '<div class="fld"><label>ไซต์งาน</label><select id="q_site" data-ph="พิมพ์ชื่อ รหัสงาน หรือชื่อลูกค้า…">'+
       siteSorted().map(function(x){ return '<option value="'+x.id+'">'+esc(siteOptText(x))+'</option>'; }).join('')+
-      '<option value="__new">＋ เพิ่มไซต์ใหม่…</option></select>'+pickN('q_site')+'</div>'+
+      '<option value="__new">＋ เพิ่มไซต์ใหม่…</option></select></div>'+
 
     '<div id="q_newbox" class="hide" style="background:var(--s1);border:1px solid var(--border);border-radius:12px;padding:12px 13px;margin-bottom:14px">'+
       '<div class="row"><div class="fld"><label>รหัสงาน</label><input id="q_code"></div>'+
@@ -7009,7 +7162,6 @@ function quickAssign(teamId, date, opt){
     }
   };
   if(!S.sites.length){ $('q_site').value='__new'; $('q_site').onchange(); }
-  wirePickQ('q_site');
 
   $('q_save').onclick=async function(){
     if(!store.keys.length && !store.extra.length) return toast('เลือกก่อนว่าเข้าไปทำอะไรบ้าง');
@@ -7206,7 +7358,7 @@ async function asgActions(a){
     '</div>'+
 
     '<div class="fld"><label>เลื่อนไปวันที่</label><input type="date" id="mv_date" value="'+a.work_date+'"></div>'+
-    '<div class="fld"><label>ย้ายไปโครงการ</label>'+pickQ('mv_site')+'<select id="mv_site">'+
+    '<div class="fld"><label>ย้ายไปโครงการ</label><select id="mv_site" data-ph="พิมพ์ชื่อ รหัสงาน หรือชื่อลูกค้า…">'+
       (function(){
         var cs=[], by={};
         (S.sites||[]).forEach(function(x){ var c=x.category||'ทั่วไป'; if(!by[c]){ by[c]=[]; cs.push(c); } by[c].push(x); });
@@ -7218,7 +7370,7 @@ async function asgActions(a){
                 esc(siteOptText(x))+'</option>'; }).join('')+'</optgroup>';
         }).join('');
       })()+
-    '</select>'+pickN('mv_site')+'</div>'+
+    '</select></div>'+
     '<div class="fld"><label>ย้ายไปทีม</label><select id="mv_team">'+
       S.teams.filter(function(t){return t.active!==false;}).map(function(t){
         return '<option value="'+t.id+'"'+(t.id===a.team_id?' selected':'')+'>'+esc(teamLabel(t))+'</option>'; }).join('')+
@@ -7247,7 +7399,6 @@ async function asgActions(a){
   $('sc_one').onclick=function(){ setMode('one'); };
   if(multi) $('sc_all').onclick=function(){ setMode('all'); };
   setMode('one');
-  wirePickQ('mv_site');
 
   $('mv_save').onclick=async function(){
     var nd=$('mv_date').value||a.work_date, nt=$('mv_team').value;
@@ -8196,7 +8347,6 @@ function renderPlan(){
       return '<optgroup label="'+esc(c)+'">'+siteSorted(byC[c]).map(function(x){
         return '<option value="'+x.id+'">'+esc(siteOptText(x))+'</option>'; }).join('')+'</optgroup>';
     }).join('');
-    wirePickQ('asgSite');
   })();
   $('asgTeam').innerHTML=S.teams.filter(function(t){return t.active;}).map(function(t){ return '<option value="'+t.id+'">'+esc(t.code+' — '+t.name)+'</option>'; }).join('');
 }
@@ -8681,16 +8831,19 @@ $('otRef').onclick=function(){ renderOther(); };
 function sheet(title, bodyHTML, footHTML){
   $('shT').textContent=title; $('shB').innerHTML=bodyHTML; $('shF').innerHTML=footHTML||'';
   $('sheet').classList.add('open');
+  /* ครอบช่องเลือกที่รายการยาวให้พิมพ์ค้นหาได้ ทำทีหลังสุดเพื่อให้โค้ดของกล่องนั้นตั้งค่าเสร็จก่อน */
+  setTimeout(function(){ cbAll($('shB')); cbAll($('shF')); cbSync($('shB')); }, 0);
 }
-function closeSheet(){ $('sheet').classList.remove('open'); }
+function closeSheet(){ cbShut(); $('sheet').classList.remove('open'); setTimeout(cbSweep,0); }
 $('shX').onclick=closeSheet; $('shBd').onclick=closeSheet;
 
 /* กล่องเด้งชั้นที่ 2 — เปิดซ้อนบนกล่องแรกได้โดยไม่ทำลายฟอร์มที่กรอกค้างอยู่ */
 function sheet2(title, bodyHTML, footHTML){
   $('shT2').textContent=title; $('shB2').innerHTML=bodyHTML; $('shF2').innerHTML=footHTML||'';
   $('sheet2').classList.add('open');
+  setTimeout(function(){ cbAll($('shB2')); cbAll($('shF2')); cbSync($('shB2')); }, 0);
 }
-function closeSheet2(){ $('sheet2').classList.remove('open'); }
+function closeSheet2(){ cbShut(); $('sheet2').classList.remove('open'); setTimeout(cbSweep,0); }
 $('shX2').onclick=closeSheet2; $('shBd2').onclick=closeSheet2;
 
 /* ── ตัวเลือกพิกัดบนแผนที่ — ใช้ร่วมกันทั้งฟอร์มไซต์ ฟอร์มหมุด และการคีย์งานจากแผนงาน ── */
@@ -8806,13 +8959,12 @@ async function siteMerge(fromId){
       'จะถูกย้ายไปไซต์ที่เลือก แล้วไซต์นี้จะถูกลบ<br>'+
       '<span style="color:var(--text3)">ย้ายให้ทั้ง ใบงาน · ปัญหา · รายงานและรูป · งานมอบหมายรายคน — ประวัติไม่หาย</span>'+
     '</div>'+
-    '<div class="fld"><label>ย้ายไปไซต์</label>'+pickQ('mg_to')+'<select id="mg_to">'+
+    '<div class="fld"><label>ย้ายไปไซต์</label><select id="mg_to" data-ph="พิมพ์ชื่อ รหัสงาน หรือชื่อลูกค้า…">'+
       siteSorted(others).map(function(x){ return '<option value="'+x.id+'">'+esc(siteOptText(x))+'</option>'; }).join('')+
-    '</select>'+pickN('mg_to')+'</div>'+
+    '</select></div>'+
     '<div id="mg_log" style="font-size:11.5px;color:var(--text2);line-height:1.8;margin-top:10px"></div>',
     '<button class="btn sm" id="mg_go">ตรวจแล้วย้าย</button>');
 
-  wirePickQ('mg_to');
   $('mg_go').onclick=async function(){
     var toId=$('mg_to').value; if(!toId) return;
     var to=siteOf(toId), log=$('mg_log'), btn=this;
