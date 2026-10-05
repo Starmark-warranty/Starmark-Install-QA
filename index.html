@@ -87,6 +87,11 @@ button,input,select,textarea{font-family:inherit;color:inherit}
 .fld input,.fld select,.fld textarea{width:100%;background:#fff;border:1px solid var(--border2);border-radius:10px;
   padding:11px 13px;font-size:14px;outline:none;transition:.15s}
 .fld input:focus,.fld select:focus,.fld textarea:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-glow)}
+/* ช่องพิมพ์ค้นหาที่อยู่คู่กับ select เลือกโครงการ — โครงการเยอะแล้วเลื่อนหาตาลาย */
+.pick-q{width:100%;background:var(--s1);border:1px solid var(--border2);border-radius:9px;
+  padding:8px 11px;font-size:12.5px;outline:none;margin-bottom:6px;font-family:inherit;color:var(--text)}
+.pick-q:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-glow);background:#fff}
+.pick-n{font-size:10.5px;color:var(--text3);line-height:1.5;margin-top:4px;min-height:1px}
 .btn{width:100%;background:var(--accent);color:#fff;border:none;border-radius:11px;padding:13px;font-size:14px;
   font-weight:600;cursor:pointer;transition:.15s;box-shadow:0 3px 10px rgba(0,122,255,.24)}
 .btn:hover{background:var(--accent2)}
@@ -658,7 +663,7 @@ body.preview #previewBar{display:flex}
 
 <script>
 /* ── ยามเฝ้า splash: อยู่นอกสคริปต์หลัก ถ้าสคริปต์หลักพัง ตัวนี้ยังทำงาน ── */
-window.APP_VER='18.4';
+window.APP_VER='18.5';
 (function(){
   var fill=function(){
     var a=document.querySelectorAll('.ver');
@@ -878,7 +883,7 @@ window.APP_VER='18.4';
       <div class="card">
         <div class="card-h"><span>มอบหมายงาน</span></div>
         <div style="padding:12px 14px;display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end">
-          <div style="flex:1;min-width:190px"><label style="font-size:11px;color:var(--text2);font-weight:600;display:block;margin-bottom:4px">ไซต์</label><select id="asgSite" class="tin" style="width:100%"></select></div>
+          <div style="flex:1;min-width:190px"><label style="font-size:11px;color:var(--text2);font-weight:600;display:block;margin-bottom:4px">ไซต์</label><input class="pick-q" id="asgSite_q" autocomplete="off" spellcheck="false" placeholder="🔍 พิมพ์ค้นหาโครงการ…"><select id="asgSite" class="tin" style="width:100%"></select><div class="pick-n" id="asgSite_n"></div></div>
           <div style="flex:1;min-width:150px"><label style="font-size:11px;color:var(--text2);font-weight:600;display:block;margin-bottom:4px">ทีม</label><select id="asgTeam" class="tin" style="width:100%"></select></div>
           <div><label style="font-size:11px;color:var(--text2);font-weight:600;display:block;margin-bottom:4px">เริ่มวันที่</label><input type="date" id="asgDate" class="tin"></div>
           <div><label style="font-size:11px;color:var(--text2);font-weight:600;display:block;margin-bottom:4px">กี่วัน</label>
@@ -1165,6 +1170,75 @@ function fmtDT(ts){ if(!ts) return '—'; var d=new Date(ts); return d.toLocaleD
 function hrsSince(ts){ return (Date.now()-new Date(ts).getTime())/36e5; }
 function ago(ts){ var h=hrsSince(ts); if(h<1) return Math.max(1,Math.round(h*60))+' นาที'; if(h<48) return Math.round(h)+' ชม.'; return Math.round(h/24)+' วัน'; }
 function toast(m,ms){ var t=$('toast'); t.textContent=m; t.classList.add('on'); clearTimeout(t._t); t._t=setTimeout(function(){t.classList.remove('on');}, ms||2400); }
+
+/* ── ช่องพิมพ์ค้นหาคู่กับ <select> เลือกโครงการ ──
+   โครงการมีหลายสิบรายการ เลื่อนหาในลิสต์ยาว ๆ แล้วตาลาย ทุกที่ที่เลือกโครงการจึงมีช่องค้นหา
+   ยังเป็น <select> ธรรมดา โค้ดเดิมที่อ่าน .value / สั่ง .onchange ใช้ได้เหมือนเดิมไม่ต้องแก้
+   กรองด้วยการถอด <option> ออกจริง ไม่ใช่ display:none — Chrome เก่าบน Windows 7 ซ่อน option ไม่ได้ */
+function pickQ(selId, ph){
+  return '<input class="pick-q" id="'+selId+'_q" autocomplete="off" spellcheck="false" '+
+    'placeholder="'+esc(ph||'🔍 พิมพ์ชื่อหรือรหัสโครงการเพื่อค้นหา…')+'">';
+}
+function pickN(selId){ return '<div class="pick-n" id="'+selId+'_n"></div>'; }
+function pickNorm(s){ return String(s==null?'':s).toLowerCase().replace(/[\s\-_.()]/g,''); }
+function wirePickQ(selId, word){
+  var sel=$(selId), q=$(selId+'_q');
+  if(!sel||!q) return;
+  word=word||'โครงการ';
+  /* เก็บรายการต้นฉบับทั้งก้อน (รวม optgroup) ไว้ก่อน แล้วประกอบใหม่ทุกครั้งที่พิมพ์ */
+  var src=[], kids=sel.children;
+  for(var i=0;i<kids.length;i++){
+    var k=kids[i];
+    if(k.tagName==='OPTGROUP'){
+      var os=[];
+      for(var j=0;j<k.children.length;j++) os.push({html:k.children[j].outerHTML,
+        text:k.children[j].textContent, val:k.children[j].value});
+      src.push({grp:k.getAttribute('label')||'', kids:os});
+    } else src.push({grp:null, kids:[{html:k.outerHTML, text:k.textContent, val:k.value}]});
+  }
+  /* ตัวเลือกพิเศษ (— เลือก — / ＋ เพิ่มใหม่) ต้องอยู่ตลอด ไม่ถูกคำค้นกรองหาย */
+  var special=function(v){ return v==='' || /^__/.test(String(v)); };
+  var apply=function(){
+    var w=pickNorm(q.value), was=sel.value, html='', n=0;
+    for(var i=0;i<src.length;i++){
+      var g=src[i], ok=[];
+      for(var j=0;j<g.kids.length;j++){
+        var o=g.kids[j];
+        var hit = !w || pickNorm(o.text).indexOf(w)>=0;
+        /* ตัวที่เลือกไว้ต้องอยู่ในรายการเสมอ ไม่งั้นพิมพ์ค้นหาแล้ว select เด้งไปตัวอื่นเงียบ ๆ
+           เผลอกดบันทึกก็ได้โครงการผิดไปเลย */
+        if(special(o.val) || hit || o.val===was){ ok.push(o); if(hit && !special(o.val)) n++; }
+      }
+      if(!ok.length || (g.grp!==null && !ok.filter(function(o){ return !special(o.val); }).length)) continue;
+      html += g.grp!==null
+        ? ('<optgroup label="'+esc(g.grp)+'">'+ok.map(function(o){ return o.html; }).join('')+'</optgroup>')
+        : ok.map(function(o){ return o.html; }).join('');
+    }
+    sel.innerHTML=html;
+    /* ของที่เลือกไว้ยังอยู่ในรายการก็คงไว้ ไม่งั้น select จะเด้งไปตัวแรกเงียบ ๆ */
+    var has=false;
+    for(var m=0;m<sel.options.length;m++) if(sel.options[m].value===was) has=true;
+    if(has) sel.value=was;
+    var nb=$(selId+'_n');
+    if(nb){
+      nb.textContent = !q.value.trim()? '' : (n? ('ตรงกับคำค้น '+n+' รายการ')
+        : ('ไม่พบ'+word+'ที่มีคำว่า “'+q.value.trim()+'”'));
+      nb.style.color = (q.value.trim()&&!n)? '#c9251c' : 'var(--text3)';
+    }
+  };
+  q.oninput=apply;
+  /* กด Enter = เลือกตัวแรกที่ตรงคำค้นเลย ไม่ต้องย้ายมือไปแตะ select อีกที */
+  q.onkeydown=function(e){
+    if(e.key==='Enter'||e.keyCode===13){
+      e.preventDefault();
+      for(var m=0;m<sel.options.length;m++){
+        if(!special(sel.options[m].value)){ sel.value=sel.options[m].value; break; }
+      }
+      if(typeof sel.onchange==='function') sel.onchange();
+      try{ sel.focus(); }catch(e2){}
+    }
+  };
+}
 function dist(a,b,c,d){ if(a==null||c==null) return null; var R=6371000,r=Math.PI/180,x=(c-a)*r,y=(d-b)*r,
   s=Math.sin(x/2)*Math.sin(x/2)+Math.cos(a*r)*Math.cos(c*r)*Math.sin(y/2)*Math.sin(y/2);
   return Math.round(R*2*Math.atan2(Math.sqrt(s),Math.sqrt(1-s))); }
@@ -2596,16 +2670,23 @@ function odoQuick(vid, d, after){
            '<div style="background:var(--s1);border:1px dashed var(--border2);border-radius:11px;'+
              'padding:10px 12px;margin-bottom:12px">'+
              '<div style="font-size:11.5px;font-weight:700;margin-bottom:7px">＋ เพิ่มทีมและสถานที่</div>'+
+             pickQ('od_ns','🔍 พิมพ์ค้นหาโครงการ…')+
              '<div class="row"><select id="od_nt" style="height:32px;font-size:12px">'+
+               '<option value="">— เลือกทีม —</option>'+
                workTeams().map(function(t){ return '<option value="'+t.id+'">'+esc(teamLabel(t))+'</option>'; }).join('')+
              '</select>'+
              '<select id="od_ns" style="height:32px;font-size:12px">'+
-               (S.sites||[]).map(function(x){ return '<option value="'+x.id+'">'+esc(x.name||x.code)+'</option>'; }).join('')+
+               '<option value="">— เลือกไซต์/โครงการ —</option>'+
+               siteSorted().map(function(x){ return '<option value="'+x.id+'">'+esc(siteOptText(x))+'</option>'; }).join('')+
              '</select></div>'+
+             pickN('od_ns')+
              '<button class="btn ghost sm" type="button" id="od_nadd" style="margin-top:7px;width:100%">'+
                '＋ เพิ่มเข้าวันนี้</button>'+
              '<div style="font-size:10.5px;color:var(--text3);line-height:1.6;margin-top:6px">'+
-               'เพิ่มแล้วจะเป็นใบงานของทีมนั้นที่ไซต์นั้น ผูกกับรถคันนี้ให้เลย ขอบเขตงานไปใส่ทีหลังได้</div>'+
+               'เลือกทีมกับไซต์แล้ว <b>กดบันทึกข้างล่างเลยก็ได้</b> ไม่ต้องกดปุ่มนี้ก่อน · '+
+               'ปุ่มนี้ไว้เพิ่มหลาย ๆ รายการติดกันโดยไม่ปิดกล่อง<br>'+
+               'เพิ่มแล้วจะเป็นใบงานของทีมนั้นที่ไซต์นั้น ขึ้นในแถวของทีมในตารางแผนงานด้วย ผูกกับรถคันนี้ให้เลย '+
+               'ขอบเขตงานไปใส่ทีหลังได้</div>'+
            '</div>')
         : '')+
 
@@ -2677,6 +2758,8 @@ function odoQuick(vid, d, after){
         render();
       };
     });
+
+    wirePickQ('od_ns');
 
     /* เพิ่มทีม+สถานที่เข้าวันนั้น — กันซ้ำก่อน ฐานมี unique (ไซต์, ทีม, วัน) อยู่แล้ว
        ถ้าไม่เช็กเองจะได้ error ดิบ ๆ จากฐานซึ่งคนใช้อ่านไม่รู้เรื่อง */
@@ -2903,6 +2986,25 @@ function odoQuick(vid, d, after){
            !confirm('วันที่ '+dayText(d)+' มีเลขไมล์ '+odoFmt(cur.odo)+' บันทึกไว้แล้ว\n'+
                     'จะเปลี่ยนเป็น '+odoFmt(val)+' ใช่ไหม?\n\nระยะของช่วงนี้จะถูกคิดใหม่ทั้งหมด')) return;
       }
+
+      /* ช่อง ＋ เพิ่มทีมและสถานที่ ที่กรอกค้างไว้ ต้องถูกบันทึกด้วย
+         ของเดิมอ่านค่านี้แค่ในปุ่ม ＋ เพิ่มเข้าวันนี้ ใครกรอกแล้วกดบันทึกเลย ค่าหายเงียบ ๆ */
+      var newT=$('od_nt')? $('od_nt').value : '', newS=$('od_ns')? $('od_ns').value : '';
+      if((newT&&!newS)||(newS&&!newT))
+        return toast('ช่อง ＋ เพิ่มทีมและสถานที่ ยังไม่ครบ — เลือกทั้งทีมและไซต์ หรือเลือกกลับเป็น "—" ทั้งคู่', 7500);
+      if(newT&&newS){
+        var dupN=(S.plan||[]).filter(function(a){
+          return a.work_date===d && a.team_id===newT && a.site_id===newS; })[0];
+        if(dupN){
+          var vvN=dupN.vehicle_id? vehOf(dupN.vehicle_id) : null;
+          return alert('วันที่ '+dayText(d)+' มีใบงานของ '+(teamOf(newT).name||'')+
+            ' ที่ '+(siteOf(newS).name||'')+' อยู่แล้ว เพิ่มซ้ำไม่ได้\n\n'+
+            (dupN.vehicle_id===vid
+              ? 'และอยู่ในคิวของรถคันนี้อยู่แล้ว — เลือกช่อง ＋ เพิ่มทีมและสถานที่ กลับเป็น "—" แล้วกดบันทึกอีกครั้ง'
+              : (vvN? ('ตอนนี้ผูกกับรถ '+(vvN.code||'')+' — ติ๊กในรายการ "วันนี้รถคันนี้ไปที่ไหนบ้าง" ข้างบน เพื่อย้ายมารถคันนี้')
+                    : 'ติ๊กในรายการ "วันนี้รถคันนี้ไปที่ไหนบ้าง" ข้างบน เพื่อผูกเข้ารถคันนี้')));
+        }
+      }
       btn.disabled=true; btn.textContent='กำลังบันทึก…';
       if(val!=null){
         var w=await odoPut(vid, d, val, $('od_n').value.trim()||null, st0v);
@@ -2925,6 +3027,20 @@ function odoQuick(vid, d, after){
             btn.disabled=false; btn.textContent='บันทึก'; return; }
           a.vehicle_id=null; a.vehicle_seq=null;
         }
+      }
+      /* รายการใหม่จากช่อง ＋ เพิ่มทีมและสถานที่ — ต่อท้ายคิวของวันนั้น */
+      var addTxt='';
+      if(newT&&newS){
+        var insN=await db.from('it_assignments').insert({
+          site_id:newS, team_id:newT, work_date:d, scope:null, checklist:[], vehicle_id:vid}).select().single();
+        if(insN.error){
+          toast('เพิ่ม '+(teamOf(newT).name||'')+' ที่ '+(siteOf(newS).name||'')+
+            ' ไม่สำเร็จ: '+insN.error.message, 7500);
+          btn.disabled=false; btn.textContent='บันทึก'; return;
+        }
+        (S.plan=S.plan||[]).push(insN.data);
+        pickedTeams[newT]=1; want.push(insN.data);
+        addTxt=' · เพิ่ม '+(teamOf(newT).name||'')+' ที่ '+(siteOf(newS).name||'');
       }
       /* เรียงเลขคิวใหม่ทั้งแถวตามลำดับที่เห็นในรายการ
          ของเดิมบวกเลขสองเด้งต่อหนึ่งใบ (nQ++ แล้ว ++nQ) เลขคิวเลยกระโดดเป็น 2, 4, 6
@@ -2958,9 +3074,9 @@ function odoQuick(vid, d, after){
       }
 
       shut();
-      toast(val!=null
+      toast((val!=null
         ? ('บันทึกเลขไมล์ '+odoFmt(val)+' ของ '+(v.code||'')+' แล้ว')
-        : ('บันทึกแล้ว — เลขไมล์ยังไม่ได้ใส่ ย้อนมากรอกตอนจบวันได้'), 4000);
+        : ('บันทึกแล้ว — เลขไมล์ยังไม่ได้ใส่ ย้อนมากรอกตอนจบวันได้'))+addTxt, 4500);
       odoClearCache();
       await loadMgr(); try{ await loadSchedule(); }catch(e){}
       if(after) after();
@@ -3493,13 +3609,33 @@ function runForm(o){
   $('rf_site').onclick=function(){
     var list=(S.sites||[]).filter(function(s){ return s.lat!=null && s.lng!=null; });
     if(!list.length) return toast('ยังไม่มีไซต์ไหนใส่พิกัดไว้ — ใส่พิกัดที่แท็บ Work & Site ก่อน', 5200);
+    /* ไซต์เยอะ เลื่อนหายาก มีช่องพิมพ์ค้นหาไว้ข้างบนรายการ */
     sheet2('เลือกไซต์งาน',
-      list.map(function(s){ return '<div class="brow" data-ps="'+s.id+'"><div class="brow-t"><span class="nm">'+
-        esc(s.name||'—')+'</span></div><div class="brow-s"><span class="tm">'+esc(s.code||'')+'</span>'+
-        (s.address?'<span>'+esc(s.address)+'</span>':'')+'</div></div>'; }).join(''), '');
+      '<input class="pick-q" id="ps_q" autocomplete="off" spellcheck="false" '+
+        'placeholder="🔍 พิมพ์ชื่อ รหัส หรือที่อยู่โครงการ…" style="margin-bottom:10px">'+
+      '<div class="pick-n" id="ps_n" style="margin:-6px 0 8px"></div>'+
+      '<div id="ps_list">'+
+      siteSorted(list).map(function(s){ return '<div class="brow" data-ps="'+s.id+'" '+
+        'data-pstxt="'+esc(pickNorm((s.name||'')+' '+(s.code||'')+' '+(s.customer||'')+' '+(s.address||'')))+'">'+
+        '<div class="brow-t"><span class="nm">'+esc(s.name||'—')+'</span></div><div class="brow-s">'+
+        '<span class="tm">'+esc(s.code||'')+'</span>'+
+        (s.customer?'<span>'+esc(s.customer)+'</span>':'')+
+        (s.address?'<span>'+esc(s.address)+'</span>':'')+'</div></div>'; }).join('')+'</div>', '');
     document.querySelectorAll('#shB2 [data-ps]').forEach(function(el){
       el.onclick=function(){ closeSheet2(); addStop(siteStop(siteOf(el.dataset.ps), null)); };
     });
+    if($('ps_q')) $('ps_q').oninput=function(){
+      var w=pickNorm(this.value), n=0;
+      document.querySelectorAll('#ps_list [data-ps]').forEach(function(el){
+        var ok = !w || String(el.dataset.pstxt||'').indexOf(w)>=0;
+        el.style.display = ok? '' : 'none';
+        if(ok) n++;
+      });
+      var nb=$('ps_n');
+      if(nb){ nb.textContent = !this.value.trim()? '' : (n? ('ตรงกับคำค้น '+n+' ไซต์')
+                : ('ไม่พบไซต์ที่มีคำว่า “'+this.value.trim()+'”'));
+        nb.style.color=(this.value.trim()&&!n)?'#c9251c':'var(--text3)'; }
+    };
   };
   $('rf_pin').onclick=function(){
     var list=(S.pins||[]);
@@ -4816,6 +4952,22 @@ function siteLabel(v){
   var c=String(v.code||''), n=String(v.name||'');
   if(!n) return c||'—';
   return c? (c+' · '+n) : n;   /* ไซต์ใช้รหัสเป็นเลขงาน ต้องเห็นเสมอ */
+}
+/* ข้อความในตัวเลือกของ select เลือกโครงการ — ใส่ลูกค้าต่อท้ายด้วย เพราะคนจำชื่อลูกค้าได้ก่อนรหัส
+   และช่องค้นหาจะได้ค้นเจอจากชื่อลูกค้าด้วย */
+function siteOptText(x){
+  if(!x) return '—';
+  var t=siteLabel(x), cu=String(x.customer||'').trim();
+  return cu && t.indexOf(cu)<0 ? (t+' · '+cu) : t;
+}
+/* เรียงไซต์ให้เหมือนกันทุกที่ — ที่กำลังทำขึ้นก่อน แล้วเรียงชื่อตามตัวอักษรไทย */
+function siteSorted(list){
+  var rk={active:0, planned:1, hold:2, done:3};
+  return (list||S.sites||[]).slice().sort(function(a,b){
+    var ra=(rk[a.status]==null?9:rk[a.status]), rb=(rk[b.status]==null?9:rk[b.status]);
+    if(ra!==rb) return ra-rb;
+    return String(a.name||a.code||'').localeCompare(String(b.name||b.code||''),'th');
+  });
 }
 function teamOf(id){ return S.teams.filter(function(t){return t.id===id;})[0]||{}; }
 
@@ -6741,9 +6893,9 @@ function quickAssign(teamId, date, opt){
     '<div style="font-size:11.5px;color:var(--text2);line-height:1.7;margin:-6px 0 12px">'+
       'หน้านี้จ่ายงานให้<b>ทั้งทีม</b> · ถ้าต้องแยกว่าใครไปไหนหรือยืมคนข้ามทีม '+
       '<a href="#" id="q_toSa" style="font-weight:600">มอบหมายงานรายคน</a></div>'+
-    '<div class="fld"><label>ไซต์งาน</label><select id="q_site">'+
-      S.sites.map(function(x){ return '<option value="'+x.id+'">'+esc(x.code+' — '+x.name)+'</option>'; }).join('')+
-      '<option value="__new">＋ เพิ่มไซต์ใหม่…</option></select></div>'+
+    '<div class="fld"><label>ไซต์งาน</label>'+pickQ('q_site')+'<select id="q_site">'+
+      siteSorted().map(function(x){ return '<option value="'+x.id+'">'+esc(siteOptText(x))+'</option>'; }).join('')+
+      '<option value="__new">＋ เพิ่มไซต์ใหม่…</option></select>'+pickN('q_site')+'</div>'+
 
     '<div id="q_newbox" class="hide" style="background:var(--s1);border:1px solid var(--border);border-radius:12px;padding:12px 13px;margin-bottom:14px">'+
       '<div class="row"><div class="fld"><label>รหัสงาน</label><input id="q_code"></div>'+
@@ -6857,6 +7009,7 @@ function quickAssign(teamId, date, opt){
     }
   };
   if(!S.sites.length){ $('q_site').value='__new'; $('q_site').onchange(); }
+  wirePickQ('q_site');
 
   $('q_save').onclick=async function(){
     if(!store.keys.length && !store.extra.length) return toast('เลือกก่อนว่าเข้าไปทำอะไรบ้าง');
@@ -7053,19 +7206,19 @@ async function asgActions(a){
     '</div>'+
 
     '<div class="fld"><label>เลื่อนไปวันที่</label><input type="date" id="mv_date" value="'+a.work_date+'"></div>'+
-    '<div class="fld"><label>ย้ายไปโครงการ</label><select id="mv_site">'+
+    '<div class="fld"><label>ย้ายไปโครงการ</label>'+pickQ('mv_site')+'<select id="mv_site">'+
       (function(){
         var cs=[], by={};
         (S.sites||[]).forEach(function(x){ var c=x.category||'ทั่วไป'; if(!by[c]){ by[c]=[]; cs.push(c); } by[c].push(x); });
         cs.sort();
         return cs.map(function(c){
           return '<optgroup label="'+esc(c)+'">'+
-            by[c].sort(function(x,y){ return String(x.name||'').localeCompare(String(y.name||''),'th'); })
+            siteSorted(by[c])
               .map(function(x){ return '<option value="'+x.id+'"'+(x.id===a.site_id?' selected':'')+'>'+
-                esc(siteLabel(x))+'</option>'; }).join('')+'</optgroup>';
+                esc(siteOptText(x))+'</option>'; }).join('')+'</optgroup>';
         }).join('');
       })()+
-    '</select></div>'+
+    '</select>'+pickN('mv_site')+'</div>'+
     '<div class="fld"><label>ย้ายไปทีม</label><select id="mv_team">'+
       S.teams.filter(function(t){return t.active!==false;}).map(function(t){
         return '<option value="'+t.id+'"'+(t.id===a.team_id?' selected':'')+'>'+esc(teamLabel(t))+'</option>'; }).join('')+
@@ -7094,6 +7247,7 @@ async function asgActions(a){
   $('sc_one').onclick=function(){ setMode('one'); };
   if(multi) $('sc_all').onclick=function(){ setMode('all'); };
   setMode('one');
+  wirePickQ('mv_site');
 
   $('mv_save').onclick=async function(){
     var nd=$('mv_date').value||a.work_date, nt=$('mv_team').value;
@@ -8039,9 +8193,10 @@ function renderPlan(){
     S.sites.forEach(function(x){ var c=x.category||'ทั่วไป'; if(!byC[c]){ byC[c]=[]; cs.push(c); } byC[c].push(x); });
     cs.sort();
     $('asgSite').innerHTML=cs.map(function(c){
-      return '<optgroup label="'+esc(c)+'">'+byC[c].map(function(x){
-        return '<option value="'+x.id+'">'+esc(x.code+' — '+x.name)+'</option>'; }).join('')+'</optgroup>';
+      return '<optgroup label="'+esc(c)+'">'+siteSorted(byC[c]).map(function(x){
+        return '<option value="'+x.id+'">'+esc(siteOptText(x))+'</option>'; }).join('')+'</optgroup>';
     }).join('');
+    wirePickQ('asgSite');
   })();
   $('asgTeam').innerHTML=S.teams.filter(function(t){return t.active;}).map(function(t){ return '<option value="'+t.id+'">'+esc(t.code+' — '+t.name)+'</option>'; }).join('');
 }
@@ -8651,12 +8806,13 @@ async function siteMerge(fromId){
       'จะถูกย้ายไปไซต์ที่เลือก แล้วไซต์นี้จะถูกลบ<br>'+
       '<span style="color:var(--text3)">ย้ายให้ทั้ง ใบงาน · ปัญหา · รายงานและรูป · งานมอบหมายรายคน — ประวัติไม่หาย</span>'+
     '</div>'+
-    '<div class="fld"><label>ย้ายไปไซต์</label><select id="mg_to">'+
-      others.map(function(x){ return '<option value="'+x.id+'">'+esc(siteLabel(x))+'</option>'; }).join('')+
-    '</select></div>'+
+    '<div class="fld"><label>ย้ายไปไซต์</label>'+pickQ('mg_to')+'<select id="mg_to">'+
+      siteSorted(others).map(function(x){ return '<option value="'+x.id+'">'+esc(siteOptText(x))+'</option>'; }).join('')+
+    '</select>'+pickN('mg_to')+'</div>'+
     '<div id="mg_log" style="font-size:11.5px;color:var(--text2);line-height:1.8;margin-top:10px"></div>',
     '<button class="btn sm" id="mg_go">ตรวจแล้วย้าย</button>');
 
+  wirePickQ('mg_to');
   $('mg_go').onclick=async function(){
     var toId=$('mg_to').value; if(!toId) return;
     var to=siteOf(toId), log=$('mg_log'), btn=this;
