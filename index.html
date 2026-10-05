@@ -260,6 +260,9 @@ body.dragmode .pjob:active{cursor:grabbing}
 .odo-km{font-size:11px;color:var(--text2);line-height:1.5}
 .odo-km b{font-size:12.5px;color:var(--text)}
 .odo-p{font-size:9.5px;color:var(--text3);line-height:1.5}
+.odo-stops{font-size:10px;line-height:1.5;color:var(--text2);margin:1px 0 3px}
+.odo-stops b{color:var(--text);font-weight:600}
+.odo-stops i{display:inline-block;width:5px;height:5px;border-radius:50%;margin-right:4px;vertical-align:1px}
 .vq-s b{display:block;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .vq-s i{display:inline-block;width:6px;height:6px;border-radius:50%;margin-right:3px;vertical-align:1px}
 .sab{border:1px solid;border-radius:9px;padding:5px 7px;font-size:10px;line-height:1.45}
@@ -646,7 +649,7 @@ body.preview #previewBar{display:flex}
 
 <script>
 /* ── ยามเฝ้า splash: อยู่นอกสคริปต์หลัก ถ้าสคริปต์หลักพัง ตัวนี้ยังทำงาน ── */
-window.APP_VER='17.3';
+window.APP_VER='17.4';
 (function(){
   var fill=function(){
     var a=document.querySelectorAll('.ver');
@@ -2272,6 +2275,8 @@ function vehTipSheet(d){
 function teamKind(t){ return (t && t.kind) || 'work'; }
 function isDriverTeam(t){ return teamKind(t)==='driver'; }
 function driverTeamObj(){ return (S.teams||[]).filter(function(t){ return isDriverTeam(t) && t.active!==false; })[0] || null; }
+/* ทีมที่รับงานตามไซต์ — ไม่รวมกลุ่มคนขับรถ เพราะงานของเขาคือใบขนส่ง ไม่ใช่ใบงานที่ไซต์ */
+function workTeams(){ return (S.teams||[]).filter(function(t){ return t.active!==false && !isDriverTeam(t); }); }
 function runOf(vid, d){ return (S.runs||[]).filter(function(r){ return r.vehicle_id===vid && r.work_date===d; })[0] || null; }
 function runsOn(d){
   return (S.runs||[]).filter(function(r){ return r.work_date===d; })
@@ -2472,8 +2477,8 @@ function odoQuick(vid, d, after){
              (nx? ('<br>ครั้งถัดไป <b>'+esc(dayText(nx.read_on))+'</b> · เลขไมล์ <b>'+odoFmt(nx.odo)+'</b>') : '')+
              (planKm!=null? ('<br>แผนของวันนี้ <b>'+kmTxt(planKm)+'</b>') : '')+
            '</div>'+
-           '<div class="fld"><label>เลขไมล์บนหน้าปัด ตอนจบงานวันนี้</label>'+
-             '<input id="od_v" inputmode="decimal" value="'+(cur? cur.odo : '')+'" placeholder="เช่น 184398"></div>'+
+           '<div class="fld"><label>เลขไมล์บนหน้าปัด ตอนจบงานวันนี้ <span style="font-weight:500;color:var(--text3)">(ใส่ทีหลังได้)</span></label>'+
+             '<input id="od_v" inputmode="decimal" value="'+(cur? cur.odo : '')+'" placeholder="เว้นว่างไว้ก่อนก็ได้ ค่อยมากรอกตอนจบวัน"></div>'+
            '<div id="od_calc" style="margin-bottom:13px"></div>')
 
         : ('<div style="font-size:11.5px;color:var(--text2);line-height:1.75;margin-bottom:12px">'+
@@ -2508,18 +2513,58 @@ function odoQuick(vid, d, after){
                 }).join('')+'</div>'+
                 '<div style="font-size:10.5px;color:var(--text2);line-height:1.7;margin-bottom:12px">'+
                   'ติ๊กแล้วงานนั้นจะถูกผูกเข้าคิวรถคันนี้ · เป็นข้อมูลชุดเดียวกับที่เห็นในแถวคิวรถและใบงานขนส่ง</div>')
-             : '<div class="empty" style="padding:14px;font-size:12px;margin-bottom:12px">วันนี้ยังไม่มีใบงานสักใบ — สร้างใบงานก่อนถึงจะเลือกได้ว่ารถไปที่ไหน</div>'))
+             : '<div style="font-size:11.5px;color:var(--text2);line-height:1.7;margin-bottom:10px">'+
+               'วันนี้ยังไม่มีใบงานสักใบ — เพิ่มได้จากช่องข้างล่างนี้เลย</div>')+
+           /* ใส่ทีม+สถานที่ได้ตรงนี้ ไม่ต้องไปสร้างใบงานเต็มรูปแบบก่อน
+              ขอบเขตงานเว้นไว้ให้ไปใส่ทีหลังที่ใบงานของทีมได้ */
+           '<div style="background:var(--s1);border:1px dashed var(--border2);border-radius:11px;'+
+             'padding:10px 12px;margin-bottom:12px">'+
+             '<div style="font-size:11.5px;font-weight:700;margin-bottom:7px">＋ เพิ่มทีมและสถานที่</div>'+
+             '<div class="row"><select id="od_nt" style="height:32px;font-size:12px">'+
+               workTeams().map(function(t){ return '<option value="'+t.id+'">'+esc(teamLabel(t))+'</option>'; }).join('')+
+             '</select>'+
+             '<select id="od_ns" style="height:32px;font-size:12px">'+
+               (S.sites||[]).map(function(x){ return '<option value="'+x.id+'">'+esc(x.name||x.code)+'</option>'; }).join('')+
+             '</select></div>'+
+             '<button class="btn ghost sm" type="button" id="od_nadd" style="margin-top:7px;width:100%">'+
+               '＋ เพิ่มเข้าวันนี้</button>'+
+             '<div style="font-size:10.5px;color:var(--text3);line-height:1.6;margin-top:6px">'+
+               'เพิ่มแล้วจะเป็นใบงานของทีมนั้นที่ไซต์นั้น ผูกกับรถคันนี้ให้เลย ขอบเขตงานไปใส่ทีหลังได้</div>'+
+           '</div>')
         : '')+
 
       '<div class="fld"><label>หมายเหตุ</label>'+
         '<input id="od_n" value="'+esc((cur&&cur.note)||'')+'" placeholder="เช่น เติมน้ำมันที่ปั๊มบางนา"></div>',
 
       '<div class="row">'+((mode==='odo'&&cur)?'<button class="btn ghost sm" id="od_del" style="flex:0 0 80px">ลบ</button>':'')+
-        '<button class="btn sm" id="od_ok">'+(mode==='odo'?'บันทึกเลขไมล์':'บันทึกระยะของช่วงนี้')+'</button></div>');
+        '<button class="btn sm" id="od_ok">'+(mode==='odo'?'บันทึก':'บันทึกระยะของช่วงนี้')+'</button></div>');
 
     document.querySelectorAll('#od_mode [data-om]').forEach(function(b){
       b.onclick=function(){ mode=b.dataset.om; render(); };
     });
+
+    /* เพิ่มทีม+สถานที่เข้าวันนั้น — กันซ้ำก่อน ฐานมี unique (ไซต์, ทีม, วัน) อยู่แล้ว
+       ถ้าไม่เช็กเองจะได้ error ดิบ ๆ จากฐานซึ่งคนใช้อ่านไม่รู้เรื่อง */
+    if($('od_nadd')) $('od_nadd').onclick=async function(){
+      var tid=$('od_nt').value, sid=$('od_ns').value;
+      if(!tid||!sid) return toast('เลือกทีมกับไซต์ก่อน');
+      var dup=(S.plan||[]).filter(function(a){
+        return a.work_date===d && a.team_id===tid && a.site_id===sid; })[0];
+      if(dup){
+        var vv=dup.vehicle_id? vehOf(dup.vehicle_id) : null;
+        return alert('วันนี้มีใบงานของ '+(teamOf(tid).name||'')+' ที่ '+(siteOf(sid).name||'')+' อยู่แล้ว\n'+
+          (dup.vehicle_id===vid? 'และผูกกับรถคันนี้อยู่แล้วด้วย'
+            : (vv? ('ตอนนี้ผูกกับรถ '+(vv.code||'')+' — ติ๊กในรายการข้างบนเพื่อย้ายมารถคันนี้')
+                 : 'ติ๊กในรายการข้างบนเพื่อผูกเข้ารถคันนี้')));
+      }
+      this.disabled=true;
+      var ins=await db.from('it_assignments').insert({
+        site_id:sid, team_id:tid, work_date:d, scope:null, checklist:[], vehicle_id:vid}).select().single();
+      if(ins.error){ toast('เพิ่มไม่สำเร็จ: '+ins.error.message, 6000); this.disabled=false; return; }
+      toast('เพิ่ม '+(teamOf(tid).name||'')+' ที่ '+(siteOf(sid).name||'')+' แล้ว', 3000);
+      await loadMgr(); try{ await loadSchedule(); }catch(e){}
+      render();
+    };
 
     /* ── โหมดเลขหน้าปัด ── */
     if(mode==='odo'){
@@ -2628,6 +2673,19 @@ function odoQuick(vid, d, after){
           .filter(function(x){ return (+x.odo)<sv || (+x.odo)>(sv+km); });
         if(mid2.length) return toast('เลขไมล์ของ '+mid2.map(function(x){ return dayText(x.read_on); }).join(', ')+
           ' อยู่นอกช่วง '+odoFmt(sv)+'–'+odoFmt(sv+km)+' — แก้วันนั้นก่อน ไม่งั้นระยะจะติดลบ', 9000);
+        /* ช่วงนี้เคยกรอกไว้แล้ว ต้องถามก่อนทับ ไม่ใช่เขียนทับเงียบ ๆ */
+        var hit=[], ff=odoAt(vid,f), tt=odoAt(vid,t);
+        if(ff && (+ff.odo)!==sv) hit.push(dayText(f)+' ('+odoFmt(ff.odo)+' → '+odoFmt(sv)+')');
+        if(tt && (+tt.odo)!==(sv+km)) hit.push(dayText(t)+' ('+odoFmt(tt.odo)+' → '+odoFmt(sv+km)+')');
+        var inside=odoList(vid).filter(function(x){ return x.read_on>f && x.read_on<t; });
+        if(hit.length || inside.length){
+          if(!confirm('ช่วงนี้มีเลขไมล์บันทึกไว้อยู่แล้ว\n\n'+
+              (hit.length? ('จะเขียนทับ:\n  '+hit.join('\n  ')+'\n\n') : '')+
+              (inside.length? ('เลขระหว่างช่วงที่ยังอยู่เหมือนเดิม:\n  '+
+                 inside.map(function(x){ return dayText(x.read_on)+' ('+odoFmt(x.odo)+')'; }).join('\n  ')+
+                 '\nช่วงจะถูกแบ่งย่อยตามนี้ ยอดรวมยังเป็น '+kmTxt(km)+'\n\n') : '')+
+              'ยืนยันบันทึกหรือไม่?')) return;
+        }
         btn.disabled=true; btn.textContent='กำลังบันทึก…';
         var w1=await odoPut(vid, f, sv, null);
         if(w1){ toast(w1, 7000); btn.disabled=false; btn.textContent='บันทึกระยะของช่วงนี้'; return; }
@@ -2640,12 +2698,25 @@ function odoQuick(vid, d, after){
         return;
       }
 
-      var val=parseFloat($('od_v').value);
-      var err=odoCheck(vid, d, val, cur? cur.id : null);
-      if(err) return toast(err, 8000);
+      /* เลขไมล์ไม่บังคับ — ลงแผนว่าไปไหนก่อนได้ แล้วค่อยย้อนมาใส่เลขตอนจบวัน */
+      var raw=String($('od_v').value).trim();
+      var val=raw? parseFloat(raw) : null;
+      if(raw!=='' && !isFinite(val)) return toast('เลขไมล์ต้องเป็นตัวเลข หรือเว้นว่างไว้ก่อนก็ได้', 5000);
+      if(val!=null){
+        var err=odoCheck(vid, d, val, cur? cur.id : null);
+        if(err) return toast(err, 8000);
+        /* มีของเดิมอยู่แล้วและกำลังจะเปลี่ยน ต้องถามก่อน ไม่ใช่ทับเงียบ ๆ */
+        if(cur && (+cur.odo)!==val &&
+           !confirm('วันที่ '+dayText(d)+' มีเลขไมล์ '+odoFmt(cur.odo)+' บันทึกไว้แล้ว\n'+
+                    'จะเปลี่ยนเป็น '+odoFmt(val)+' ใช่ไหม?\n\nระยะของช่วงนี้จะถูกคิดใหม่ทั้งหมด')) return;
+      }
       btn.disabled=true; btn.textContent='กำลังบันทึก…';
-      var w=await odoPut(vid, d, val, $('od_n').value.trim()||null);
-      if(w){ toast(w, 7000); btn.disabled=false; btn.textContent='บันทึกเลขไมล์'; return; }
+      if(val!=null){
+        var w=await odoPut(vid, d, val, $('od_n').value.trim()||null);
+        if(w){ toast(w, 7000); btn.disabled=false; btn.textContent='บันทึกเลขไมล์'; return; }
+      }else if(cur && $('od_n').value.trim()!==String(cur.note||'')){
+        await db.from('it_odo').update({note:$('od_n').value.trim()||null}).eq('id', cur.id);
+      }
 
       /* ติ๊กว่ารถไปที่ไหนบ้าง — ผูกใบงานเข้าคิวรถคันนี้ ใช้ข้อมูลชุดเดียวกับแถวคิวรถ */
       var boxes=document.querySelectorAll('#od_jobs [data-oj]');
@@ -2666,7 +2737,10 @@ function odoQuick(vid, d, after){
       var rn=runOf(vid,d), tms=Object.keys(pickedTeams).filter(Boolean);
       if(rn && tms.length) await db.from('it_runs').update({deliver_teams:tms}).eq('id', rn.id);
 
-      shut(); toast('บันทึกเลขไมล์ '+odoFmt(val)+' ของ '+(v.code||'')+' แล้ว', 3400);
+      shut();
+      toast(val!=null
+        ? ('บันทึกเลขไมล์ '+odoFmt(val)+' ของ '+(v.code||'')+' แล้ว')
+        : ('บันทึกแล้ว — เลขไมล์ยังไม่ได้ใส่ ย้อนมากรอกตอนจบวันได้'), 4000);
       odoClearCache();
       await loadMgr(); try{ await loadSchedule(); }catch(e){}
       if(after) after();
@@ -2832,6 +2906,14 @@ function odoCell(v, d){
   var lines=[];
   lines.push('<div class="vq-h">🚚 '+esc(v.code||'—')+
     ((r&&r.driver_name)? (' · '+esc(r.driver_name)) : ((q[0]&&q[0].driver_name)? (' · '+esc(q[0].driver_name)) : ''))+'</div>');
+  /* โหมดนี้ไม่คำนวณเส้นทาง แต่ต้องเห็นว่าวันนั้นรถไปไหนกับทีมไหน
+     ไม่งั้นช่องจะมีแต่ตัวเลขลอย ๆ ไม่รู้ว่าของงานไหน */
+  if(q.length) lines.push('<div class="odo-stops">'+q.map(function(a2){
+    var si=siteOf(a2.site_id), tm=teamOf(a2.team_id), st=astOf(a2);
+    return '<div><i style="background:'+st.x+'"></i>'+esc(teamLabel(tm))+' · <b>'+esc(si.name||'—')+'</b></div>';
+  }).join('')+'</div>');
+  else lines.push('<div class="odo-p" style="color:#c26c00">ยังไม่ได้ระบุว่าไปที่ไหน</div>');
+
   /* วันที่กรอกเลขไมล์ไว้เอง กับวันที่อยู่กลางช่วง ต้องเขียนให้ต่างกัน
      ไม่งั้นวันกลางช่วงจะขึ้นว่า “ยังไม่ได้กรอก” ทั้งที่มีตัวเลขวิ่งอยู่ข้างล่าง คนอ่านจะงง */
   if(rec) lines.push('<div class="odo-v">เลขไมล์ '+odoFmt(rec.odo)+'</div>');
@@ -2845,7 +2927,8 @@ function odoCell(v, d){
   }
   if(pk!=null) lines.push('<div class="odo-p">แผน '+kmTxt(pk)+
     (g? (' · <b style="color:'+(g.km>=0?'#c26c00':'var(--green)')+'">'+gapTxt(g)+'</b>') : '')+'</div>');
-  if(!rec && !a) lines.push('<div class="odo-p" style="color:#c26c00">แตะเพื่อกรอก</div>');
+  if(!rec && !a) lines.push('<div class="odo-p" style="color:#c26c00">'+
+    (q.length? 'แตะเพื่อกรอกเลขไมล์' : 'แตะเพื่อระบุทีมและสถานที่')+'</div>');
   return {html:lines.join(''), hasRec:!!rec};
 }
 
