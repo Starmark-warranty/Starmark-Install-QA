@@ -92,6 +92,9 @@ button,input,select,textarea{font-family:inherit;color:inherit}
   padding:8px 11px;font-size:12.5px;outline:none;margin-bottom:6px;font-family:inherit;color:var(--text)}
 .pick-q:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-glow);background:#fff}
 .pick-n{font-size:10.5px;color:var(--text3);line-height:1.5;margin-top:4px;min-height:1px}
+/* วันไทยกำกับใต้ช่องวันที่ — ช่องที่ยังว่างขึ้นเป็นตัวอย่างจาง ๆ */
+.dhint{font-size:10.5px;color:var(--text2);line-height:1.5;margin-top:4px;min-height:14px}
+.dhint.eg{color:var(--text3);opacity:.6;font-style:italic}
 
 /* ── ช่องเลือกแบบพิมพ์ค้นหาได้ ──
    <select> ของเบราว์เซอร์พิมพ์ค้นหาไม่ได้ ต้องเลื่อนหาเอง รายการเยอะ ๆ แล้วตาลาย
@@ -700,7 +703,7 @@ body.preview #previewBar{display:flex}
 
 <script>
 /* ── ยามเฝ้า splash: อยู่นอกสคริปต์หลัก ถ้าสคริปต์หลักพัง ตัวนี้ยังทำงาน ── */
-window.APP_VER='18.6';
+window.APP_VER='18.7';
 (function(){
   var fill=function(){
     var a=document.querySelectorAll('.ver');
@@ -2763,19 +2766,20 @@ function odoQuick(vid, d, after){
            '<div id="od_calc" style="margin-bottom:13px"></div>')
 
         : (function(){
-             /* ตั้งต้นให้ฉลาด — เริ่มจากวันที่กรอกเลขไมล์ไว้ล่าสุด ถึงวันที่กดเข้ามา
-                จะได้ตรงกับที่คนใช้คิดว่า “ตั้งแต่ครั้งที่แล้วถึงวันนี้” */
-             var pv0=odoPrev(vid,d);
-             var f0=(pv0 && pv0.read_on<d)? pv0.read_on : addDays(d,-6);
+             /* วันเริ่ม = วันจริงที่เปิดใช้ ไม่ใช่วันย้อนหลังลอย ๆ ที่คนใช้ต้องมานั่งแก้ทุกครั้ง
+                วันจบเว้นว่างไว้ ให้คนกรอกเลือกเอง — ข้างใต้ขึ้นวันที่ตัวอย่างจาง ๆ ไว้ให้ดูเป็นแนว */
+             var f0=todayISO();
              return '<div style="font-size:11.5px;color:var(--text2);line-height:1.75;margin-bottom:12px">'+
                'ใช้ตอนไม่ได้กรอกทุกวัน เช่นอาทิตย์ละครั้ง หรือเดือนละครั้ง<br>'+
                '<b style="color:var(--text)">กรอกแค่ 2 อย่าง</b> — เลขหน้าปัดตอนเริ่ม กับ'+
                'อีกอย่างจะเป็นเลขหน้าปัดตอนจบ หรือกิโลที่วิ่งก็ได้ ใส่อันใดอันหนึ่ง อีกช่องเติมให้เอง<br>'+
                'แล้วระบบจะเกลี่ยลงรายวันตามสัดส่วนแผนของแต่ละวัน วันที่รถไม่ได้ออกจะได้ 0</div>'+
              '<div class="row"><div class="fld"><label>ตั้งแต่วันที่</label>'+
-               '<input type="date" id="od_f" value="'+esc(f0)+'"></div>'+
+               '<input type="date" id="od_f" value="'+esc(f0)+'">'+
+               '<div class="dhint" id="od_fh"></div></div>'+
                '<div class="fld"><label>ถึงวันที่</label>'+
-               '<input type="date" id="od_t" value="'+esc(d)+'"></div></div>'+
+               '<input type="date" id="od_t" value="">'+
+               '<div class="dhint" id="od_th"></div></div></div>'+
              '<div class="row"><div class="fld"><label>เลขหน้าปัด ณ วันเริ่ม</label>'+
                '<input id="od_s" inputmode="decimal" placeholder="เช่น 184000"></div>'+
                '<div class="fld"><label>เลขหน้าปัด ณ วันจบ</label>'+
@@ -3024,10 +3028,15 @@ function odoQuick(vid, d, after){
         $('od_s').placeholder = ex? ('กรอกไว้แล้ว '+odoFmt(ex.odo)) : 'เช่น 184000';
         $('od_e').placeholder = exT? ('กรอกไว้แล้ว '+odoFmt(exT.odo)) : 'เช่น 185000';
         var km=parseFloat($('od_km').value), sv=parseFloat($('od_s').value);
-        if(!f||!t||!(t>f)){
+        /* ยังไม่ได้เลือกวันจบ = ยังกรอกไม่เสร็จ ไม่ใช่กรอกผิด อย่าขึ้นแดงใส่ตั้งแต่ยังไม่ทันทำอะไร */
+        if(!t){
+          box.innerHTML='<div style="font-size:11.5px;color:var(--text2);line-height:1.7">'+
+            'เลือก <b>ถึงวันที่</b> ก่อน แล้วจะคิดระยะของช่วง '+esc(dayText(f||todayISO()))+
+            ' ถึงวันนั้นให้</div>'; return; }
+        if(!f||!(t>f)){
           box.innerHTML='<div style="background:rgba(255,59,48,.08);border:1px solid rgba(255,59,48,.3);'+
             'border-radius:10px;padding:9px 11px;font-size:11.5px;color:#c9251c">⛔ วันจบต้องอยู่หลังวันเริ่ม '+
-            '— ตอนนี้เลือก '+esc(dayText(f||d))+' ถึง '+esc(dayText(t||d))+'</div>'; return; }
+            '— ตอนนี้เลือก '+esc(dayText(f||d))+' ถึง '+esc(dayText(t))+'</div>'; return; }
         if(!isFinite(sv)){
           box.innerHTML='<div style="font-size:11.5px;color:#8a4b00;line-height:1.7">'+
             'ใส่เลขหน้าปัด ณ วันเริ่มก่อน ('+esc(dayText(f))+') แล้วค่อยใส่อีกช่องหนึ่ง</div>'; return; }
@@ -3067,10 +3076,27 @@ function odoQuick(vid, d, after){
       if($('od_s'))  $('od_s').oninput =function(){ sync('s');  prev(); };
       if($('od_e'))  $('od_e').oninput =function(){ sync('e');  prev(); };
       if($('od_km')) $('od_km').oninput=function(){ sync('km'); prev(); };
-      ['od_f','od_t'].forEach(function(id){ if($(id)) $(id).oninput=prev; });
-      if($('od_f')) $('od_f').onchange=function(){ $('od_s').value=''; prev(); };
-      if($('od_t')) $('od_t').onchange=function(){ prev(); };
-      prev();
+      /* ช่องวันที่ของเบราว์เซอร์โชว์เป็น ด/ว/ปี ฝรั่ง อ่านยาก เขียนวันไทยกำกับไว้ข้างใต้
+         ช่องที่ยังว่างขึ้นวันที่ตัวอย่างจาง ๆ ให้ดูเป็นแนวว่าควรใส่อะไร */
+      var dhint=function(){
+        var fh=$('od_fh'), th=$('od_th');
+        if(fh){
+          var fv=$('od_f').value;
+          fh.className='dhint'+(fv?'':' eg');
+          fh.textContent = fv? (dayText(fv)+' '+(new Date(fv+'T00:00:00').getFullYear()+543))
+                             : ('เช่น '+dayText(todayISO())+' '+(new Date().getFullYear()+543));
+        }
+        if(th){
+          var tv=$('od_t').value, eg=addDays($('od_f').value||todayISO(), 6);
+          th.className='dhint'+(tv?'':' eg');
+          th.textContent = tv? (dayText(tv)+' '+(new Date(tv+'T00:00:00').getFullYear()+543))
+                             : ('เช่น '+dayText(eg)+' '+(new Date(eg+'T00:00:00').getFullYear()+543)+' — ยังไม่ได้เลือก');
+        }
+      };
+      ['od_f','od_t'].forEach(function(id){ if($(id)) $(id).oninput=function(){ dhint(); prev(); }; });
+      if($('od_f')) $('od_f').onchange=function(){ $('od_s').value=''; dhint(); prev(); };
+      if($('od_t')) $('od_t').onchange=function(){ dhint(); prev(); };
+      dhint(); prev();
     }
 
     /* ── บันทึก ── */
@@ -3079,7 +3105,9 @@ function odoQuick(vid, d, after){
       if(mode==='km'){
         var f=$('od_f').value, t=$('od_t').value;
         var km=parseFloat($('od_km').value), sv=parseFloat($('od_s').value);
-        if(!f||!t||!(t>f)) return toast('วันสิ้นสุดต้องอยู่หลังวันเริ่ม', 4000);
+        if(!t) return toast('ยังไม่ได้เลือก "ถึงวันที่" — เลือกวันจบของช่วงก่อน', 5000);
+        if(!f) return toast('ยังไม่ได้เลือก "ตั้งแต่วันที่"', 4500);
+        if(!(t>f)) return toast('วันจบต้องอยู่หลังวันเริ่ม', 4000);
         if(!isFinite(km)||km<0) return toast('ใส่ระยะที่วิ่งเป็นตัวเลขก่อน', 4000);
         if(!isFinite(sv)) return toast('ใส่เลขหน้าปัดของวันเริ่มด้วย', 4500);
         var e1=odoCheck(vid, f, sv, (odoAt(vid,f)||{}).id);
