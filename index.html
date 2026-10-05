@@ -220,6 +220,10 @@ body.dragmode .pjob:active{cursor:grabbing}
   font-size:10px;line-height:1.45;color:var(--text2)}
 .plan tbody .tcol small.crew b{font-weight:600;color:var(--text)}
 .plan tbody .tcol small.crew.none{color:var(--orange);border-top-color:rgba(255,149,0,.35)}
+.plan tbody .tcol .pmv{display:flex;flex-direction:column;gap:2px;flex:0 0 auto}
+.plan tbody .tcol .pmv button{padding:0 5px;height:15px;line-height:13px;font-size:9px;min-width:0}
+.plan tbody .tcol .thead-row{display:flex;align-items:flex-start;gap:5px}
+.plan tbody .tcol .thead-row>span:first-child{flex:1;min-width:0}
 .plan tr.vsep td{background:var(--s2);font-size:11px;font-weight:700;color:var(--text2);
   border-top:2px solid var(--border2);padding:4px 6px}
 .vtip{border:1px solid var(--orange);background:rgba(255,149,0,.12);color:#8a4b00;border-radius:7px;
@@ -623,7 +627,7 @@ body.preview #previewBar{display:flex}
 
 <script>
 /* ── ยามเฝ้า splash: อยู่นอกสคริปต์หลัก ถ้าสคริปต์หลักพัง ตัวนี้ยังทำงาน ── */
-window.APP_VER='16.7';
+window.APP_VER='16.8';
 (function(){
   var fill=function(){
     var a=document.querySelectorAll('.ver');
@@ -2309,6 +2313,44 @@ async function roadRoute(pts){
   }
 }
 
+/* ตั้งจุดตั้งต้นของรถแบบกล่องซ้อน — เปิดจากตรงไหนก็ตั้งได้เลย ฟอร์มที่กรอกค้างไว้ไม่หาย
+   ข้อมูลที่บันทึกเป็นชุดเดียวกับที่ Work & Site → รถและคนขับ */
+function vehHomeSheet(vid, done){
+  var v=vehOf(vid);
+  sheet2('จุดตั้งต้นของรถ '+(v.code||''),
+    '<div style="font-size:11.5px;color:var(--text2);line-height:1.7;margin-bottom:12px">'+
+      'ระยะของทุกเที่ยวจะเริ่มนับจากจุดนี้ไปจุดแรก · ตั้งครั้งเดียวใช้ได้ตลอด แก้ทีหลังได้ที่ Work &amp; Site → รถและคนขับ</div>'+
+    '<div class="fld"><label>ชื่อจุด</label>'+
+      '<input id="vh_lb" value="'+esc(v.home_label||'')+'" placeholder="เช่น โรงงานบางนา"></div>'+
+    '<div id="vh_pins" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px"></div>'+
+    '<div id="vh_map" style="height:220px;border-radius:11px;overflow:hidden;border:1px solid var(--border2);background:var(--s3)"></div>'+
+    '<div class="row" style="margin-top:7px"><input id="vh_lat" placeholder="Latitude"><input id="vh_lng" placeholder="Longitude"></div>'+
+    '<div class="row" style="margin-top:7px">'+
+      '<button class="btn ghost sm" type="button" id="vh_here">📍 ตำแหน่งฉันตอนนี้</button>'+
+      '<button class="btn ghost sm" type="button" id="vh_paste">วางพิกัดจาก Google Maps</button></div>',
+    '<button class="btn sm" id="vh_ok">บันทึกจุดตั้งต้น</button>');
+  mapPicker({map:'vh_map', lat:'vh_lat', lng:'vh_lng', bar:'vh_pins', here:'vh_here', paste:'vh_paste'},
+    (v.home_lat!=null? +v.home_lat : null), (v.home_lng!=null? +v.home_lng : null));
+  $('vh_ok').onclick=async function(){
+    var la=parseFloat($('vh_lat').value), ln=parseFloat($('vh_lng').value);
+    if(isNaN(la)||isNaN(ln)) return toast('ยังไม่ได้ปักพิกัด — แตะบนแผนที่ กดหมุดประจำ หรือกดตำแหน่งฉันตอนนี้', 4600);
+    var p={home_label:$('vh_lb').value.trim()||'จุดตั้งต้น', home_lat:la, home_lng:ln};
+    this.disabled=true;
+    var rr=await db.from('it_vehicles').update(p).eq('id',vid);
+    if(rr.error){
+      toast(/home_(label|lat|lng)/i.test(rr.error.message||'')
+        ? 'ฐานข้อมูลยังไม่มีคอลัมน์จุดตั้งต้น (home_lat/home_lng) ในตาราง it_vehicles'
+        : ('บันทึกไม่สำเร็จ: '+rr.error.message), 6500);
+      this.disabled=false; return;
+    }
+    var vv=(S.vehicles||[]).filter(function(x){ return x.id===vid; })[0];
+    if(vv){ vv.home_label=p.home_label; vv.home_lat=la; vv.home_lng=ln; }
+    closeSheet2();
+    toast('ตั้งจุดตั้งต้นของ '+(vehOf(vid).code||'')+' เป็น '+p.home_label+' แล้ว', 3400);
+    if(done) done();
+  };
+}
+
 /* ── ฟอร์มใบงานขนส่ง ── opt = {date, vehicleId, runId} */
 function runForm(o){
   if(rank(S.me)<1) return toast('เฉพาะแอดมินขึ้นไปที่จัดใบงานขนส่งได้', 3400);
@@ -2479,21 +2521,27 @@ function runForm(o){
                       : 'เส้นตรง — เรียกเซิร์ฟเวอร์เส้นทางไม่ได้ ระยะวิ่งจริงจะมากกว่านี้ราว 20–40%')+'</span></div>';
   };
 
-  var addStop=function(s){
+  var addStop=function(s, atHead){
     if(!s) return;
-    stops.push(s); legs=[]; rkm=rmin=null; rsrc=null; drawStops(); drawLegs();
+    if(atHead) stops.unshift(s); else stops.push(s);
+    legs=[]; rkm=rmin=null; rsrc=null; drawStops(); drawLegs();
+  };
+  /* จุดตั้งต้นต้องอยู่หัวแถวเสมอ ยกเว้นมีอยู่แล้ว — กดซ้ำคือใส่เป็นขากลับท้ายเส้นทาง */
+  var addHome=function(h){
+    if(!h) return;
+    addStop(h, !stops.some(function(x){ return x.kind==='home'; }));
   };
 
   fillDrv(); drawTeams(); drawStops(); drawWarn(); drawLegs();
   $('rf_vnote').innerHTML = homeStop(vehOf(vid))
     ? ('จุดตั้งต้นของคันนี้: <b>'+esc(homeStop(vehOf(vid)).label)+'</b>')
-    : '<span style="color:#8a4b00">คันนี้ยังไม่ได้ตั้งจุดตั้งต้น — ตั้งได้ที่ Work &amp; Site → รถและคนขับ</span>';
+    : '<span style="color:#8a4b00">คันนี้ยังไม่ได้ตั้งจุดตั้งต้น — กดปุ่ม “＋ จุดตั้งต้นของรถ” ข้างล่างเพื่อตั้งได้เลย</span>';
 
   $('rf_veh').onchange=function(){
     vid=this.value;
     $('rf_vnote').innerHTML = homeStop(vehOf(vid))
       ? ('จุดตั้งต้นของคันนี้: <b>'+esc(homeStop(vehOf(vid)).label)+'</b>')
-      : '<span style="color:#8a4b00">คันนี้ยังไม่ได้ตั้งจุดตั้งต้น — ตั้งได้ที่ Work &amp; Site → รถและคนขับ</span>';
+      : '<span style="color:#8a4b00">คันนี้ยังไม่ได้ตั้งจุดตั้งต้น — กดปุ่ม “＋ จุดตั้งต้นของรถ” ข้างล่างเพื่อตั้งได้เลย</span>';
     if(!$('rf_drvn').value) $('rf_drvn').value = vehOf(vid).driver_name||'';
     var ex=runOf(vid,d);
     if(ex && (!r || ex.id!==r.id)) toast('รถคันนี้มีใบงานขนส่งของวันนี้อยู่แล้ว — กดบันทึกจะเป็นการแก้ใบเดิม', 5200);
@@ -2520,8 +2568,13 @@ function runForm(o){
 
   $('rf_home').onclick=function(){
     var h=homeStop(vehOf(vid));
-    if(!h) return toast('รถคันนี้ยังไม่ได้ตั้งจุดตั้งต้น — ตั้งที่ Work & Site → รถและคนขับ ก่อน', 5200);
-    addStop(h);
+    /* ยังไม่ได้ตั้ง — เปิดให้ตั้งตรงนี้เลย ไม่ต้องไล่ไปหาเองที่แท็บอื่นแล้วกลับมากรอกใหม่ */
+    if(!h) return vehHomeSheet(vid, function(){
+      var h2=homeStop(vehOf(vid));
+      $('rf_vnote').innerHTML = h2? ('จุดตั้งต้นของคันนี้: <b>'+esc(h2.label)+'</b>') : '';
+      addHome(h2);
+    });
+    addHome(h);
   };
   $('rf_site').onclick=function(){
     var list=(S.sites||[]).filter(function(s){ return s.lat!=null && s.lng!=null; });
@@ -2642,10 +2695,11 @@ function runForm(o){
 }
 
 /* แถว “กลุ่มคนขับรถ” ในตารางแผนงาน — การ์ดละคัน อ่านจากใบงานขนส่งใบเดียวกับคิวรถ */
-function planDriverRow(t, days, today){
+function planDriverRow(t, days, today, mv){
   var mem=teamStaff(t.id);
   var crew=mem.map(function(x){ return x.name||x.emp_code; }).join(', ');
-  return '<tr><td class="tcol" title="'+esc(teamLabel(t)+' — '+mem.length+' คน')+'">🚚 '+esc(t.name)+
+  return '<tr><td class="tcol" title="'+esc(teamLabel(t)+' — '+mem.length+' คน')+'">'+
+    '<div class="thead-row"><span>🚚 '+esc(t.name)+'</span>'+(mv||'')+'</div>'+
     '<small>'+esc(t.code)+' · จัดจากทะเบียนรถ</small>'+
     (mem.length? ('<small class="crew"><b>'+mem.length+' คน</b> · '+esc(crew)+'</small>')
                : '<small class="crew none">ยังไม่มีคนขับในกลุ่ม</small>')+
@@ -2653,8 +2707,22 @@ function planDriverRow(t, days, today){
     days.map(function(d){
       var dt=new Date(d+'T00:00:00');
       var cls='pcell'+(isHoliday(d)?' hol':(dt.getDay()===0?' sun':''))+(d===today?' pcol-today':'');
-      var inner=runsOn(d).map(function(r){
-        var v=vehOf(r.vehicle_id), vt=vehTint(v);
+      /* รถที่มีคิวของวันนั้นแต่ยังไม่มีใบงานขนส่ง ต้องขึ้นการ์ดด้วย ไม่งั้นแถวนี้ว่าง
+         ทั้งที่แถวคิวรถข้างล่างมีของ คนดูจะงงว่าตกลงวันนี้รถวิ่งหรือไม่วิ่ง */
+      var inner=(S.vehicles||[]).filter(function(v){ return v.active!==false; }).map(function(v){
+        var r=runOf(v.id, d), q=vehQueue(v.id, d);
+        if(!r && !q.length) return '';
+        var vt=vehTint(v);
+        if(!r){
+          var qn={}; q.forEach(function(a){ qn[teamOf(a.team_id).code||'']=1; });
+          var qs=Object.keys(qn).filter(Boolean);
+          return '<div class="pjob" data-runnew="'+v.id+'|'+d+'" style="border-left-color:var(--orange);'+
+              'background:var(--orange-dim);border-top-color:rgba(255,149,0,.3);border-right-color:rgba(255,149,0,.3);'+
+              'border-bottom-color:rgba(255,149,0,.3)" title="'+esc((v.code||'')+' มีคิว '+q.length+' จุด แต่ยังไม่มีใบงานขนส่ง')+'">'+
+            '<b>🚚 '+esc(v.code||'—')+'</b>'+
+            '<span class="sc">'+(qs.length? 'ส่งให้ '+esc(qs.join(', ')) : (q.length+' จุดในคิว'))+'</span>'+
+            '<span class="st" style="color:#8a4b00">ยังไม่มีใบงานขนส่ง · แตะเพื่อสร้าง</span></div>';
+        }
         var tn=(r.deliver_teams||[]).map(function(id){ return teamOf(id).code||''; }).filter(Boolean);
         return '<div class="pjob" data-run="'+r.id+'" style="border-left-color:'+vt.ink+';background:'+vt.bg+
             ';border-top-color:'+vt.line+';border-right-color:'+vt.line+';border-bottom-color:'+vt.line+'" title="'+
@@ -2799,7 +2867,9 @@ async function vehQueueSheet(key){
     var arr=mine.slice(); var tmp=arr[i]; arr[i]=arr[j]; arr[j]=tmp;
     save(arr.map(function(a,k){ return {id:a.id, vid:vid, seq:k+1}; }));
   };
-  if($('vq_home')) $('vq_home').onclick=function(){ closeSheet(); vehForm(vid); };
+  if($('vq_home')) $('vq_home').onclick=function(){
+    vehHomeSheet(vid, function(){ vehQueueSheet(key); });   /* ตั้งเสร็จวาดกล่องคิวรถใหม่ให้เห็นระยะที่ถูกต้องทันที */
+  };
   if($('vq_run')) $('vq_run').onclick=function(){
     closeSheet(); setTimeout(function(){ runForm({vehicleId:vid, date:d}); }, 180); };
   if($('vq_drv')) $('vq_drv').onchange=function(){
@@ -4280,9 +4350,16 @@ function renderSchedule(){
 
   syncPlanViewBtn(); syncPlanSec();
   var nClash=0, SM=seriesMap();
-  var body=teams.map(function(t){
+  var mayMoveTeam = rank(S.me)>=2 && teams.length>1;
+  var mvBtns=function(t, ti){
+    if(!mayMoveTeam) return '';
+    return '<span class="pmv">'+
+      '<button class="tb-btn" data-ptup="'+t.id+'"'+(ti===0?' disabled style="opacity:.25"':'')+' title="ย้ายทีมขึ้น">↑</button>'+
+      '<button class="tb-btn" data-ptdn="'+t.id+'"'+(ti===teams.length-1?' disabled style="opacity:.25"':'')+' title="ย้ายทีมลง">↓</button></span>';
+  };
+  var body=teams.map(function(t, ti){
     /* กลุ่มคนขับรถใช้การ์ดคนละแบบ — อ่านจากใบงานขนส่ง ไม่ใช่ใบงานของทีม */
-    if(isDriverTeam(t)) return planDriverRow(t, days, today);
+    if(isDriverTeam(t)) return planDriverRow(t, days, today, mvBtns(t, ti));
     var L=leadInfo(t);
     /* รายชื่อในทีม — หัวหน้าขึ้นบรรทัดบนอยู่แล้ว บรรทัดนี้จึงเหลือเฉพาะลูกทีม
        แสดงครบทุกชื่อ ตัดบรรทัดเอง ไม่ย่อเป็น “+อีก n” ชี้เมาส์ดูเบอร์โทรเพิ่มได้ */
@@ -4293,7 +4370,8 @@ function renderSchedule(){
       ? (teamLabel(t)+' — '+mem.length+' คน\n'+mem.map(function(x){
           return '• '+(x.name||x.emp_code)+(x.is_leader?' (หัวหน้าทีม)':'')+(x.phone?('  '+x.phone):''); }).join('\n'))
       : (teamLabel(t)+' — ยังไม่มีสมาชิก จัดคนเข้าทีมที่แท็บ Manage Team');
-    return '<tr><td class="tcol" title="'+esc(tip)+'">'+esc(t.name)+
+    return '<tr><td class="tcol" title="'+esc(tip)+'">'+
+      '<div class="thead-row"><span>'+esc(t.name)+'</span>'+mvBtns(t, ti)+'</div>'+
       '<small>'+esc(t.code)+(L.name?' · '+esc(L.name):' · ยังไม่มีหัวหน้า')+'</small>'+
       (mem.length
         ? ('<small class="crew"><b>'+mem.length+' คน</b>'+(crewTxt? (' · '+esc(crewTxt)) : '')+'</small>')
@@ -4522,6 +4600,14 @@ function renderSchedule(){
   });
   wrap.querySelectorAll('[data-add]').forEach(function(td){
     td.onclick=function(){ var v=td.dataset.add.split('|'); quickAssign(v[0], v[1]); };
+  });
+  wrap.querySelectorAll('[data-ptup]').forEach(function(b){
+    b.onclick=function(e){ e.stopPropagation(); movePlanTeam(b.dataset.ptup, -1); }; });
+  wrap.querySelectorAll('[data-ptdn]').forEach(function(b){
+    b.onclick=function(e){ e.stopPropagation(); movePlanTeam(b.dataset.ptdn, 1); }; });
+  wrap.querySelectorAll('[data-runnew]').forEach(function(el){
+    el.onclick=function(e){ e.stopPropagation(); var q=el.dataset.runnew.split('|');
+      runForm({vehicleId:q[0], date:q[1]}); };
   });
   wrap.querySelectorAll('[data-run]').forEach(function(el){
     el.onclick=function(e){ e.stopPropagation(); runForm({runId:el.dataset.run}); };
@@ -6379,6 +6465,27 @@ async function moveTeam(i, dir){
   a.sort=sb; b.sort=sa;
   await loadMgr();
   toast('ย้าย '+(a.name||'')+' '+(dir<0?'ขึ้น':'ลง')+'แล้ว', 2600);
+}
+
+/* สลับลำดับทีมจากตารางแผนงาน — สลับกับทีมที่เห็นติดกันจริง ๆ ไม่ใช่ทีมที่ถูกกรองซ่อนอยู่ */
+async function movePlanTeam(id, dir){
+  if(rank(S.me)<2) return toast('เฉพาะผู้จัดการขึ้นไปที่สลับลำดับทีมได้', 3200);
+  var list=scheduleData().teams, i=-1;
+  for(var k=0;k<list.length;k++) if(list[k].id===id){ i=k; break; }
+  var j=i+dir;
+  if(i<0||j<0||j>=list.length) return;
+  var a=list[i], b=list[j];
+  var sa=(a.sort==null? (i+1)*10 : +a.sort), sb=(b.sort==null? (j+1)*10 : +b.sort);
+  if(sa===sb) sb = sa + (dir>0? 1 : -1);
+  var r1=await db.from('it_teams').update({sort:sb}).eq('id',a.id);
+  if(r1.error) return toast(/column .*sort/i.test(r1.error.message||'')
+    ? 'สลับลำดับยังใช้ไม่ได้ — ต้องเพิ่มคอลัมน์ sort ในตาราง it_teams ก่อน'
+    : ('สลับลำดับไม่สำเร็จ: '+r1.error.message), 6500);
+  var r2=await db.from('it_teams').update({sort:sa}).eq('id',b.id);
+  if(r2.error) return toast('สลับลำดับไม่สำเร็จ: '+r2.error.message, 6500);
+  a.sort=sb; b.sort=sa;
+  await loadMgr(); try{ await loadSchedule(); }catch(e){}
+  toast('ย้าย '+(a.name||'')+' '+(dir<0?'ขึ้น':'ลง')+'แล้ว', 2400);
 }
 
 async function moveWork(lib, i, dir){
