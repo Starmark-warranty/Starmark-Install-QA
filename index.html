@@ -263,6 +263,13 @@ body.dragmode .pjob:active{cursor:grabbing}
 .odo-stops{font-size:10px;line-height:1.5;color:var(--text2);margin:1px 0 3px}
 .odo-stops b{color:var(--text);font-weight:600}
 .odo-stops i{display:inline-block;width:5px;height:5px;border-radius:50%;margin-right:4px;vertical-align:1px}
+.odo-stops .srow{display:flex;align-items:center;gap:4px}
+.odo-stops .srow>span:first-child{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.qmv{background:var(--s1);border:1px solid var(--border2);border-radius:4px;width:16px;height:14px;
+  line-height:11px;font-size:8px;color:var(--text3);cursor:pointer;padding:0;font-family:inherit;flex:0 0 auto}
+.qmv:hover{border-color:var(--accent);color:var(--accent);background:var(--accent-glow)}
+.qmv:disabled{opacity:.22;cursor:default}
+.qmvs{display:flex;flex-direction:column;gap:1px;flex:0 0 auto}
 .vq-s b{display:block;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .vq-s i{display:inline-block;width:6px;height:6px;border-radius:50%;margin-right:3px;vertical-align:1px}
 .sab{border:1px solid;border-radius:9px;padding:5px 7px;font-size:10px;line-height:1.45}
@@ -649,7 +656,7 @@ body.preview #previewBar{display:flex}
 
 <script>
 /* ── ยามเฝ้า splash: อยู่นอกสคริปต์หลัก ถ้าสคริปต์หลักพัง ตัวนี้ยังทำงาน ── */
-window.APP_VER='17.4';
+window.APP_VER='17.6';
 (function(){
   var fill=function(){
     var a=document.querySelectorAll('.ver');
@@ -2908,9 +2915,11 @@ function odoCell(v, d){
     ((r&&r.driver_name)? (' · '+esc(r.driver_name)) : ((q[0]&&q[0].driver_name)? (' · '+esc(q[0].driver_name)) : ''))+'</div>');
   /* โหมดนี้ไม่คำนวณเส้นทาง แต่ต้องเห็นว่าวันนั้นรถไปไหนกับทีมไหน
      ไม่งั้นช่องจะมีแต่ตัวเลขลอย ๆ ไม่รู้ว่าของงานไหน */
-  if(q.length) lines.push('<div class="odo-stops">'+q.map(function(a2){
+  if(q.length) lines.push('<div class="odo-stops">'+q.map(function(a2,qi){
     var si=siteOf(a2.site_id), tm=teamOf(a2.team_id), st=astOf(a2);
-    return '<div><i style="background:'+st.x+'"></i>'+esc(teamLabel(tm))+' · <b>'+esc(si.name||'—')+'</b></div>';
+    return '<div class="srow"><span><i style="background:'+st.x+'"></i>'+esc(teamLabel(tm))+
+      ' · <b>'+esc(si.name||'—')+'</b></span>'+
+      (q.length>1? qmvHTML(a2.id, v.id, d, qi===0, qi===q.length-1) : '')+'</div>';
   }).join('')+'</div>');
   else lines.push('<div class="odo-p" style="color:#c26c00">ยังไม่ได้ระบุว่าไปที่ไหน</div>');
 
@@ -3374,7 +3383,7 @@ function vehDayParts(v, d){
     }
     q.forEach(function(a,i){
       var si=siteOf(a.site_id), inf3=info(a.site_id);
-      seq.push({n:i+1, name:si.name||'—', teams:inf3.teams, dot:inf3.dot, stl:inf3.stl});
+      seq.push({n:i+1, name:si.name||'—', teams:inf3.teams, dot:inf3.dot, stl:inf3.stl, aid:a.id});
       pts.push((si.lat!=null&&si.lng!=null)? {lat:+si.lat, lng:+si.lng} : null);
     });
     var tot=0, any=false;
@@ -3393,6 +3402,7 @@ function vehDayParts(v, d){
 function vehDayCell(v, d){
   var P=vehDayParts(v, d); if(!P) return null;
   var vt=vehTint(v), seq=P.seq, legs=P.legs;
+  var nMove=seq.filter(function(x){ return x.aid; }).length;
   var subOf=function(x){
     if(!x.teams || !x.teams.length) return '';
     return '<i style="background:'+(x.dot||vt.ink)+'" title="'+esc(x.stl||'')+'"></i>ส่งให้ '+esc(x.teams.join(', '));
@@ -3412,10 +3422,78 @@ function vehDayCell(v, d){
             : ('<span class="vq-n start" style="color:'+vt.ink+'">▶</span>'))+
         '<span class="vq-s"><b>'+esc(x.name)+'</b>'+
           (x.tag? ('<i style="background:'+vt.ink+'"></i>'+esc(x.tag)) : subOf(x))+
-        '</span></div>';
+        '</span>'+
+        /* สลับได้เฉพาะตอนลำดับมาจากคิว ถ้ามีใบขนส่งแล้วต้องไปสลับที่เส้นทางในใบนั้น */
+        ((!P.hasRun && x.aid && nMove>1)? qmvHTML(x.aid, v.id, d, x.n===1, x.n===nMove) : '')+
+      '</div>';
   }).join('');
 
   return {head:esc(P.head), body:body, hasRun:P.hasRun, runId:P.runId, nStop:seq.length};
+}
+
+/* สลับลำดับจุดในคิวรถจากช่องในตารางเลย ไม่ต้องเปิดกล่องคิวรถ
+   เขียนเลขลำดับใหม่ทั้งแถวทุกครั้ง กันเลขซ้ำหรือเลขขาดสะสม */
+async function moveQueue(aid, dir, vid, d){
+  if(rank(S.me)<1) return toast('เฉพาะแอดมินขึ้นไปที่สลับลำดับได้', 3000);
+  var q=vehQueue(vid, d), i=-1;
+  for(var k=0;k<q.length;k++) if(q[k].id===aid){ i=k; break; }
+  var j=i+dir;
+  if(i<0 || j<0 || j>=q.length) return;
+  var arr=q.slice(), tmp=arr[i]; arr[i]=arr[j]; arr[j]=tmp;
+  for(var m=0;m<arr.length;m++){
+    if(arr[m].vehicle_seq!==m+1){
+      var r=await db.from('it_assignments').update({vehicle_seq:m+1}).eq('id', arr[m].id);
+      if(r.error) return toast('สลับลำดับไม่สำเร็จ: '+r.error.message, 5000);
+      arr[m].vehicle_seq=m+1;
+    }
+  }
+  toast('สลับเป็น '+arr.map(function(x,n){ return (n+1)+'. '+(siteOf(x.site_id).name||'—'); }).join(' → '), 3200);
+  await loadMgr(); try{ await loadSchedule(); }catch(e){}
+}
+function qmvHTML(aid, vid, d, first, last){
+  var k=esc(aid+'|'+vid+'|'+d);
+  return '<span class="qmvs">'+
+    '<button type="button" class="qmv" data-qu="'+k+'"'+(first?' disabled':'')+' title="ย้ายขึ้น">▲</button>'+
+    '<button type="button" class="qmv" data-qd="'+k+'"'+(last?' disabled':'')+' title="ย้ายลง">▼</button></span>';
+}
+
+/* เมนูของช่องรถในตารางแผนงาน — เปิดด้วยคลิกขวา (มือถือ = แตะค้าง)
+   ก่อนหน้านี้คลิกขวาตรงนี้จะหลุดไปเมนูของเบราว์เซอร์ หาปุ่มลบไม่เจอ */
+function vehCellMenu(vid, d){
+  if(rank(S.me)<1) return toast('เฉพาะแอดมินขึ้นไปที่จัดการส่วนนี้ได้', 3200);
+  var v=vehOf(vid);
+  if(!v || !v.id || !d) return;
+  var r=runOf(vid,d), rec=odoAt(vid,d), q=vehQueue(vid,d), a=odoDay(vid,d);
+  var bs='width:100%;margin-bottom:7px;text-align:left;padding:11px 13px';
+  sheet('🚚 '+esc(v.code||'')+' · '+esc(dayText(d)),
+    '<div style="background:var(--s1);border:1px solid var(--border);border-radius:11px;'+
+      'padding:10px 12px;margin-bottom:13px;font-size:12px;line-height:1.75">'+
+      (q.length? ('ไปส่ง '+q.length+' จุด — '+esc(q.map(function(x){ return siteOf(x.site_id).name||'—'; }).join(', '))) 
+               : '<span style="color:#8a4b00">วันนี้ยังไม่มีงานผูกกับรถคันนี้</span>')+
+      (rec? ('<br>เลขไมล์ <b>'+odoFmt(rec.odo)+'</b>') : '<br><span style="color:var(--text2)">ยังไม่ได้กรอกเลขไมล์</span>')+
+      (a? ('<br>วิ่งวันนี้ <b>'+(ODO_HOW[a.how]||ODO_HOW.flat).s+kmTxt(a.km)+'</b>') : '')+
+      (r? ('<br>ใบงานขนส่ง: '+esc(r.scope||'—')+(r.route_km!=null? (' · '+kmTxt(+r.route_km)) : '')) 
+        : '<br><span style="color:var(--text2)">ยังไม่มีใบงานขนส่ง</span>')+
+    '</div>'+
+    '<button class="btn ghost sm" type="button" id="vm_odo" style="'+bs+'">🧭 '+
+      (rec? 'แก้เลขไมล์ของวันนี้' : 'กรอกเลขไมล์ของวันนี้')+'</button>'+
+    '<button class="btn ghost sm" type="button" id="vm_q" style="'+bs+'">🚚 เปิดคิวรถของวันนี้</button>'+
+    '<button class="btn ghost sm" type="button" id="vm_run" style="'+bs+'">'+
+      (r? '✏️ แก้ไขใบงานขนส่ง (เส้นทาง · ระยะ)' : '＋ สร้างใบงานขนส่ง (คำนวณระยะถนนจริง)')+'</button>'+
+    (r? ('<button class="btn danger sm" type="button" id="vm_del" style="'+bs+'">🗑 ลบใบงานขนส่งของวันนี้</button>') : ''),
+    '');
+  $('vm_odo').onclick=function(){ closeSheet(); setTimeout(function(){ odoQuick(vid,d); },170); };
+  $('vm_q').onclick  =function(){ closeSheet(); setTimeout(function(){ vehQueueSheet(vid+'|'+d); },170); };
+  $('vm_run').onclick=function(){ closeSheet(); setTimeout(function(){ runForm({vehicleId:vid, date:d}); },170); };
+  if($('vm_del')) $('vm_del').onclick=async function(){
+    if(!confirm('ลบใบงานขนส่งของ '+(v.code||'')+' วัน '+dayText(d)+' ?\n\n'+
+      'ลบเฉพาะเส้นทางกับระยะที่คำนวณไว้\nคิวรถ ใบงานของทีม และเลขไมล์ ยังอยู่ครบ')) return;
+    this.disabled=true;
+    var x=await db.from('it_runs').delete().eq('id', r.id);
+    if(x.error){ toast('ลบไม่สำเร็จ: '+x.error.message, 5000); this.disabled=false; return; }
+    closeSheet(); toast('ลบใบงานขนส่งของ '+dayText(d)+' แล้ว', 3200);
+    await loadMgr(); try{ await loadSchedule(); }catch(e){}
+  };
 }
 
 /* แถว “กลุ่มคนขับรถ” ในตารางแผนงาน — การ์ดละคัน อ่านจากใบงานขนส่งใบเดียวกับคิวรถ */
@@ -5392,8 +5470,35 @@ function renderSchedule(){
   wrap.querySelectorAll('[data-add]').forEach(function(td){
     td.onclick=function(){ var v=td.dataset.add.split('|'); quickAssign(v[0], v[1]); };
   });
+  wrap.querySelectorAll('[data-qu]').forEach(function(b){
+    b.onclick=function(e){ e.preventDefault(); e.stopPropagation();
+      var p=b.dataset.qu.split('|'); moveQueue(p[0], -1, p[1], p[2]); };
+  });
+  wrap.querySelectorAll('[data-qd]').forEach(function(b){
+    b.onclick=function(e){ e.preventDefault(); e.stopPropagation();
+      var p=b.dataset.qd.split('|'); moveQueue(p[0], 1, p[1], p[2]); };
+  });
+
+  /* คลิกขวาที่ช่องรถช่องไหนก็ได้ ต้องได้เมนูของโปรแกรม ไม่ใช่ของเบราว์เซอร์ */
+  var vmBind=function(el, vid, d){
+    if(!vid||!d) return;
+    el.oncontextmenu=function(e){ e.preventDefault(); e.stopPropagation(); vehCellMenu(vid, d); };
+    el.title=(el.title? (el.title+'  ·  ') : '')+'คลิกขวาเพื่อดูเมนู กรอกเลขไมล์ / คิวรถ / ลบใบขนส่ง';
+  };
   wrap.querySelectorAll('[data-odo]').forEach(function(el){
-    el.onclick=function(e){ e.stopPropagation(); var q=el.dataset.odo.split('|'); odoQuick(q[0], q[1]); };
+    var q=el.dataset.odo.split('|');
+    el.onclick=function(e){ e.stopPropagation(); odoQuick(q[0], q[1]); };
+    vmBind(el, q[0], q[1]);
+  });
+  wrap.querySelectorAll('[data-vq]').forEach(function(el){
+    var q2=el.dataset.vq.split('|'); vmBind(el, q2[0], q2[1]);
+  });
+  wrap.querySelectorAll('[data-runnew]').forEach(function(el){
+    var q3=el.dataset.runnew.split('|'); vmBind(el, q3[0], q3[1]);
+  });
+  wrap.querySelectorAll('[data-run]').forEach(function(el){
+    var rr=(S.runs||[]).filter(function(x){ return x.id===el.dataset.run; })[0];
+    if(rr) vmBind(el, rr.vehicle_id, rr.work_date);
   });
   wrap.querySelectorAll('[data-ptup]').forEach(function(b){
     b.onclick=function(e){ e.stopPropagation(); movePlanTeam(b.dataset.ptup, -1); }; });
