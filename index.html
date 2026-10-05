@@ -658,7 +658,7 @@ body.preview #previewBar{display:flex}
 
 <script>
 /* ── ยามเฝ้า splash: อยู่นอกสคริปต์หลัก ถ้าสคริปต์หลักพัง ตัวนี้ยังทำงาน ── */
-window.APP_VER='18.1';
+window.APP_VER='18.4';
 (function(){
   var fill=function(){
     var a=document.querySelectorAll('.ver');
@@ -2558,24 +2558,37 @@ function odoQuick(vid, d, after){
            })())+
 
       (mode==='odo'
-        ? ('<div class="sec-h" style="margin:4px 0 7px">วันนี้รถคันนี้ไปที่ไหนบ้าง</div>'+
+        ? ('<div class="fld"><label>คนขับวันนี้</label>'+
+             '<select id="od_drv"></select>'+
+             '<input id="od_drvn" style="margin-top:6px" placeholder="ชื่อคนขับ">'+
+             '<div style="font-size:10.5px;color:var(--text2);margin-top:4px;line-height:1.6">'+
+               'รายชื่อมาจากกลุ่มคนขับรถ · พิมพ์เองได้ถ้าเป็นคนนอก · ใช้กับทุกจุดที่รถคันนี้ไปส่งวันนี้</div></div>'+
+           '<div class="sec-h" style="margin:4px 0 7px">วันนี้รถคันนี้ไปที่ไหนบ้าง</div>'+
            (jobs.length
              ? ('<div id="od_jobs">'+jobs.map(function(a){
                   var si=siteOf(a.site_id), tm=teamOf(a.team_id), on=(a.vehicle_id===vid);
                   var other=(a.vehicle_id && a.vehicle_id!==vid)? (vehOf(a.vehicle_id).code||'รถคันอื่น') : null;
-                  return '<label style="display:flex;align-items:center;gap:9px;background:'+(on?'var(--accent-glow)':'var(--s1)')+
+                  return '<div style="display:flex;align-items:center;gap:9px;background:'+(on?'var(--accent-glow)':'var(--s1)')+
                     ';border:1px solid '+(on?'rgba(0,122,255,.3)':'var(--border)')+';border-radius:10px;'+
-                    'padding:8px 11px;margin-bottom:5px;cursor:pointer">'+
-                    '<input type="checkbox" data-oj="'+a.id+'"'+(on?' checked':'')+'>'+
-                    '<span style="flex:1;min-width:0">'+
-                      '<span style="display:block;font-size:12.5px;font-weight:600">'+esc(si.name||'—')+'</span>'+
-                      '<span style="display:block;font-size:10.5px;color:var(--text2)">'+esc(teamLabel(tm))+
-                        (a.scope? (' · '+esc(a.scope)) : '')+
-                        (other? (' · <b style="color:#c26c00">ตอนนี้ผูกกับ '+esc(other)+'</b>') : '')+'</span>'+
-                    '</span></label>';
+                    'padding:8px 11px;margin-bottom:5px">'+
+                    '<label style="display:flex;align-items:center;gap:9px;flex:1;min-width:0;cursor:pointer;margin:0">'+
+                      '<input type="checkbox" data-oj="'+a.id+'"'+(on?' checked':'')+'>'+
+                      '<span style="flex:1;min-width:0">'+
+                        '<span style="display:block;font-size:12.5px;font-weight:600">'+esc(si.name||'—')+'</span>'+
+                        '<span style="display:block;font-size:10.5px;color:var(--text2)">'+esc(teamLabel(tm))+
+                          (a.scope? (' · '+esc(a.scope)) : '')+
+                          (other? (' · <b style="color:#c26c00">ตอนนี้ผูกกับ '+esc(other)+'</b>') : '')+'</span>'+
+                      '</span></label>'+
+                    /* ติ๊กออก = แค่เอาออกจากคิวรถ ใบงานยังอยู่ · ปุ่มนี้คือลบใบงานทิ้งจริง ๆ
+                       เพิ่มจากกล่องนี้ได้ ก็ต้องลบจากกล่องนี้ได้ ไม่งั้นต้องออกไปหาเองในตาราง */
+                    '<button type="button" class="uacc-x" data-ojdel="'+a.id+'" '+
+                      'title="ลบใบงานนี้ทิ้งทั้งใบ ไม่ใช่แค่เอาออกจากคิวรถ">✕</button>'+
+                  '</div>';
                 }).join('')+'</div>'+
                 '<div style="font-size:10.5px;color:var(--text2);line-height:1.7;margin-bottom:12px">'+
-                  'ติ๊กแล้วงานนั้นจะถูกผูกเข้าคิวรถคันนี้ · เป็นข้อมูลชุดเดียวกับที่เห็นในแถวคิวรถและใบงานขนส่ง</div>')
+                  '<b>ติ๊ก</b> = รถคันนี้ไปส่งที่นั่น · <b>ติ๊กออก</b> = ไม่ไปส่ง แต่ใบงานยังอยู่ในแถวทีมเหมือนเดิม<br>'+
+                  '<b>ปุ่ม ✕</b> = ลบใบงานทิ้งทั้งใบ ทีมก็จะไม่มีงานนั้นแล้ว<br>'+
+                  'เป็นข้อมูลชุดเดียวกับที่เห็นในแถวคิวรถและใบงานขนส่ง</div>')
              : '<div style="font-size:11.5px;color:var(--text2);line-height:1.7;margin-bottom:10px">'+
                'วันนี้ยังไม่มีใบงานสักใบ — เพิ่มได้จากช่องข้างล่างนี้เลย</div>')+
            /* ใส่ทีม+สถานที่ได้ตรงนี้ ไม่ต้องไปสร้างใบงานเต็มรูปแบบก่อน
@@ -2604,6 +2617,65 @@ function odoQuick(vid, d, after){
 
     document.querySelectorAll('#od_mode [data-om]').forEach(function(b){
       b.onclick=function(){ mode=b.dataset.om; render(); };
+    });
+
+    /* รายชื่อคนขับ — กลุ่มคนขับรถขึ้นก่อน คนอื่นต่อท้าย เหมือนในใบงานขนส่ง */
+    if($('od_drv')){
+      var dt0=driverTeamObj();
+      var crew0=dt0? teamStaff(dt0.id) : [];
+      var rest0=(S.staff||[]).filter(function(x){ return x.active!==false && !crew0.some(function(c){ return c.id===x.id; }); })
+        .sort(function(x,y){ return String(x.name||'').localeCompare(String(y.name||''),'th'); });
+      var rn0=runOf(vid,d), q0=vehQueue(vid,d)[0]||null;
+      var curDid=(rn0&&rn0.driver_id) || (q0&&q0.driver_id) || '';
+      var curDnm=(rn0&&rn0.driver_name) || (q0&&q0.driver_name) || vehOf(vid).driver_name || '';
+      if(!curDid && curDnm){
+        var hit0=crew0.filter(function(x){ return String(x.name||'').trim()===String(curDnm).trim(); })[0];
+        if(hit0) curDid=hit0.id;
+      }
+      $('od_drv').innerHTML='<option value="">— พิมพ์ชื่อเอง —</option>'+
+        (crew0.length? ('<optgroup label="กลุ่มคนขับรถ">'+crew0.map(function(x){
+          return '<option value="'+x.id+'"'+(curDid===x.id?' selected':'')+'>'+esc(x.name||x.emp_code)+'</option>'; }).join('')+'</optgroup>') : '')+
+        '<optgroup label="พนักงานคนอื่น">'+rest0.map(function(x){
+          return '<option value="'+x.id+'"'+(curDid===x.id?' selected':'')+'>'+
+            esc((x.name||x.emp_code)+' · '+(teamOf(x.team_id).code||'ไม่มีทีม'))+'</option>'; }).join('')+'</optgroup>';
+      $('od_drvn').value=curDnm;
+      $('od_drv').onchange=function(){ var st=staffOf(this.value); if(st) $('od_drvn').value=st.name||st.emp_code||''; };
+    }
+
+    /* ลบใบงานทิ้งจากในกล่องนี้ — เตือนให้ชัดว่าต่างจากการติ๊กออก และบอกด้วยถ้ามีรายงานติดอยู่ */
+    document.querySelectorAll('#od_jobs [data-ojdel]').forEach(function(b){
+      b.onclick=async function(e){
+        e.preventDefault(); e.stopPropagation();
+        if(rank(S.me)<1) return toast('เฉพาะแอดมินขึ้นไปที่ลบใบงานได้', 3200);
+        var aid=b.dataset.ojdel;
+        var a=(S.plan||[]).filter(function(x){ return x.id===aid; })[0];
+        if(!a) return;
+        var si=siteOf(a.site_id), tm=teamOf(a.team_id);
+        b.disabled=true;
+        var nRep=await countReports([aid]);
+        if(!confirm('ลบใบงานนี้ทิ้งทั้งใบ?\n\n'+
+            (si.name||'—')+' · '+(teamLabel(tm))+' · '+dayText(d)+'\n\n'+
+            (nRep? ('มีรายงานจากหน้างาน '+nRep+' รายการ รูปที่แนบจะหายไปด้วย กู้คืนไม่ได้\n\n')
+                 : 'ยังไม่มีรายงานจากหน้างาน ลบได้ปลอดภัย\n\n')+
+            'ถ้าแค่ไม่อยากให้รถคันนี้ไปส่ง ให้กดติ๊กออกแทน ใบงานจะยังอยู่')){
+          b.disabled=false; return;
+        }
+        var r=await db.from('it_assignments').delete().eq('id', aid);
+        if(r.error){ toast('ลบไม่สำเร็จ: '+r.error.message, 5000); b.disabled=false; return; }
+        /* ลบใบที่อยู่ต้นคิวไป เลขที่เหลือจะเริ่มที่ 2 ไล่เลขใหม่ให้เริ่มที่ 1 เสมอ */
+        if(a.vehicle_id){
+          var rest=vehQueue(a.vehicle_id, d).filter(function(x){ return x.id!==aid; });
+          for(var m=0;m<rest.length;m++){
+            if(rest[m].vehicle_seq!==m+1){
+              await db.from('it_assignments').update({vehicle_seq:m+1}).eq('id', rest[m].id);
+              rest[m].vehicle_seq=m+1;
+            }
+          }
+        }
+        toast('ลบใบงาน '+(si.name||'')+' ของ '+teamLabel(tm)+' แล้ว', 3200);
+        await loadMgr(); try{ await loadSchedule(); }catch(e2){}
+        render();
+      };
     });
 
     /* เพิ่มทีม+สถานที่เข้าวันนั้น — กันซ้ำก่อน ฐานมี unique (ไซต์, ทีม, วัน) อยู่แล้ว
@@ -2841,22 +2913,49 @@ function odoQuick(vid, d, after){
 
       /* ติ๊กว่ารถไปที่ไหนบ้าง — ผูกใบงานเข้าคิวรถคันนี้ ใช้ข้อมูลชุดเดียวกับแถวคิวรถ */
       var boxes=document.querySelectorAll('#od_jobs [data-oj]');
-      var pickedTeams={}, nQ=0;
+      var pickedTeams={}, want=[];
       for(var i=0;i<boxes.length;i++){
         var bx=boxes[i], id=bx.dataset.oj;
         var a=(S.plan||[]).filter(function(x){ return x.id===id; })[0];
         if(!a) continue;
-        if(bx.checked){
-          pickedTeams[a.team_id]=1;
-          if(a.vehicle_id!==vid){ nQ++;
-            await db.from('it_assignments').update({vehicle_id:vid, vehicle_seq:(++nQ)}).eq('id',id); }
-        }else if(a.vehicle_id===vid){
-          await db.from('it_assignments').update({vehicle_id:null, vehicle_seq:null}).eq('id',id);
+        if(bx.checked){ pickedTeams[a.team_id]=1; want.push(a); }
+        else if(a.vehicle_id===vid){
+          var ru=await db.from('it_assignments').update({vehicle_id:null, vehicle_seq:null}).eq('id',id);
+          if(ru.error){ toast('เอาออกจากคิวไม่สำเร็จ: '+ru.error.message, 6000);
+            btn.disabled=false; btn.textContent='บันทึก'; return; }
+          a.vehicle_id=null; a.vehicle_seq=null;
+        }
+      }
+      /* เรียงเลขคิวใหม่ทั้งแถวตามลำดับที่เห็นในรายการ
+         ของเดิมบวกเลขสองเด้งต่อหนึ่งใบ (nQ++ แล้ว ++nQ) เลขคิวเลยกระโดดเป็น 2, 4, 6
+         และใบที่อยู่ในคิวอยู่แล้วก็ไม่เคยถูกไล่เลขใหม่เลย */
+      for(var w=0; w<want.length; w++){
+        var aw=want[w];
+        if(aw.vehicle_id!==vid || aw.vehicle_seq!==(w+1)){
+          var rq=await db.from('it_assignments').update({vehicle_id:vid, vehicle_seq:w+1}).eq('id',aw.id);
+          if(rq.error){ toast('ใส่เข้าคิวไม่สำเร็จ: '+rq.error.message, 6000);
+            btn.disabled=false; btn.textContent='บันทึก'; return; }
+          aw.vehicle_id=vid; aw.vehicle_seq=w+1;
         }
       }
       /* มีใบงานขนส่งของวันนั้นอยู่แล้ว ให้รายชื่อทีมตรงกัน จะได้ไม่ขัดกันเองสองที่ */
       var rn=runOf(vid,d), tms=Object.keys(pickedTeams).filter(Boolean);
       if(rn && tms.length) await db.from('it_runs').update({deliver_teams:tms}).eq('id', rn.id);
+
+      /* คนขับ — เขียนลงทุกจุดที่รถคันนี้ไปส่งวันนั้น และลงใบขนส่งด้วยถ้ามี
+         ชื่อคนขับโชว์อยู่บนหัวช่องในตาราง จึงต้องแก้ได้จากกล่องเดียวกันนี้ */
+      if($('od_drvn')){
+        var dnm=$('od_drvn').value.trim()||null, did=$('od_drv').value||null;
+        var now=vehQueue(vid,d);
+        for(var k2=0;k2<now.length;k2++){
+          if(now[k2].driver_name!==dnm || now[k2].driver_id!==did){
+            await db.from('it_assignments').update({driver_id:did, driver_name:dnm}).eq('id', now[k2].id);
+            now[k2].driver_id=did; now[k2].driver_name=dnm;
+          }
+        }
+        if(rn && (rn.driver_name!==dnm || rn.driver_id!==did))
+          await db.from('it_runs').update({driver_id:did, driver_name:dnm}).eq('id', rn.id);
+      }
 
       shut();
       toast(val!=null
