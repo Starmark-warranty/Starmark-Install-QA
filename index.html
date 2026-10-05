@@ -623,7 +623,7 @@ body.preview #previewBar{display:flex}
 
 <script>
 /* ── ยามเฝ้า splash: อยู่นอกสคริปต์หลัก ถ้าสคริปต์หลักพัง ตัวนี้ยังทำงาน ── */
-window.APP_VER='16.6';
+window.APP_VER='16.7';
 (function(){
   var fill=function(){
     var a=document.querySelectorAll('.ver');
@@ -1010,7 +1010,7 @@ var S = {
   role:'team', mgrName:'', team:null, me:null, staff:[],
   date: todayISO(),
   sites:[], teams:[], asgs:[], issues:[],
-  work:[], pins:[], icats:[], hols:[], plan:[], unclosed:[], sassign:[], vehicles:[], showRoutes:true, geoCheck:false, asTeam:null, asStaff:null, forcedField:false, planFrom:null, planDays:14, pnQ:'', pnBusy:false, pnList:null, pnSec:null,
+  work:[], pins:[], icats:[], hols:[], plan:[], runs:[], unclosed:[], sassign:[], vehicles:[], showRoutes:true, geoCheck:false, asTeam:null, asStaff:null, forcedField:false, planFrom:null, planDays:14, pnQ:'', pnBusy:false, pnList:null, pnSec:null,
   ovFilter:'all', ovQ:'', isFilter:'open', isQ:'', isAllDates:true,
   tView:'jobs', tJob:null, map:null, markers:[], mapLayer:null
 };
@@ -1057,11 +1057,11 @@ var SCOPE_FALLBACK=[
 function workLib(){
   if(S.work && S.work.length){
     return S.work.map(function(x){
-      return {k:x.id, l:x.label, i:x.icon||'🔧', cat:x.category||'ทั่วไป',
+      return {k:x.id, l:x.label, i:x.icon||'🔧', cat:x.category||'ทั่วไป', tk:(x.team_kind||'work'),
               tasks:Array.isArray(x.tasks)?x.tasks:[], sort:x.sort, row:x};
     });
   }
-  return SCOPE_FALLBACK.map(function(x){ return {k:x.k, l:x.l, i:x.i, cat:'ทั่วไป', tasks:x.tasks, sort:0}; });
+  return SCOPE_FALLBACK.map(function(x){ return {k:x.k, l:x.l, i:x.i, cat:'ทั่วไป', tk:'work', tasks:x.tasks, sort:0}; });
 }
 function workFind(k){ return workLib().filter(function(x){return x.k===k;})[0]||null; }
 function scopeLabel(keys){
@@ -2234,6 +2234,441 @@ function vehTipSheet(d){
   });
 }
 
+
+/* ═══════════ ใบงานขนส่ง — กลุ่มคนขับรถ ═══════════
+   หนึ่งคัน หนึ่งวัน หนึ่งใบ เก็บที่ตาราง it_runs
+   แถว “กลุ่มคนขับรถ” กับแถว “คิวรถ” ในตารางแผนงาน อ่านใบเดียวกัน แก้ที่ไหนก็เห็นตรงกัน */
+function teamKind(t){ return (t && t.kind) || 'work'; }
+function isDriverTeam(t){ return teamKind(t)==='driver'; }
+function driverTeamObj(){ return (S.teams||[]).filter(function(t){ return isDriverTeam(t) && t.active!==false; })[0] || null; }
+function runOf(vid, d){ return (S.runs||[]).filter(function(r){ return r.vehicle_id===vid && r.work_date===d; })[0] || null; }
+function runsOn(d){
+  return (S.runs||[]).filter(function(r){ return r.work_date===d; })
+    .sort(function(a,b){ return String(vehOf(a.vehicle_id).code||'').localeCompare(String(vehOf(b.vehicle_id).code||''),'th'); });
+}
+function runStops(r){ return Array.isArray(r&&r.route)? r.route : []; }
+function runLegs(r){ return Array.isArray(r&&r.route_legs)? r.route_legs : []; }
+function kmTxt(n){ n=+n||0; return (n>=100? Math.round(n) : Math.round(n*10)/10)+' กม.'; }
+function minTxt(n){ n=Math.round(+n||0); if(n<60) return n+' นาที';
+  var h=Math.floor(n/60), m=n%60; return h+' ชม.'+(m? (' '+m+' นาที') : ''); }
+function homeStop(v){
+  return (v && v.home_lat!=null && v.home_lng!=null)
+    ? {kind:'home', label:v.home_label||'จุดตั้งต้น', lat:+v.home_lat, lng:+v.home_lng} : null;
+}
+function siteStop(s, tid){
+  return (s && s.lat!=null && s.lng!=null)
+    ? {kind:'site', site_id:s.id, team_id:tid||null, label:s.name||s.code||'ไซต์', lat:+s.lat, lng:+s.lng} : null;
+}
+/* ไซต์ที่ทีมนั้นทำงานอยู่ในวันนั้น — ใช้เติมจุดแวะให้อัตโนมัติตอนติ๊กทีมที่จะไปส่ง */
+function teamStopsOn(tid, d){
+  var out=[];
+  (S.plan||[]).filter(function(a){ return a.team_id===tid && a.work_date===d; }).forEach(function(a){
+    var st=siteStop(siteOf(a.site_id), tid);
+    if(st && !out.some(function(x){ return x.site_id===st.site_id; })) out.push(st);
+  });
+  return out;
+}
+
+/* ── ระยะถนนจริง (OSRM) — ยิงครั้งเดียวได้ครบทุกช่วงพร้อมเวลาขับ ──
+   เรียกไม่ได้เมื่อไหร่ (เน็ตบริษัทบล็อก เซิร์ฟเวอร์ล่ม หรือรอนานเกิน) จะถอยไปใช้เส้นตรง
+   แล้วติดดาวกำกับไว้ จะได้ไม่เข้าใจผิดว่าเป็นระยะวิ่งจริง */
+var OSRM_BASE='https://router.project-osrm.org/route/v1/driving/';
+var _rtCache={};
+function lineRoute(pts){
+  var legs=[], tot=0;
+  for(var i=1;i<pts.length;i++){
+    var km=dist(pts[i-1].lat,pts[i-1].lng,pts[i].lat,pts[i].lng)/1000;
+    legs.push({km:km, min:null}); tot+=km;
+  }
+  return {src:'line', legs:legs, km:tot, min:null};
+}
+async function roadRoute(pts){
+  if(!pts || pts.length<2) return {src:'line', legs:[], km:0, min:null};
+  var key=pts.map(function(p){ return (+p.lat).toFixed(5)+','+(+p.lng).toFixed(5); }).join(';');
+  if(_rtCache[key]) return _rtCache[key];
+  var ctl=null, tid=null;
+  try{
+    try{ ctl=new AbortController(); tid=setTimeout(function(){ ctl.abort(); }, 12000); }catch(_){}
+    var url=OSRM_BASE+pts.map(function(p){ return (+p.lng)+','+(+p.lat); }).join(';')+'?overview=false';
+    var res=await fetch(url, ctl? {signal:ctl.signal} : undefined);
+    if(tid) clearTimeout(tid);
+    if(!res.ok) throw new Error('เซิร์ฟเวอร์เส้นทางตอบ '+res.status);
+    var j=await res.json();
+    if(j.code!=='Ok' || !j.routes || !j.routes.length)
+      throw new Error(j.code==='NoRoute'? 'ไม่มีถนนเชื่อมระหว่างจุดที่เลือก' : ('เซิร์ฟเวอร์ตอบ '+(j.code||'ไม่ทราบสาเหตุ')));
+    var rt=j.routes[0];
+    var out={src:'road', km:rt.distance/1000, min:rt.duration/60,
+      legs:(rt.legs||[]).map(function(l){ return {km:l.distance/1000, min:l.duration/60}; })};
+    _rtCache[key]=out;
+    return out;
+  }catch(e){
+    if(tid) clearTimeout(tid);
+    var fb=lineRoute(pts);
+    fb.why=(e && e.name==='AbortError')? 'เรียกนานเกินไป' : ((e&&e.message)||'เรียกไม่สำเร็จ');
+    return fb;
+  }
+}
+
+/* ── ฟอร์มใบงานขนส่ง ── opt = {date, vehicleId, runId} */
+function runForm(o){
+  if(rank(S.me)<1) return toast('เฉพาะแอดมินขึ้นไปที่จัดใบงานขนส่งได้', 3400);
+  o=o||{};
+  var all=(S.runs||[]);
+  var r = o.runId? all.filter(function(x){ return x.id===o.runId; })[0] : null;
+  var d = (r? r.work_date : o.date) || S.date;
+  var vehs=(S.vehicles||[]).filter(function(v){ return v.active!==false; });
+  if(!vehs.length) return toast('ยังไม่มีรถในระบบ — เพิ่มรถที่แท็บ Work & Site ก่อน แล้วค่อยสร้างใบงานขนส่ง', 5200);
+  if(!r && o.vehicleId) r=runOf(o.vehicleId, d);
+  var vid=(r && r.vehicle_id) || o.vehicleId || vehs[0].id;
+
+  var stops = r? runStops(r).slice() : [];
+  var legs  = r? runLegs(r).slice()  : [];
+  var rkm   = r && r.route_km!=null? +r.route_km : null;
+  var rmin  = r && r.route_min!=null? +r.route_min : null;
+  var rsrc  = (r && r.route_src) || null;
+  /* ยังไม่มีใบ — ติ๊กทีมที่ใบงานผูกกับรถคันนี้อยู่แล้วให้ก่อน สถานะจะได้ตรงกับคิวรถที่มีอยู่ */
+  var picked = (r && Array.isArray(r.deliver_teams)) ? r.deliver_teams.slice()
+    : (function(){ var o2={}; vehQueue(vid,d).forEach(function(a){ o2[a.team_id]=1; }); return Object.keys(o2); })();
+  var autoAdded = {};
+
+  /* ยังไม่มีใบ — ตั้งต้นให้ตรงกับคิวรถที่มีอยู่แล้ว คือจุดตั้งต้นของรถ ตามด้วยไซต์ในคิวตามลำดับ
+     ถ้าไม่ทำ ทีมจะติ๊กไว้แต่เส้นทางว่าง พอคนกดทีมซ้ำจะกลายเป็นปลดติ๊กโดยไม่รู้ตัว */
+  if(!r && !stops.length){
+    var h=homeStop(vehOf(vid)); if(h) stops.push(h);
+    vehQueue(vid,d).forEach(function(a){
+      var st=siteStop(siteOf(a.site_id), a.team_id);
+      if(st && !stops.some(function(x){ return x.site_id===st.site_id; })){ autoAdded[st.site_id]=1; stops.push(st); }
+    });
+  }
+
+  var tms=(S.teams||[]).filter(function(t){ return t.active!==false && !isDriverTeam(t); });
+
+  sheet((r?'แก้ไข':'สร้าง')+'ใบงานขนส่ง · '+dayText(d),
+    '<div class="fld"><label>ทะเบียนรถ</label><select id="rf_veh">'+
+      vehs.map(function(v){ return '<option value="'+v.id+'"'+(v.id===vid?' selected':'')+'>'+
+        esc(v.code+(v.plate?(' · '+v.plate):'')+(v.kind?(' · '+v.kind):''))+'</option>'; }).join('')+
+    '</select><div id="rf_vnote" style="font-size:10.5px;color:var(--text2);margin-top:5px;line-height:1.6"></div></div>'+
+
+    '<div class="fld"><label>คนขับ</label><select id="rf_drv"></select>'+
+      '<input id="rf_drvn" style="margin-top:6px" placeholder="ชื่อคนขับ">'+
+      '<div style="font-size:10.5px;color:var(--text2);margin-top:4px;line-height:1.6">'+
+        'รายชื่อมาจากกลุ่มคนขับรถที่แท็บ Manage Team · พิมพ์ชื่อเองก็ได้ถ้าเป็นคนนอก</div></div>'+
+
+    '<div class="fld"><label>ทีมที่ไปส่ง — ติ๊กได้หลายทีม</label>'+
+      '<div class="opts" id="rf_teams">'+
+        tms.map(function(t){
+          return '<button type="button" class="opt" data-tm="'+t.id+'">'+esc(teamLabel(t))+
+            '<div style="font-size:10.5px;font-weight:500;color:var(--text3);margin-top:3px" data-tmn="'+t.id+'"></div></button>';
+        }).join('')+
+      '</div>'+
+      '<div style="font-size:10.5px;color:var(--text2);margin-top:6px;line-height:1.6">'+
+        'ติ๊กทีมแล้วระบบจะเติมไซต์ที่ทีมนั้นทำงานวันนี้เป็นจุดแวะให้เอง · ใบงานของทีมที่ติ๊กจะถูกผูกเข้าคิวรถคันนี้ด้วย</div></div>'+
+
+    '<div class="sec-h" style="margin:18px 0 7px">เส้นทางของเที่ยวนี้</div>'+
+    '<div id="rf_stops"></div>'+
+    '<div id="rf_warn"></div>'+
+    '<div class="row" style="flex-wrap:wrap;gap:6px;margin-top:8px">'+
+      '<button class="btn ghost sm" type="button" id="rf_home" style="width:auto;flex:0 0 auto;padding:8px 11px">＋ จุดตั้งต้นของรถ</button>'+
+      '<button class="btn ghost sm" type="button" id="rf_site" style="width:auto;flex:0 0 auto;padding:8px 11px">＋ ไซต์งาน</button>'+
+      '<button class="btn ghost sm" type="button" id="rf_pin"  style="width:auto;flex:0 0 auto;padding:8px 11px">＋ หมุดประจำ</button>'+
+      '<button class="btn ghost sm" type="button" id="rf_cus"  style="width:auto;flex:0 0 auto;padding:8px 11px">＋ ปักเอง</button>'+
+    '</div>'+
+    '<div id="rf_legs" style="margin-top:12px"></div>'+
+    '<button class="btn ghost sm" type="button" id="rf_calc" style="margin-top:9px;width:100%">🛣 คำนวณระยะทางจริง</button>'+
+
+    '<div class="fld" style="margin-top:16px"><label>หมายเหตุ</label>'+
+      '<input id="rf_note" value="'+esc((r&&r.note)||'')+'" placeholder="เช่น รับของที่คลังก่อน 07:00"></div>',
+
+    '<div class="row">'+(r?'<button class="btn ghost sm" id="rf_del" style="flex:0 0 90px">ลบ</button>':'')+
+      '<button class="btn sm" id="rf_save">บันทึกใบงานขนส่ง</button></div>');
+
+  /* ── รายชื่อคนขับ — กลุ่มคนขับรถขึ้นก่อน คนอื่นต่อท้าย ── */
+  var fillDrv=function(){
+    var dt=driverTeamObj();
+    var crew=dt? teamStaff(dt.id) : [];
+    var rest=(S.staff||[]).filter(function(x){ return x.active!==false && !crew.some(function(c){ return c.id===x.id; }); })
+      .sort(function(a,b){ return String(a.name||'').localeCompare(String(b.name||''),'th'); });
+    /* ใบใหม่ — เดาจากคนขับประจำของรถคันนั้น ถ้าชื่อตรงกับคนในกลุ่มก็เลือกให้เลย จะได้ผูก id ไว้ด้วย */
+    var cur=(r&&r.driver_id)||'';
+    if(!cur){
+      var want=String(vehOf(vid).driver_name||'').trim();
+      if(want){ var hit=crew.filter(function(x){ return String(x.name||'').trim()===want; })[0]; if(hit) cur=hit.id; }
+    }
+    $('rf_drv').innerHTML='<option value="">— พิมพ์ชื่อเอง —</option>'+
+      (crew.length? '<optgroup label="กลุ่มคนขับรถ">'+crew.map(function(x){
+        return '<option value="'+x.id+'"'+(cur===x.id?' selected':'')+'>'+esc(x.name||x.emp_code)+'</option>'; }).join('')+'</optgroup>' : '')+
+      '<optgroup label="พนักงานคนอื่น">'+rest.map(function(x){
+        return '<option value="'+x.id+'"'+(cur===x.id?' selected':'')+'>'+
+          esc((x.name||x.emp_code)+' · '+(teamOf(x.team_id).code||'ไม่มีทีม'))+'</option>'; }).join('')+'</optgroup>';
+    if(!dt || !crew.length){
+      $('rf_drv').insertAdjacentHTML('afterend',
+        '<div style="font-size:10.5px;color:#8a4b00;margin-top:5px">ยังไม่มีใครอยู่ในกลุ่มคนขับรถ — จัดคนเข้ากลุ่มได้ที่แท็บ Manage Team</div>');
+    }
+    $('rf_drvn').value = (r&&r.driver_name) || vehOf(vid).driver_name || '';
+  };
+
+  var drawTeams=function(){
+    document.querySelectorAll('#rf_teams [data-tm]').forEach(function(b){
+      b.classList.toggle('on', picked.indexOf(b.dataset.tm)>=0);
+    });
+    document.querySelectorAll('#rf_teams [data-tmn]').forEach(function(el){
+      var n=teamStopsOn(el.dataset.tmn, d);
+      el.textContent = n.length? (n.length+' ไซต์วันนี้') : 'วันนี้ไม่มีงาน';
+    });
+  };
+
+  var drawStops=function(){
+    var box=$('rf_stops');
+    if(!stops.length){
+      box.innerHTML='<div class="empty" style="padding:14px;font-size:12px">ยังไม่ได้ใส่จุดสักจุด — '+
+        'เริ่มจากจุดตั้งต้นของรถ แล้วค่อยเพิ่มจุดที่ไปส่ง</div>';
+      return;
+    }
+    box.innerHTML=stops.map(function(s,i){
+      var lg=legs[i-1];
+      var icon=s.kind==='home'?'🏭':(s.kind==='site'?'🏗':(s.kind==='pin'?'📍':'📌'));
+      return (i>0? ('<div style="padding:2px 0 4px 30px;font-size:10.5px;color:var(--text3)">↓ '+
+          (lg? ('<b style="color:'+(lg.km>VEH_FAR_KM?'#c26c00':'var(--text2)')+'">'+kmTxt(lg.km)+'</b>'+
+                (lg.min? (' · '+minTxt(lg.min)) : '')) : 'ยังไม่ได้คำนวณ')+'</div>') : '')+
+        '<div class="brow" style="cursor:default"><div class="brow-t">'+
+          '<span class="vq-n" style="background:var(--accent);margin-right:7px">'+(i+1)+'</span>'+
+          '<span class="nm">'+icon+' '+esc(s.label||'—')+'</span>'+
+          '<button class="tb-btn" data-su="'+i+'"'+(i===0?' disabled':'')+'>↑</button>'+
+          '<button class="tb-btn" data-sd="'+i+'"'+(i===stops.length-1?' disabled':'')+'>↓</button>'+
+          '<button class="tb-btn" data-sx="'+i+'">เอาออก</button></div>'+
+        '<div class="brow-s"><span>'+(s.kind==='home'?'จุดตั้งต้น':(s.kind==='site'?'ไซต์งาน':(s.kind==='pin'?'หมุดประจำ':'ปักเอง')))+'</span>'+
+          '<span style="font-family:var(--mono);font-size:10.5px">'+(+s.lat).toFixed(5)+', '+(+s.lng).toFixed(5)+'</span></div></div>';
+    }).join('');
+    box.querySelectorAll('[data-su]').forEach(function(b){ b.onclick=function(){ var i=+b.dataset.su;
+      var t=stops[i-1]; stops[i-1]=stops[i]; stops[i]=t; legs=[]; rkm=rmin=null; rsrc=null; drawStops(); drawLegs(); }; });
+    box.querySelectorAll('[data-sd]').forEach(function(b){ b.onclick=function(){ var i=+b.dataset.sd;
+      var t=stops[i+1]; stops[i+1]=stops[i]; stops[i]=t; legs=[]; rkm=rmin=null; rsrc=null; drawStops(); drawLegs(); }; });
+    box.querySelectorAll('[data-sx]').forEach(function(b){ b.onclick=function(){
+      stops.splice(+b.dataset.sx,1); legs=[]; rkm=rmin=null; rsrc=null; drawStops(); drawLegs(); }; });
+  };
+
+  /* ไซต์ที่ยังไม่มีพิกัดจะใส่เป็นจุดในเส้นทางไม่ได้ ต้องบอกให้รู้ ไม่ใช่เงียบแล้วระยะขาดไปเฉย ๆ */
+  var drawWarn=function(){
+    var box=$('rf_warn'); if(!box) return;
+    var bad=[];
+    picked.forEach(function(tid){
+      (S.plan||[]).filter(function(a){ return a.team_id===tid && a.work_date===d; }).forEach(function(a){
+        var si=siteOf(a.site_id), nm=si&&(si.name||si.code);
+        if(si && (si.lat==null||si.lng==null) && nm && bad.indexOf(nm)<0) bad.push(nm);
+      });
+    });
+    box.innerHTML = bad.length
+      ? '<div style="background:var(--orange-dim);border:1px solid rgba(255,149,0,.32);border-radius:9px;'+
+        'padding:8px 10px;margin-top:8px;font-size:11px;line-height:1.7;color:#8a4b00">'+
+        'ไซต์พวกนี้<b>ยังไม่มีพิกัด</b> ใส่เป็นจุดในเส้นทางไม่ได้ ระยะที่คำนวณจึงยังไม่รวมช่วงนั้น: <b>'+esc(bad.join(', '))+'</b><br>'+
+        'ใส่พิกัดที่แท็บ Work &amp; Site แล้วกลับมาแก้ใบนี้อีกครั้ง'+
+        '</div>'
+      : '';
+  };
+
+  var drawLegs=function(){
+    var box=$('rf_legs');
+    if(rkm==null){ box.innerHTML=stops.length>1
+      ? '<div style="font-size:11.5px;color:var(--text2)">กด “คำนวณระยะทางจริง” เพื่อดูว่าแต่ละช่วงกี่กิโลและใช้เวลาเท่าไร</div>' : '';
+      return; }
+    box.innerHTML='<div style="background:var(--s1);border:1px solid var(--border);border-radius:11px;padding:11px 13px;'+
+      'font-size:12px;line-height:1.8">'+
+      '<b style="font-size:13px">รวม '+kmTxt(rkm)+(rmin? (' · ขับราว '+minTxt(rmin)) : '')+'</b><br>'+
+      '<span style="font-size:10.5px;color:var(--text2)">'+
+        (rsrc==='road'? 'ระยะถนนจริง คิดตามเส้นทางขับรถ'
+                      : 'เส้นตรง — เรียกเซิร์ฟเวอร์เส้นทางไม่ได้ ระยะวิ่งจริงจะมากกว่านี้ราว 20–40%')+'</span></div>';
+  };
+
+  var addStop=function(s){
+    if(!s) return;
+    stops.push(s); legs=[]; rkm=rmin=null; rsrc=null; drawStops(); drawLegs();
+  };
+
+  fillDrv(); drawTeams(); drawStops(); drawWarn(); drawLegs();
+  $('rf_vnote').innerHTML = homeStop(vehOf(vid))
+    ? ('จุดตั้งต้นของคันนี้: <b>'+esc(homeStop(vehOf(vid)).label)+'</b>')
+    : '<span style="color:#8a4b00">คันนี้ยังไม่ได้ตั้งจุดตั้งต้น — ตั้งได้ที่ Work &amp; Site → รถและคนขับ</span>';
+
+  $('rf_veh').onchange=function(){
+    vid=this.value;
+    $('rf_vnote').innerHTML = homeStop(vehOf(vid))
+      ? ('จุดตั้งต้นของคันนี้: <b>'+esc(homeStop(vehOf(vid)).label)+'</b>')
+      : '<span style="color:#8a4b00">คันนี้ยังไม่ได้ตั้งจุดตั้งต้น — ตั้งได้ที่ Work &amp; Site → รถและคนขับ</span>';
+    if(!$('rf_drvn').value) $('rf_drvn').value = vehOf(vid).driver_name||'';
+    var ex=runOf(vid,d);
+    if(ex && (!r || ex.id!==r.id)) toast('รถคันนี้มีใบงานขนส่งของวันนี้อยู่แล้ว — กดบันทึกจะเป็นการแก้ใบเดิม', 5200);
+  };
+  $('rf_drv').onchange=function(){ var st=staffOf(this.value); if(st) $('rf_drvn').value=st.name||st.emp_code||''; };
+
+  document.querySelectorAll('#rf_teams [data-tm]').forEach(function(b){
+    b.onclick=function(){
+      var id=b.dataset.tm, i=picked.indexOf(id);
+      if(i>=0){
+        picked.splice(i,1);
+        /* เอาออกเฉพาะจุดที่ระบบเติมให้เองตอนติ๊ก จุดที่คนใส่เองไม่แตะ */
+        stops=stops.filter(function(s){ return !(s.kind==='site' && s.team_id===id && autoAdded[s.site_id]); });
+      }else{
+        picked.push(id);
+        teamStopsOn(id, d).forEach(function(s){
+          if(!stops.some(function(x){ return x.site_id===s.site_id; })){ autoAdded[s.site_id]=1; stops.push(s); }
+        });
+      }
+      legs=[]; rkm=rmin=null; rsrc=null;
+      drawTeams(); drawStops(); drawWarn(); drawLegs();
+    };
+  });
+
+  $('rf_home').onclick=function(){
+    var h=homeStop(vehOf(vid));
+    if(!h) return toast('รถคันนี้ยังไม่ได้ตั้งจุดตั้งต้น — ตั้งที่ Work & Site → รถและคนขับ ก่อน', 5200);
+    addStop(h);
+  };
+  $('rf_site').onclick=function(){
+    var list=(S.sites||[]).filter(function(s){ return s.lat!=null && s.lng!=null; });
+    if(!list.length) return toast('ยังไม่มีไซต์ไหนใส่พิกัดไว้ — ใส่พิกัดที่แท็บ Work & Site ก่อน', 5200);
+    sheet2('เลือกไซต์งาน',
+      list.map(function(s){ return '<div class="brow" data-ps="'+s.id+'"><div class="brow-t"><span class="nm">'+
+        esc(s.name||'—')+'</span></div><div class="brow-s"><span class="tm">'+esc(s.code||'')+'</span>'+
+        (s.address?'<span>'+esc(s.address)+'</span>':'')+'</div></div>'; }).join(''), '');
+    document.querySelectorAll('#shB2 [data-ps]').forEach(function(el){
+      el.onclick=function(){ closeSheet2(); addStop(siteStop(siteOf(el.dataset.ps), null)); };
+    });
+  };
+  $('rf_pin').onclick=function(){
+    var list=(S.pins||[]);
+    if(!list.length) return toast('ยังไม่มีหมุดพิกัดประจำ — เพิ่มที่แท็บ Work & Site ก่อน', 5200);
+    sheet2('เลือกหมุดพิกัดประจำ',
+      list.map(function(p){ return '<div class="brow" data-pp="'+p.id+'"><div class="brow-t"><span class="nm">📍 '+
+        esc(p.label||'—')+'</span></div>'+(p.note?'<div class="brow-s"><span>'+esc(p.note)+'</span></div>':'')+'</div>'; }).join(''), '');
+    document.querySelectorAll('#shB2 [data-pp]').forEach(function(el){
+      el.onclick=function(){
+        var p=(S.pins||[]).filter(function(x){ return x.id===el.dataset.pp; })[0];
+        closeSheet2();
+        if(p) addStop({kind:'pin', label:p.label||'หมุด', lat:+p.lat, lng:+p.lng});
+      };
+    });
+  };
+  $('rf_cus').onclick=function(){
+    sheet2('ปักจุดเอง',
+      '<div class="fld"><label>ชื่อจุด</label><input id="rp_lb" placeholder="เช่น คลังสินค้าบางพลี"></div>'+
+      '<div id="rp_map" style="height:230px;border-radius:11px;overflow:hidden;border:1px solid var(--border2);background:var(--s3)"></div>'+
+      '<div class="row" style="margin-top:7px"><input id="rp_lat" placeholder="Latitude"><input id="rp_lng" placeholder="Longitude"></div>'+
+      '<div class="row" style="margin-top:7px">'+
+        '<button class="btn ghost sm" type="button" id="rp_here">📍 ตำแหน่งฉันตอนนี้</button>'+
+        '<button class="btn ghost sm" type="button" id="rp_paste">วางพิกัดจาก Google Maps</button></div>',
+      '<button class="btn sm" id="rp_ok">ใช้จุดนี้</button>');
+    mapPicker({map:'rp_map', lat:'rp_lat', lng:'rp_lng', here:'rp_here', paste:'rp_paste'}, null, null);
+    $('rp_ok').onclick=function(){
+      var la=parseFloat($('rp_lat').value), ln=parseFloat($('rp_lng').value);
+      if(isNaN(la)||isNaN(ln)) return toast('ยังไม่ได้ปักพิกัด — แตะบนแผนที่ หรือกดตำแหน่งฉันตอนนี้', 4200);
+      closeSheet2();
+      addStop({kind:'custom', label:$('rp_lb').value.trim()||'จุดที่ปักเอง', lat:la, lng:ln});
+    };
+  };
+
+  $('rf_calc').onclick=async function(){
+    if(stops.length<2) return toast('ต้องมีอย่างน้อย 2 จุดถึงจะคำนวณระยะได้');
+    this.disabled=true; this.textContent='กำลังคำนวณ…';
+    var out=await roadRoute(stops.map(function(s){ return {lat:+s.lat, lng:+s.lng}; }));
+    legs=out.legs||[]; rkm=out.km; rmin=out.min; rsrc=out.src;
+    drawStops(); drawLegs();
+    this.disabled=false; this.textContent='🛣 คำนวณระยะทางจริง';
+    if(out.src!=='road') toast('เรียกระยะถนนจริงไม่ได้ ('+(out.why||'ไม่ทราบสาเหตุ')+') — ใช้ระยะเส้นตรงแทนไปก่อน', 7000);
+  };
+
+  if($('rf_del')) $('rf_del').onclick=async function(){
+    if(!confirm('ลบใบงานขนส่งของ '+(vehOf(vid).code||'')+' วัน '+dayText(d)+' ?\nคิวรถที่ผูกไว้จะยังอยู่เหมือนเดิม')) return;
+    this.disabled=true;
+    var x=await db.from('it_runs').delete().eq('id', r.id);
+    if(x.error){ toast('ลบไม่สำเร็จ: '+x.error.message, 5000); this.disabled=false; return; }
+    closeSheet(); toast('ลบใบงานขนส่งแล้ว'); await loadMgr(); try{ await loadSchedule(); }catch(e){}
+  };
+
+  $('rf_save').onclick=async function(){
+    if(!picked.length) return toast('เลือกก่อนว่าเที่ยวนี้ไปส่งให้ทีมไหนบ้าง');
+    if(stops.length<2) return toast('ใส่จุดอย่างน้อย 2 จุด เช่น จุดตั้งต้น แล้วตามด้วยจุดที่ไปส่ง');
+    var dn=$('rf_drvn').value.trim();
+    if(!dn) return toast('ใส่ชื่อคนขับก่อน');
+    this.disabled=true; this.textContent='กำลังบันทึก…';
+
+    /* ยังไม่เคยกดคำนวณ — คำนวณให้เลยตอนบันทึก จะได้ไม่มีใบที่ไม่มีระยะ */
+    if(rkm==null){
+      var auto=await roadRoute(stops.map(function(s){ return {lat:+s.lat, lng:+s.lng}; }));
+      legs=auto.legs||[]; rkm=auto.km; rmin=auto.min; rsrc=auto.src;
+    }
+
+    var names=picked.map(function(id){ return teamOf(id).code||teamOf(id).name||''; }).filter(Boolean);
+    var wi=(S.work||[]).filter(function(x){ return (x.team_kind||'work')==='driver'; })[0];
+    var head=(wi && wi.label) || 'ส่งของให้ทีม';
+    var p={vehicle_id:vid, work_date:d, driver_id:$('rf_drv').value||null, driver_name:dn,
+      deliver_teams:picked, route:stops,
+      route_legs:legs.length? legs : null,
+      route_km: rkm!=null? Math.round(rkm*10)/10 : null,
+      route_min: rmin!=null? Math.round(rmin) : null,
+      route_src: rsrc,
+      scope: head+(names.length? (' '+names.join(', ')) : ''),
+      checklist:[{label:head, st:0, done:false, w:1}],
+      note:$('rf_note').value.trim()||null};
+
+    try{
+      var ex = r || runOf(vid, d);
+      if(ex) dbOK(await db.from('it_runs').update(p).eq('id', ex.id));
+      else   dbOK(await db.from('it_runs').insert(p));
+    }catch(e){
+      toast(isDbErr(e)? ('บันทึกใบงานขนส่งไม่สำเร็จ: '+e.message) : 'บันทึกไม่ได้ตอนนี้ — ลองอีกครั้งเมื่อมีสัญญาณ',
+            isDbErr(e)?7000:3600);
+      this.disabled=false; this.textContent='บันทึกใบงานขนส่ง'; return;
+    }
+
+    /* ใบงานของทีมที่ติ๊กไว้ ให้ผูกกับรถคันนี้ตามลำดับจุดในเส้นทาง
+       คิวรถกับใบงานขนส่งจะได้เป็นเรื่องเดียวกัน ไม่ต้องไปจัดซ้ำอีกที่ */
+    var order={};
+    stops.forEach(function(s,i){ if(s.site_id && order[s.site_id]==null) order[s.site_id]=i+1; });
+    var nextSeq=stops.length;   /* ไซต์ที่ไม่ได้อยู่ในเส้นทาง ต่อท้ายคิวไปตามลำดับ */
+    var today=(S.plan||[]).filter(function(a){ return a.work_date===d; });
+    for(var i=0;i<today.length;i++){
+      var a=today[i], want=picked.indexOf(a.team_id)>=0;
+      var seq=order[a.site_id]!=null? order[a.site_id] : (++nextSeq);
+      if(want && (a.vehicle_id!==vid || a.vehicle_seq!==seq))
+        await db.from('it_assignments').update({vehicle_id:vid, vehicle_seq:seq}).eq('id',a.id);
+      else if(!want && a.vehicle_id===vid)
+        await db.from('it_assignments').update({vehicle_id:null, vehicle_seq:null}).eq('id',a.id);
+    }
+
+    closeSheet();
+    toast('บันทึกใบงานขนส่งแล้ว · '+kmTxt(rkm)+(rsrc==='line'?' (เส้นตรง)':'')+' · ส่ง '+picked.length+' ทีม', 4200);
+    await loadMgr(); try{ await loadSchedule(); }catch(e){}
+  };
+}
+
+/* แถว “กลุ่มคนขับรถ” ในตารางแผนงาน — การ์ดละคัน อ่านจากใบงานขนส่งใบเดียวกับคิวรถ */
+function planDriverRow(t, days, today){
+  var mem=teamStaff(t.id);
+  var crew=mem.map(function(x){ return x.name||x.emp_code; }).join(', ');
+  return '<tr><td class="tcol" title="'+esc(teamLabel(t)+' — '+mem.length+' คน')+'">🚚 '+esc(t.name)+
+    '<small>'+esc(t.code)+' · จัดจากทะเบียนรถ</small>'+
+    (mem.length? ('<small class="crew"><b>'+mem.length+' คน</b> · '+esc(crew)+'</small>')
+               : '<small class="crew none">ยังไม่มีคนขับในกลุ่ม</small>')+
+    '</td>'+
+    days.map(function(d){
+      var dt=new Date(d+'T00:00:00');
+      var cls='pcell'+(isHoliday(d)?' hol':(dt.getDay()===0?' sun':''))+(d===today?' pcol-today':'');
+      var inner=runsOn(d).map(function(r){
+        var v=vehOf(r.vehicle_id), vt=vehTint(v);
+        var tn=(r.deliver_teams||[]).map(function(id){ return teamOf(id).code||''; }).filter(Boolean);
+        return '<div class="pjob" data-run="'+r.id+'" style="border-left-color:'+vt.ink+';background:'+vt.bg+
+            ';border-top-color:'+vt.line+';border-right-color:'+vt.line+';border-bottom-color:'+vt.line+'" title="'+
+            esc((v.code||'')+' · '+(r.scope||'')+' · '+(r.driver_name||''))+'">'+
+          '<b>🚚 '+esc(v.code||'—')+'</b>'+
+          '<span class="sc">'+(tn.length? 'ส่งให้ '+esc(tn.join(', ')) : 'ยังไม่ได้เลือกทีม')+'</span>'+
+          '<span class="st" style="color:'+vt.ink+'">'+(r.driver_name? esc(r.driver_name)+' · ' : '')+
+            (r.route_km!=null? (kmTxt(+r.route_km)+(r.route_src==='line'?'*':'')) : 'ยังไม่มีระยะ')+
+            (r.route_min? (' · '+minTxt(+r.route_min)) : '')+'</span></div>';
+      }).join('');
+      return '<td class="'+cls+'" data-runadd="'+d+'">'+inner+'<div class="padd">+</div></td>';
+    }).join('')+'</tr>';
+}
+
 /* จัดคิวรถของคันหนึ่งในวันหนึ่ง — เลือกงานเข้าคิวและเรียงลำดับ */
 async function vehQueueSheet(key){
   if(rank(S.me)<1) return;
@@ -2243,6 +2678,8 @@ async function vehQueueSheet(key){
   var free=(S.plan||[]).filter(function(a){ return a.work_date===d && !a.vehicle_id; })
     .sort(function(a,b){ return (siteOf(a.site_id).name||'')<(siteOf(b.site_id).name||'')?-1:1; });
   var sp=vehSpan(mine, v);
+  /* มีใบงานขนส่งแล้วให้ใบนั้นเป็นตัวจริง สรุประยะเส้นตรงของคิวจะไม่โชว์ซ้ำ กันตัวเลขขัดกันเอง */
+  var rn0=runOf(vid, d);
   var nAll=(S.plan||[]).filter(function(a){ return a.work_date===d; }).length;
 
   var line=function(a,i){
@@ -2264,8 +2701,8 @@ async function vehQueueSheet(key){
   sheet('คิวรถ '+esc(v.code||'')+' · '+esc(dayText(d)),
     '<div style="font-size:11.5px;color:var(--text2);line-height:1.75;margin-bottom:12px">'+
       esc((v.kind||'')+(v.plate?' · '+v.plate:'')+(v.driver_name?' · คนขับ '+v.driver_name:''))+
-      (mine.length? ('<br>วิ่ง '+mine.length+' จุด · ระยะรวม <b style="color:var(--text)">'+sp.km+' กม.</b> (เส้นตรง ไม่นับขากลับ)') : '')+
-      (mine.length? ('<div style="margin-top:8px;padding:9px 11px;background:var(--s1);border:1px solid var(--border);'+
+      (mine.length&&!rn0? ('<br>วิ่ง '+mine.length+' จุด · ระยะรวม <b style="color:var(--text)">'+sp.km+' กม.</b> (เส้นตรง ไม่นับขากลับ)') : '')+
+      (mine.length&&!rn0? ('<div style="margin-top:8px;padding:9px 11px;background:var(--s1);border:1px solid var(--border);'+
         'border-radius:10px;font-size:11px;line-height:1.85;color:var(--text2)">'+
         (sp.noHome
           ? '<b style="color:#8a4b00">ยังไม่ได้ตั้งจุดเริ่มต้นของรถคันนี้</b> — ระยะที่เห็นนับจากไซต์แรกเท่านั้น ยังไม่รวมขาออก'+
@@ -2275,8 +2712,35 @@ async function vehQueueSheet(key){
           return '<span style="color:'+(l.km>VEH_FAR_KM?'#c26c00':'var(--text2)')+'">'+
             esc(l.from)+' → '+esc(l.to)+' <b>'+l.km.toFixed(1)+' กม.</b></span>'; }).join('<br>')+
         '</div>') : '')+
-      (sp.far?'<br><b style="color:#c26c00">มีจุดที่ห่างจากจุดก่อนหน้าเกิน '+VEH_FAR_KM+' กม. ควรแยกคันหรือสลับลำดับ</b>':'')+
+      (sp.far&&!rn0?'<br><b style="color:#c26c00">มีจุดที่ห่างจากจุดก่อนหน้าเกิน '+VEH_FAR_KM+' กม. ควรแยกคันหรือสลับลำดับ</b>':'')+
     '</div>'+
+    (function(){
+      var rn=runOf(vid, d);
+      if(rn){
+        var tn=(rn.deliver_teams||[]).map(function(x){ return teamOf(x).code||''; }).filter(Boolean);
+        var ss=runStops(rn), lg=runLegs(rn);
+        return '<div style="background:var(--accent-glow);border:1px solid rgba(0,122,255,.28);border-radius:12px;'+
+          'padding:11px 13px;margin-bottom:13px;font-size:12px;line-height:1.75">'+
+          '<b style="font-size:13px">🚚 ใบงานขนส่งของวันนี้</b><br>'+
+          'คนขับ <b>'+esc(rn.driver_name||'ยังไม่ระบุ')+'</b>'+(tn.length? (' · ส่งให้ '+esc(tn.join(', '))) : '')+
+          (ss.length? ('<div style="margin-top:7px">'+ss.map(function(s,i){
+            var l=lg[i-1];
+            return (i? ('<div style="padding:1px 0 2px 14px;font-size:10.5px;color:var(--text3)">↓ '+
+                 (l? (kmTxt(l.km)+(l.min? (' · '+minTxt(l.min)) : '')) : 'ยังไม่ได้คำนวณ')+'</div>') : '')+
+              '<div>'+(i+1)+'. '+esc(s.label||'—')+'</div>'; }).join('')+'</div>') : '')+
+          (rn.route_km!=null? ('<div style="margin-top:6px"><b>รวม '+kmTxt(+rn.route_km)+
+            (rn.route_min? (' · ขับราว '+minTxt(+rn.route_min)) : '')+'</b>'+
+            '<span style="font-size:10.5px;color:var(--text2)"> · '+
+              (rn.route_src==='road'? 'ระยะถนนจริง' : 'เส้นตรง (เรียกเซิร์ฟเวอร์เส้นทางไม่ได้)')+'</span></div>') : '')+
+          '<button class="btn ghost sm" type="button" id="vq_run" style="margin-top:8px">แก้ไขใบงานขนส่ง</button>'+
+        '</div>';
+      }
+      return '<div style="background:var(--s1);border:1px solid var(--border);border-radius:12px;'+
+        'padding:11px 13px;margin-bottom:13px;font-size:11.5px;line-height:1.7;color:var(--text2)">'+
+        'คันนี้ยังไม่มีใบงานขนส่งของวันนี้ — ใบงานขนส่งคือตัวที่เก็บ<b style="color:var(--text)">คนขับ ทีมที่ไปส่ง '+
+        'และเส้นทางพร้อมระยะถนนจริง</b> สร้างแล้วจะไปโผล่ที่แถวกลุ่มคนขับรถในตารางแผนงานด้วย'+
+        '<button class="btn ghost sm" type="button" id="vq_run" style="margin-top:8px">＋ สร้างใบงานขนส่ง</button></div>';
+    })()+
     (mine.length
       ? '<div class="fld"><label>คนขับเที่ยวนี้</label>'+
           '<select id="vq_drv">'+
@@ -2336,6 +2800,8 @@ async function vehQueueSheet(key){
     save(arr.map(function(a,k){ return {id:a.id, vid:vid, seq:k+1}; }));
   };
   if($('vq_home')) $('vq_home').onclick=function(){ closeSheet(); vehForm(vid); };
+  if($('vq_run')) $('vq_run').onclick=function(){
+    closeSheet(); setTimeout(function(){ runForm({vehicleId:vid, date:d}); }, 180); };
   if($('vq_drv')) $('vq_drv').onchange=function(){
     var st=staffOf(this.value); if(st) $('vq_drvn').value = st.name || st.emp_code || '';
   };
@@ -3524,7 +3990,10 @@ async function loadSchedule(){
   try{
     var r=await db.from('it_assignments').select('*').gte('work_date',S.planFrom).lte('work_date',to).order('work_date');
     S.plan = r.error? [] : (r.data||[]);
-  }catch(e){ S.plan=[]; }
+    /* ใบงานขนส่งของกลุ่มคนขับรถ — ฐานรุ่นเก่ายังไม่มีตารางนี้ ให้เป็นลิสต์ว่างไปก่อน ไม่ต้องขึ้น error */
+    var rr=await db.from('it_runs').select('*').gte('work_date',S.planFrom).lte('work_date',to).order('work_date');
+    S.runs = rr.error? [] : (rr.data||[]);
+  }catch(e){ S.plan=[]; S.runs=[]; }
   renderSchedule();
 }
 
@@ -3812,6 +4281,8 @@ function renderSchedule(){
   syncPlanViewBtn(); syncPlanSec();
   var nClash=0, SM=seriesMap();
   var body=teams.map(function(t){
+    /* กลุ่มคนขับรถใช้การ์ดคนละแบบ — อ่านจากใบงานขนส่ง ไม่ใช่ใบงานของทีม */
+    if(isDriverTeam(t)) return planDriverRow(t, days, today);
     var L=leadInfo(t);
     /* รายชื่อในทีม — หัวหน้าขึ้นบรรทัดบนอยู่แล้ว บรรทัดนี้จึงเหลือเฉพาะลูกทีม
        แสดงครบทุกชื่อ ตัดบรรทัดเอง ไม่ย่อเป็น “+อีก n” ชี้เมาส์ดูเบอร์โทรเพิ่มได้ */
@@ -3868,12 +4339,14 @@ function renderSchedule(){
   if(planListMode()){
     wrap.innerHTML='<div class="agenda">'+days.map(function(d){
       var dt=new Date(d+'T00:00:00'), hd=isHoliday(d);
+      /* กลุ่มคนขับรถแยกไปแสดงเป็นใบงานขนส่งท้ายวัน ไม่ปนกับทีมทำงาน */
+      var aTeams=teams.filter(function(t){ return !isDriverTeam(t); });
       var jobs=S.plan.filter(function(a){
-        return a.work_date===d && teams.some(function(t){ return t.id===a.team_id; }); });
+        return a.work_date===d && aTeams.some(function(t){ return t.id===a.team_id; }); });
       var byTeam={}; jobs.forEach(function(a){ (byTeam[a.team_id]=byTeam[a.team_id]||[]).push(a); });
-      var freeTeams=teams.filter(function(t){ return !byTeam[t.id]; });
+      var freeTeams=aTeams.filter(function(t){ return !byTeam[t.id]; });
 
-      var items=teams.filter(function(t){ return byTeam[t.id]; }).map(function(t){
+      var items=aTeams.filter(function(t){ return byTeam[t.id]; }).map(function(t){
         var list=byTeam[t.id];
         var sset={}; list.forEach(function(a){ sset[a.site_id]=1; });
         var nSite=Object.keys(sset).length;
@@ -3902,6 +4375,14 @@ function renderSchedule(){
             : (jobs.length? jobs.length+' งาน' : 'ยังไม่มีงาน')+
               (freeTeams.length? '<br>ว่าง '+freeTeams.length+' ทีม' : '<br>ทีมเต็ม'))+'</div></div>'+
         '<div class="ab">'+(items||'<div class="aempty">วันนี้ยังไม่ได้มอบหมายงานให้ทีมไหน</div>')+
+          runsOn(d).map(function(r){
+            var v=vehOf(r.vehicle_id), tn=(r.deliver_teams||[]).map(function(x){ return teamOf(x).code||''; }).filter(Boolean);
+            return '<button class="ajob" data-run="'+r.id+'" style="border-left-color:var(--accent)">'+
+              '<span class="at">🚚 '+esc(v.code||'—')+'</span><b>'+
+              (tn.length? 'ส่งให้ '+esc(tn.join(', ')) : 'ใบงานขนส่ง')+'</b>'+
+              '<span class="sc">'+esc(r.driver_name||'ยังไม่ระบุคนขับ')+
+                (r.route_km!=null? (' · '+kmTxt(+r.route_km)+(r.route_src==='line'?'*':'')) : '')+'</span></button>';
+          }).join('')+
           (freeTeams.length? '<div class="afree">ทีมว่าง '+
              freeTeams.map(function(t){ return '<button class="ac" data-add="'+t.id+'|'+d+'">+ '+esc(t.code)+'</button>'; }).join('')+
            '</div>' : '')+
@@ -3927,13 +4408,19 @@ function renderSchedule(){
             '</span></span></td>'+
         days.map(function(d){
           var q=vehQueue(v.id, d);
+          var rn=runOf(v.id, d);
           var nFree=(S.plan||[]).filter(function(a){ return a.work_date===d && !a.vehicle_id; }).length;
-          if(!q.length) return '<td class="pcell" data-vq="'+v.id+'|'+d+'">'+
+          if(!q.length && !rn) return '<td class="pcell" data-vq="'+v.id+'|'+d+'">'+
             (nFree? '<div class="padd">+</div>' : '')+'</td>';
           var sp=vehSpan(q, v);
+          /* มีใบงานขนส่งแล้วให้ใช้ระยะถนนจริงจากใบนั้น ไม่งั้นค่อยถอยไปใช้เส้นตรงของคิว */
+          var kmLine = (rn && rn.route_km!=null)
+            ? (kmTxt(+rn.route_km)+(rn.route_src==='line'?'*':'')+(rn.route_min? (' · '+minTxt(+rn.route_min)) : ''))
+            : (sp.km? (sp.km+' กม.'+(sp.noHome?'*':'')) : '');
+          var who=(rn&&rn.driver_name)||(q.length&&q[0].driver_name)||'';
           return '<td class="pcell'+(sp.far?' clash':'')+'" data-vq="'+v.id+'|'+d+'">'+
-            '<div class="vq-h">'+(q.length+' คิว'+(sp.km? (' · '+sp.km+' กม.'+(sp.noHome?'*':'')) : ''))+
-              (q[0].driver_name?' · '+esc(q[0].driver_name):'')+
+            '<div class="vq-h">'+(q.length? (q.length+' คิว') : 'ใบขนส่ง')+(kmLine? (' · '+kmLine) : '')+
+              (who?' · '+esc(who):'')+
               (sp.far?' <b style="color:#c26c00">ไกลผิดปกติ</b>':'')+'</div>'+
             q.map(function(a){ var si=siteOf(a.site_id), t=teamOf(a.team_id), st=astOf(a);
               return '<div class="vq" style="background:'+vt.bg+';border-color:'+vt.line+'">'+
@@ -4035,6 +4522,12 @@ function renderSchedule(){
   });
   wrap.querySelectorAll('[data-add]').forEach(function(td){
     td.onclick=function(){ var v=td.dataset.add.split('|'); quickAssign(v[0], v[1]); };
+  });
+  wrap.querySelectorAll('[data-run]').forEach(function(el){
+    el.onclick=function(e){ e.stopPropagation(); runForm({runId:el.dataset.run}); };
+  });
+  wrap.querySelectorAll('[data-runadd]').forEach(function(td){
+    td.onclick=function(){ runForm({date:td.dataset.runadd}); };
   });
 
   /* ── ลากย้ายงาน (กด Shift หรือ Ctrl ค้าง) — แอดมินขึ้นไป ── */
@@ -4396,7 +4889,9 @@ function printSheet(){
 
 /* ═════ พิมพ์ตารางแผนงาน ═════ */
 function printSchedule(opt){
-  var d=scheduleData(), days=d.days, teams=d.teams, today=todayISO();
+  var d=scheduleData(), days=d.days, today=todayISO();
+  /* กลุ่มคนขับรถไม่ขึ้นในตารางทีม เพราะงานของเขาอยู่ในส่วนคิวรถที่พิมพ์ต่อท้ายอยู่แล้ว */
+  var teams=d.teams.filter(function(t){ return !isDriverTeam(t); });
   if(!teams.length) return toast('ไม่มีทีมให้พิมพ์');
 
   var SM=seriesMap();
@@ -4866,6 +5361,8 @@ function nextSiteCode(){
    ใส่มาเมื่อเปิดจากหน้าคิวรถ — บันทึกเสร็จจะผูกใบงานเข้าคิวรถคันนั้นแล้วพากลับไปหน้าเดิม */
 function quickAssign(teamId, date, opt){
   var t=teamOf(teamId);
+  /* กลุ่มคนขับรถใช้ฟอร์มใบงานขนส่ง ไม่ใช่ฟอร์มมอบหมายงานทีม */
+  if(isDriverTeam(t)) return runForm({date:date});
   var store={keys:[], extra:[]};
   var lbl=function(){ setPickBtn('q_scope', store); };
   var dt=new Date(date+'T00:00:00');
@@ -4917,7 +5414,7 @@ function quickAssign(teamId, date, opt){
       : '<button class="btn sm" id="q_save">มอบหมาย</button>'));
   lbl();
   if($('q_back')) $('q_back').onclick=function(){ closeSheet(); setTimeout(function(){ opt.back(); }, 180); };
-  $('q_scope').onclick=function(){ scopePicker(store, lbl); };
+  $('q_scope').onclick=function(){ scopePicker(store, lbl, teamKind(t)); };
 
   /* ขอบเขตงานรายวัน — ว่างไว้ = ใช้ชุดหลัก */
   var dayScope={};
@@ -6934,6 +7431,11 @@ function teamForm(id){
   sheet(id?'แก้ไขทีม':'เพิ่มทีม',
     '<div class="row"><div class="fld"><label>รหัสทีม</label><input id="g_code" value="'+esc(t.code||'')+'" placeholder="T04"></div>'+
     '<div class="fld"><label>ชื่อทีม</label><input id="g_name" value="'+esc(t.name||'')+'"></div></div>'+
+    '<div class="fld"><label>ชนิดของทีม</label><select id="g_kind">'+
+      '<option value="work"'+(teamKind(t)==='work'?' selected':'')+'>ทีมทำงาน — รับใบงานตามไซต์ (ติดตั้ง / QA)</option>'+
+      '<option value="driver"'+(teamKind(t)==='driver'?' selected':'')+'>กลุ่มคนขับรถ — รับใบงานขนส่ง มีเส้นทางและระยะทาง</option>'+
+    '</select><p style="font-size:11px;color:var(--text3);margin-top:5px;line-height:1.6">'+
+      'กลุ่มคนขับรถจะใช้ฟอร์มคนละแบบ คือเลือกทะเบียนรถ ทีมที่ไปส่ง และจุดแวะ แทนการเลือกไซต์กับขอบเขตงาน</p></div>'+
     leadField+
     '<label style="font-size:13px;display:flex;align-items:center;gap:8px;margin-top:10px">'+
       '<input type="checkbox" id="g_act"'+(t.active!==false?' checked':'')+'> เปิดใช้งานทีมนี้</label>'+
@@ -6993,6 +7495,7 @@ function teamForm(id){
 
   $('g_save').onclick=async function(){
     var p={code:$('g_code').value.trim().toUpperCase(), name:$('g_name').value.trim(), active:$('g_act').checked};
+    if($('g_kind')) p.kind=$('g_kind').value;
     if(!p.code||!p.name) return toast('ต้องมีรหัสทีมและชื่อทีม');
     if(!id) p.pin='-';
     this.disabled=true;
@@ -7054,8 +7557,10 @@ function setPickBtn(id, store){
 }
 function scopeBtnRefresh(){ setPickBtn('asgScopeBtn', asgScope); }
 
-function scopePicker(store, done){
+/* kind = ชนิดของทีมที่กำลังจ่ายงานให้ — หัวข้อของคนขับกับของทีมทำงานไม่ปนกัน */
+function scopePicker(store, done, kind){
   store=store||asgScope;
+  kind=kind||'work';
   var nested = $('sheet').classList.contains('open');
   var put   = nested? sheet2 : sheet;
   var shut  = nested? closeSheet2 : closeSheet;
@@ -7064,7 +7569,7 @@ function scopePicker(store, done){
     '<p style="font-size:12px;color:var(--text2);line-height:1.6;margin-bottom:12px">'+
       'ติ๊กได้หลายอย่าง เช็กลิสต์ของทีมจะสร้างตามงานที่เลือก และจะไม่ซ้ำกันแม้งานคนละอย่างจะมีขั้นตอนเดียวกัน</p>'+
     (function(){
-      var lib=workLib(), cats=[], byCat={};
+      var lib=workLib().filter(function(x){ return (x.tk||'work')===kind; }), cats=[], byCat={};
       lib.forEach(function(x){ if(!byCat[x.cat]){ byCat[x.cat]=[]; cats.push(x.cat); } byCat[x.cat].push(x); });
       return '<div id="scBox">'+cats.map(function(c){
         return '<div class="sec-h" style="margin:14px 0 7px">'+esc(c)+'</div><div class="opts">'+
