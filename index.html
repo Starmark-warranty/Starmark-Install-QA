@@ -132,6 +132,45 @@ button,input,select,textarea{font-family:inherit;color:inherit}
 .cb-none{padding:14px 10px;font-size:12.5px;color:var(--text3);line-height:1.6;text-align:center}
 .cb-foot{font-size:10.5px;color:var(--text3);padding:6px 9px 2px;border-top:1px solid var(--border);
   margin-top:5px;flex:0 0 auto}
+
+/* ── ช่องวันที่ของเราเอง ──
+   <input type="date"> โชว์รูปแบบตามภาษาของเบราว์เซอร์ (ฝรั่งเป็น ด/ว/ป) สั่งจากหน้าเว็บไม่ได้
+   จึงซ่อนตัวจริงไว้แล้วโชว์ปุ่ม ว/ด/ป กับปฏิทินไทยของเราเองแทน */
+.dp{position:relative;display:block;width:100%}
+.dp>input.dp-real{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none;left:-9999px}
+.dp-btn{width:100%;background:#fff;border:1px solid var(--border2);border-radius:10px;
+  padding:11px 34px 11px 13px;font-size:14px;font-family:inherit;color:var(--text);text-align:left;
+  cursor:pointer;outline:none;transition:.15s;position:relative;display:block;line-height:1.35;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dp-btn:after{content:'📅';position:absolute;right:10px;top:50%;transform:translateY(-50%);
+  font-size:13px;opacity:.55}
+.dp-btn:focus,.dp.on>.dp-btn{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-glow)}
+.dp-btn.ph{color:var(--text3)}
+.dp.tin>.dp-btn{padding:6px 26px 6px 9px;font-size:12px;border-radius:8px;height:28px}
+.dp.tin>.dp-btn:after{right:7px;font-size:11px}
+.dp-pan{position:fixed;z-index:9000;background:#fff;border:1px solid var(--border2);border-radius:14px;
+  box-shadow:0 14px 40px rgba(0,0,0,.18);padding:11px;display:none;width:280px}
+.dp-pan.on{display:block}
+.dp-h{display:flex;align-items:center;gap:4px;margin-bottom:8px}
+.dp-ttl{flex:1;text-align:center;font-size:13.5px;font-weight:700;color:var(--text);
+  background:none;border:none;font-family:inherit;padding:6px 0}
+.dp-nav{width:28px;height:28px;flex:0 0 28px;border:1px solid var(--border);background:var(--s1);
+  border-radius:8px;cursor:pointer;font-size:13px;color:var(--text2);font-family:inherit;padding:0;line-height:1}
+.dp-nav:hover{background:var(--accent-glow);border-color:var(--accent);color:var(--accent)}
+.dp-w,.dp-g{display:grid;grid-template-columns:repeat(7,1fr);gap:2px}
+.dp-w span{text-align:center;font-size:10px;font-weight:700;color:var(--text3);padding:4px 0}
+.dp-d{height:32px;display:flex;align-items:center;justify-content:center;border-radius:8px;
+  font-size:12.5px;color:var(--text);cursor:pointer;border:1px solid transparent;user-select:none}
+.dp-d:hover{background:var(--accent-glow)}
+.dp-d.out{color:var(--text3);opacity:.45}
+.dp-d.sun{color:#c9251c}
+.dp-d.now{border-color:var(--accent);font-weight:700}
+.dp-d.sel{background:var(--accent);color:#fff;font-weight:700;border-color:var(--accent)}
+.dp-d.off{opacity:.25;cursor:not-allowed;text-decoration:line-through}
+.dp-f{display:flex;gap:6px;margin-top:9px;border-top:1px solid var(--border);padding-top:9px}
+.dp-f button{flex:1;background:var(--s1);border:1px solid var(--border);border-radius:9px;padding:8px;
+  font-size:12px;font-family:inherit;color:var(--text2);cursor:pointer}
+.dp-f button:hover{background:var(--accent-glow);border-color:var(--accent);color:var(--accent)}
 .btn{width:100%;background:var(--accent);color:#fff;border:none;border-radius:11px;padding:13px;font-size:14px;
   font-weight:600;cursor:pointer;transition:.15s;box-shadow:0 3px 10px rgba(0,122,255,.24)}
 .btn:hover{background:var(--accent2)}
@@ -703,7 +742,7 @@ body.preview #previewBar{display:flex}
 
 <script>
 /* ── ยามเฝ้า splash: อยู่นอกสคริปต์หลัก ถ้าสคริปต์หลักพัง ตัวนี้ยังทำงาน ── */
-window.APP_VER='18.7';
+window.APP_VER='18.8';
 (function(){
   var fill=function(){
     var a=document.querySelectorAll('.ver');
@@ -1360,6 +1399,131 @@ function cbWire(sel, ph){
   sel._cbSync=label;
   label();
 }
+/* ── ช่องวันที่แบบ ว/ด/ป ไทย ──
+   <input type="date"> โชว์ตามภาษาของเบราว์เซอร์ เครื่องที่ตั้งเป็นอังกฤษจะได้ ด/ว/ป (10/05 = 5 ต.ค.)
+   อ่านผิดเป็นคนละเดือนได้ง่ายมาก และหน้าเว็บสั่งรูปแบบของมันไม่ได้เลย
+   จึงซ่อนตัวจริงไว้ (ยังอยู่ใน DOM โค้ดเดิมที่อ่าน .value ใช้ได้เหมือนเดิม) แล้วโชว์ปฏิทินของเราเองแทน */
+function dpFmt(iso){
+  if(!iso) return '';
+  var p=String(iso).split('-');
+  if(p.length<3) return '';
+  return p[2]+'/'+p[1]+'/'+(parseInt(p[0],10)+543);
+}
+function dpWire(inp){
+  if(!inp || inp._dp) return;
+  if(inp.getAttribute('data-nodp')!=null) return;
+  inp._dp=1;
+  var wrap=document.createElement('div');
+  wrap.className='dp'+(/\btin\b/.test(inp.className)?' tin':'');
+  inp.parentNode.insertBefore(wrap, inp);
+  wrap.appendChild(inp);
+  inp.classList.add('dp-real');
+  var btn=document.createElement('button'); btn.type='button'; btn.className='dp-btn';
+  var pan=document.createElement('div'); pan.className='dp-pan';
+  wrap.appendChild(btn);
+  document.body.appendChild(pan);
+  _cbPans.push({wrap:wrap, pan:pan});
+  var view={y:0,m:0};
+
+  var label=function(){
+    var v=inp.value;
+    btn.textContent = v? dpFmt(v) : 'วว/ดด/ปปปป';
+    btn.className='dp-btn'+(v?'':' ph')+'';
+    btn.title = v? (dayText(v)+' '+(parseInt(v.slice(0,4),10)+543)) : 'ยังไม่ได้เลือกวันที่';
+  };
+  var fire=function(){
+    label();
+    try{
+      inp.dispatchEvent(new Event('input',{bubbles:true}));
+      inp.dispatchEvent(new Event('change',{bubbles:true}));
+    }catch(e){
+      /* เบราว์เซอร์เก่าไม่มี new Event() — เรียกตัวจัดการตรง ๆ แทน */
+      if(typeof inp.oninput==='function') inp.oninput({target:inp});
+      if(typeof inp.onchange==='function') inp.onchange({target:inp});
+    }
+  };
+  var iso=function(y,m,d){
+    return y+'-'+('0'+(m+1)).slice(-2)+'-'+('0'+d).slice(-2);
+  };
+  var paint=function(){
+    var cur=inp.value, tdy=todayISO();
+    var mn=inp.getAttribute('min')||'', mx=inp.getAttribute('max')||'';
+    var y=view.y, m=view.m;
+    var start=new Date(y, m, 1).getDay();
+    var nd=new Date(y, m+1, 0).getDate();
+    var pd=new Date(y, m, 0).getDate();
+    var cells='';
+    for(var i=0;i<42;i++){
+      var dy, yy=y, mm=m, out=false;
+      if(i<start){ dy=pd-start+1+i; mm=m-1; out=true; if(mm<0){ mm=11; yy=y-1; } }
+      else if(i-start < nd){ dy=i-start+1; }
+      else { dy=i-start-nd+1; mm=m+1; out=true; if(mm>11){ mm=0; yy=y+1; } }
+      var v=iso(yy,mm,dy);
+      var bad=(mn&&v<mn)||(mx&&v>mx);
+      cells+='<div class="dp-d'+(out?' out':'')+((i%7)===0?' sun':'')+
+        (v===tdy?' now':'')+(v===cur?' sel':'')+(bad?' off':'')+'" '+
+        (bad?'':'data-d="'+v+'"')+'>'+dy+'</div>';
+    }
+    pan.innerHTML='<div class="dp-h">'+
+        '<button type="button" class="dp-nav" data-mv="-12" title="ปีก่อน">«</button>'+
+        '<button type="button" class="dp-nav" data-mv="-1" title="เดือนก่อน">‹</button>'+
+        '<span class="dp-ttl">'+MO_TH_F[m]+' '+(y+543)+'</span>'+
+        '<button type="button" class="dp-nav" data-mv="1" title="เดือนถัดไป">›</button>'+
+        '<button type="button" class="dp-nav" data-mv="12" title="ปีถัดไป">»</button>'+
+      '</div>'+
+      '<div class="dp-w">'+DW_TH.map(function(x){ return '<span>'+x+'</span>'; }).join('')+'</div>'+
+      '<div class="dp-g">'+cells+'</div>'+
+      '<div class="dp-f"><button type="button" data-go="today">วันนี้ '+dpFmt(tdy)+'</button>'+
+        '<button type="button" data-go="clear">ล้างวันที่</button></div>';
+    pan.querySelectorAll('[data-mv]').forEach(function(b){
+      b.onclick=function(e){
+        e.preventDefault(); e.stopPropagation();
+        var n=+b.dataset.mv, t=new Date(view.y, view.m+n, 1);
+        view={y:t.getFullYear(), m:t.getMonth()}; paint();
+      };
+    });
+    pan.querySelectorAll('[data-d]').forEach(function(c){
+      c.onclick=function(e){
+        e.preventDefault(); e.stopPropagation();
+        inp.value=c.dataset.d; cbShut(); fire();
+      };
+    });
+    pan.querySelectorAll('[data-go]').forEach(function(b){
+      b.onclick=function(e){
+        e.preventDefault(); e.stopPropagation();
+        if(b.dataset.go==='today'){
+          var mn2=inp.getAttribute('min')||'', mx2=inp.getAttribute('max')||'', t2=todayISO();
+          if((mn2&&t2<mn2)||(mx2&&t2>mx2)) return;
+          inp.value=t2;
+        } else inp.value='';
+        cbShut(); fire();
+      };
+    });
+  };
+  var place=function(){
+    var r=btn.getBoundingClientRect();
+    var vh=window.innerHeight||600, vw=window.innerWidth||800;
+    var h=pan.offsetHeight||330;
+    pan.style.left=Math.max(8, Math.min(r.left, vw-288))+'px';
+    if(vh-r.bottom-10>=h || vh-r.bottom-10>=r.top-10){ pan.style.top=(r.bottom+5)+'px'; pan.style.bottom='auto'; }
+    else { pan.style.bottom=(vh-r.top+5)+'px'; pan.style.top='auto'; }
+  };
+  btn.onclick=function(e){
+    e.preventDefault(); e.stopPropagation();
+    if(_cbOpen && _cbOpen.pan===pan) return cbShut();
+    if(_cbOpen) cbShut();
+    var base=inp.value||todayISO(), bd=new Date(base+'T00:00:00');
+    view={y:bd.getFullYear(), m:bd.getMonth()};
+    paint();
+    wrap.classList.add('on'); pan.classList.add('on');
+    _cbOpen={wrap:wrap, pan:pan, place:place};
+    place();
+  };
+  pan.onmousedown=function(e){ e.stopPropagation(); };
+  inp._cbSync=label;
+  label();
+}
+
 /* เก็บแผงที่ลอยค้างอยู่ — กล่องเด้งเขียน innerHTML ใหม่ทีไร ปุ่มกับ select เดิมหายไป
    แต่แผงอยู่ที่ body จึงไม่หายตามไปด้วย ถ้าไม่เก็บจะค้างสะสมไปเรื่อย ๆ */
 function cbSweep(){
@@ -1382,11 +1546,14 @@ function cbAll(root){
     if(s.options.length < 6) continue;   /* รายการสั้น ๆ กดเลือกเลยเร็วกว่า ไม่ต้องมีช่องค้นหา */
     cbWire(s);
   }
+  /* ช่องวันที่ทุกช่องใช้ปฏิทินไทยของเราเอง จะได้เป็น ว/ด/ป เหมือนกันหมดทุกเครื่อง */
+  var ds=(root||document).querySelectorAll('input[type=date]');
+  for(var j=0;j<ds.length;j++) dpWire(ds[j]);
 }
 /* ป้ายหน้าปุ่มของทุกตัวในหน้า ให้ตรงกับค่าที่โค้ดอื่นเพิ่งตั้งไว้ */
 function cbSync(root){
-  var sels=(root||document).querySelectorAll('select.cb-real');
-  for(var i=0;i<sels.length;i++) if(sels[i]._cbSync) sels[i]._cbSync();
+  var es=(root||document).querySelectorAll('select.cb-real, input.dp-real');
+  for(var i=0;i<es.length;i++) if(es[i]._cbSync) es[i]._cbSync();
 }
 document.addEventListener('mousedown', function(e){
   if(!_cbOpen) return;
@@ -2180,7 +2347,7 @@ async function importOct69(){
 
     /* เปิดหน้าแผนงานไปที่ 1 ต.ค. ให้เห็นเลย */
     S.planFrom='2026-10-01';
-    if($('pnFrom')) $('pnFrom').value='2026-10-01';
+    if($('pnFrom')){ $('pnFrom').value='2026-10-01'; cbSync(); }
     await loadMgr();
     var tab=document.querySelector('#mgr .tab[data-p="pn"]');
     if(tab) tab.click();
@@ -4652,7 +4819,7 @@ function goDash(){
   $('testbar').classList.remove('on');
   $('mgrWho').innerHTML=esc(meName())+' · '+esc(ROLES[S.me.role]||'');
   applyRoleUI();
-  if(!$('dtPick').value){ $('dtPick').value=S.date; $('asgDate').value=S.date; S.planFrom=todayISO(); }
+  if(!$('dtPick').value){ $('dtPick').value=S.date; $('asgDate').value=S.date; S.planFrom=todayISO(); cbSync(); }
   loadMgr(); mobileHint();
 }
 
@@ -4747,6 +4914,7 @@ function startMgr(){
   S.planFrom=todayISO();
   try{ var pd=parseInt(localStorage.getItem('it_pndays'),10); if(pd>0&&pd<=180) S.planDays=pd; }catch(e){}
   $('rpFrom').value=S.date; $('rpTo').value=S.date;
+  cbSync();
   scopeBtnRefresh();
   loadMgr(); subscribe(); helpFirstTime(); mobileHint();
 }
@@ -4805,7 +4973,7 @@ $('btnOut').onclick=logout;
 $('btnReload').onclick=function(){ loadMgr(); };
 $('btnDiag').onclick=function(){ diag(); };
 $('btnDb').onclick=function(){ dbPanel(); };
-$('btnToday').onclick=function(){ S.date=todayISO(); $('dtPick').value=S.date; loadMgr(); };
+$('btnToday').onclick=function(){ S.date=todayISO(); $('dtPick').value=S.date; cbSync(); loadMgr(); };
 $('dtPick').onchange=function(){ S.date=this.value||todayISO(); loadMgr(); };
 document.querySelectorAll('#mgr .tab').forEach(function(t){
   t.onclick=function(){
@@ -5494,6 +5662,8 @@ function renderIssues(){
 /* ═════ แผนงานล่วงหน้า: ทีมไหน วันไหน ไปที่ไหน ═════ */
 var DW_TH=['อา','จ','อ','พ','พฤ','ศ','ส'];
 var MO_TH=['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+var MO_TH_F=['มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน',
+             'กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'];
 
 async function loadSchedule(){
   if(!S.planFrom) S.planFrom=todayISO();
@@ -5777,7 +5947,7 @@ function syncPlanViewBtn(){
 function renderSchedule(){
   var wrap=$('pnWrap'); if(!wrap) return;
   if(!S.planFrom) S.planFrom=todayISO();
-  $('pnFrom').value=S.planFrom;
+  $('pnFrom').value=S.planFrom; cbSync($('pnFrom').parentNode);
   (function(){
     var opts=[7,14,30,45,60,90];
     if(opts.indexOf(S.planDays)<0) opts.push(S.planDays);
