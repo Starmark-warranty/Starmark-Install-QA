@@ -623,7 +623,7 @@ body.preview #previewBar{display:flex}
 
 <script>
 /* ── ยามเฝ้า splash: อยู่นอกสคริปต์หลัก ถ้าสคริปต์หลักพัง ตัวนี้ยังทำงาน ── */
-window.APP_VER='16.4';
+window.APP_VER='16.6';
 (function(){
   var fill=function(){
     var a=document.querySelectorAll('.ver');
@@ -2030,22 +2030,54 @@ function vehForm(id){
                            :'background:hsl('+h+',66%,92%);border-color:hsl('+h+',42%,80%)';
         return '<button type="button" class="huebx'+(on?' on':'')+'" data-hue="'+h+'" style="'+st+'">'+(h==='auto'?'อัตโนมัติ':'')+'</button>';
       }).join('')+'</div></div>'+
-    '<div class="fld"><label>จุดเริ่มต้นของรถคันนี้</label><select id="v_home">'+
+    (function(){
+      var pins=(S.pins||[]), hit=null;
+      pins.forEach(function(x){
+        if(v.home_lat!=null && Math.abs(+v.home_lat-+x.lat)<1e-6 && Math.abs(+v.home_lng-+x.lng)<1e-6) hit=x.id; });
+      var custom = (v.home_lat!=null && !hit);
+      return '<div class="fld"><label>จุดเริ่มต้นของรถคันนี้</label><select id="v_home">'+
       '<option value="">— ยังไม่ตั้ง · ระยะจะนับจากไซต์แรกเท่านั้น —</option>'+
-      (S.pins||[]).map(function(x){
-        var on=(v.home_lat!=null && Math.abs(+v.home_lat-+x.lat)<1e-6 && Math.abs(+v.home_lng-+x.lng)<1e-6);
-        return '<option value="'+x.id+'"'+(on?' selected':'')+'>\ud83d\udccd '+esc(x.label)+'</option>'; }).join('')+
+      '<option value="__"'+(custom?' selected':'')+'>ปักพิกัดเอง (แผนที่ / ตำแหน่งปัจจุบัน)</option>'+
+      pins.map(function(x){
+        return '<option value="'+x.id+'"'+(hit===x.id?' selected':'')+'>📍 '+esc(x.label)+'</option>'; }).join('')+
       '</select>'+
-      '<div style="font-size:10.5px;color:var(--text2);margin-top:5px;line-height:1.6">'+
-        'ระยะของวันจะเริ่มนับจากจุดนี้ไปไซต์แรก · '+
-        'เพิ่มจุดใหม่ได้ที่ Work &amp; Site → หมุดพิกัดประจำ'+
+      '<div id="v_homebox" style="display:'+(custom?'block':'none')+';margin-top:9px">'+
+        '<input id="v_hlabel" value="'+esc(custom? (v.home_label||'') : '')+'" placeholder="ชื่อจุดเริ่มต้น เช่น โรงงานบางนา">'+
+        '<div id="v_hmap" style="height:210px;margin-top:7px;border-radius:11px;overflow:hidden;border:1px solid var(--border2);background:var(--s3)"></div>'+
+        '<div class="row" style="margin-top:7px">'+
+          '<input id="v_hlat" value="'+(custom&&v.home_lat!=null? v.home_lat : '')+'" placeholder="Latitude">'+
+          '<input id="v_hlng" value="'+(custom&&v.home_lng!=null? v.home_lng : '')+'" placeholder="Longitude"></div>'+
+        '<div class="row" style="margin-top:7px">'+
+          '<button class="btn ghost sm" type="button" id="v_hhere">📍 ตำแหน่งฉันตอนนี้</button>'+
+          '<button class="btn ghost sm" type="button" id="v_hpaste">วางพิกัดจาก Google Maps</button></div>'+
+      '</div>'+
+      '<div style="font-size:10.5px;color:var(--text2);margin-top:6px;line-height:1.7">'+
+        'ระยะของวันจะเริ่มนับจากจุดนี้ไปไซต์แรก · เลือกหมุดที่มีอยู่ หรือปักเองก็ได้'+
         (v.home_label? ('<br>ตอนนี้: <b>'+esc(v.home_label)+'</b>') : '')+
-      '</div></div>'+
+      '</div></div>';
+    })()+
     f('หมายเหตุ','v_note',v.note,'')+
     '<label style="display:flex;gap:7px;align-items:center;font-size:12.5px;margin-top:4px">'+
       '<input type="checkbox" id="v_act"'+(v.active!==false?' checked':'')+'> เปิดใช้งานรถคันนี้</label>',
     '<div class="row">'+(id?'<button class="btn ghost sm" id="v_del" style="flex:0 0 90px">ลบ</button>':'')+
       '<button class="btn sm" id="v_save">บันทึก</button></div>');
+
+  /* กล่องปักพิกัดเอง — สร้างแผนที่ตอนเปิดกล่องครั้งแรก ไม่งั้น Leaflet วัดขนาดไม่ได้ */
+  var homeMapOn=false;
+  var homeMap=function(){
+    if(homeMapOn) return; homeMapOn=true;
+    mapPicker({map:'v_hmap', lat:'v_hlat', lng:'v_hlng', here:'v_hhere', paste:'v_hpaste'},
+      ($('v_hlat').value? parseFloat($('v_hlat').value) : null),
+      ($('v_hlng').value? parseFloat($('v_hlng').value) : null));
+  };
+  if($('v_home')){
+    if($('v_home').value==='__') homeMap();
+    $('v_home').onchange=function(){
+      var on=(this.value==='__');
+      $('v_homebox').style.display = on? 'block' : 'none';
+      if(on) homeMap();
+    };
+  }
 
   var hue = v.color_hue==null? null : +v.color_hue;
   document.querySelectorAll('#v_hues .huebx').forEach(function(b){
@@ -2063,10 +2095,19 @@ function vehForm(id){
       color_hue:hue, note:$('v_note').value.trim()||null, active:$('v_act').checked};
     /* จุดเริ่มต้น — เก็บพิกัดไว้กับรถ เผื่อหมุดถูกแก้หรือลบทีหลัง */
     if($('v_home')){
-      var hp=(S.pins||[]).filter(function(x){ return x.id===$('v_home').value; })[0];
-      p.home_label = hp? hp.label : null;
-      p.home_lat   = hp? hp.lat   : null;
-      p.home_lng   = hp? hp.lng   : null;
+      var hv=$('v_home').value;
+      if(hv==='__'){
+        var hla=parseFloat($('v_hlat').value), hln=parseFloat($('v_hlng').value);
+        if(isNaN(hla)||isNaN(hln)) return toast('ยังไม่ได้ปักพิกัดจุดเริ่มต้น — แตะบนแผนที่ หรือกดตำแหน่งฉันตอนนี้', 4200);
+        p.home_label = $('v_hlabel').value.trim() || 'จุดตั้งต้น';
+        p.home_lat   = hla;
+        p.home_lng   = hln;
+      }else{
+        var hp=(S.pins||[]).filter(function(x){ return x.id===hv; })[0];
+        p.home_label = hp? hp.label : null;
+        p.home_lat   = hp? hp.lat   : null;
+        p.home_lng   = hp? hp.lng   : null;
+      }
     }
     if(!p.code) return toast('ต้องมีเบอร์รถ');
     this.disabled=true;
@@ -2202,6 +2243,7 @@ async function vehQueueSheet(key){
   var free=(S.plan||[]).filter(function(a){ return a.work_date===d && !a.vehicle_id; })
     .sort(function(a,b){ return (siteOf(a.site_id).name||'')<(siteOf(b.site_id).name||'')?-1:1; });
   var sp=vehSpan(mine, v);
+  var nAll=(S.plan||[]).filter(function(a){ return a.work_date===d; }).length;
 
   var line=function(a,i){
     var si=siteOf(a.site_id), t=teamOf(a.team_id), gap='';
@@ -2226,7 +2268,8 @@ async function vehQueueSheet(key){
       (mine.length? ('<div style="margin-top:8px;padding:9px 11px;background:var(--s1);border:1px solid var(--border);'+
         'border-radius:10px;font-size:11px;line-height:1.85;color:var(--text2)">'+
         (sp.noHome
-          ? '<b style="color:#8a4b00">ยังไม่ได้ตั้งจุดเริ่มต้นของรถคันนี้</b> — ระยะที่เห็นนับจากไซต์แรกเท่านั้น ยังไม่รวมขาออก<br>ตั้งได้ที่ปุ่มแก้รายละเอียดรถ<br>'
+          ? '<b style="color:#8a4b00">ยังไม่ได้ตั้งจุดเริ่มต้นของรถคันนี้</b> — ระยะที่เห็นนับจากไซต์แรกเท่านั้น ยังไม่รวมขาออก'+
+            '<br><button class="btn ghost sm" type="button" id="vq_home" style="margin:6px 0 2px">ตั้งจุดเริ่มต้นของรถคันนี้</button><br>'
           : '')+
         sp.legs.map(function(l){
           return '<span style="color:'+(l.km>VEH_FAR_KM?'#c26c00':'var(--text2)')+'">'+
@@ -2249,7 +2292,7 @@ async function vehQueueSheet(key){
             (v.driver_name?' · คนขับประจำของคันนี้คือ '+esc(v.driver_name):'')+'</div>'+
           '<button class="btn ghost sm" id="vq_drvsave" style="margin-top:7px;width:100%">บันทึกคนขับ</button></div>'+
         mine.map(line).join('')
-      : '<div class="empty" style="padding:18px;font-size:12.5px">ยังไม่มีงานในคิวของรถคันนี้</div>')+
+      : (nAll? '<div class="empty" style="padding:18px;font-size:12.5px">ยังไม่มีงานในคิวของรถคันนี้</div>' : ''))+
     (function(){
       if(free.length)
         return '<div style="font-weight:700;font-size:12.5px;margin:16px 0 6px">งานวันนี้ที่ยังไม่ได้จัดรถ</div>'+
@@ -2258,20 +2301,24 @@ async function vehQueueSheet(key){
               '<span class="chip c-blue">+ เข้าคิว</span></div>'+
               '<div class="brow-s"><span class="tm">'+esc(t.code||'')+'</span><span>'+esc(a.scope||'—')+'</span></div></div>'; }).join('');
       /* คิวรถสร้างจากใบงานที่มีอยู่ ถ้าวันนั้นยังไม่มีใบงานเลย ก็ยังจัดคิวไม่ได้ */
-      var nAll=(S.plan||[]).filter(function(a){ return a.work_date===d; }).length;
       if(nAll)
         return '<div style="font-size:11.5px;color:var(--text3);margin-top:14px">'+
           'ใบงานของวันนี้ถูกจัดรถครบทุกใบแล้ว ('+nAll+' ใบ)</div>';
       var tms=(S.teams||[]).filter(function(t){ return t.active!==false; });
       return '<div style="background:var(--s1);border:1px solid var(--border);border-radius:12px;'+
           'padding:13px 14px;margin-top:14px;font-size:12px;line-height:1.75;color:var(--text2)">'+
-          '<b style="color:var(--text);font-size:13px">วันนี้ยังไม่มีใบงานสักใบ</b><br>'+
-          'คิวรถสร้างจากใบงาน — รถวิ่งไปส่งที่ไซต์ไหน ก็ต้องมีใบงานของไซต์นั้นก่อน<br>'+
-          '<span style="color:var(--text3)">มอบหมายงานให้ทีมก่อน แล้วกลับมากดช่องนี้อีกครั้ง งานจะขึ้นมาให้เลือกเข้าคิว</span>'+
-          (tms.length? ('<div style="display:flex;flex-wrap:wrap;gap:7px;margin-top:11px">'+
+          '<b style="color:var(--text);font-size:13px">'+esc(dayText(d))+' ยังไม่มีใบงานสักใบ</b><br>'+
+          'คิวรถ คือการเลือกว่า<b style="color:var(--text)">รถคันนี้ไปส่งงานที่ไซต์ไหนบ้าง</b> '+
+          'จึงต้องมีใบงานของวันนั้นก่อน ถึงจะหยิบเข้าคิวได้'+
+          (tms.length? ('<div style="margin-top:12px;padding-top:11px;border-top:1px dashed var(--border2)">'+
+            '<div style="font-size:12px;font-weight:700;color:var(--text);margin-bottom:2px">สร้างใบงานจากตรงนี้เลยก็ได้</div>'+
+            '<div style="font-size:11px;color:var(--text3);line-height:1.7;margin-bottom:9px">'+
+              'ใบงานทุกใบต้องมีเจ้าของ เลือกก่อนว่าเป็นงานของทีมไหน แล้วกรอกไซต์กับขอบเขตงาน<br>'+
+              'พอกดบันทึก ระบบจะ<b style="color:var(--text2)">ใส่ใบงานนั้นเข้าคิวรถ '+esc(v.code||'คันนี้')+' ให้เอง</b> แล้วพากลับมาหน้านี้</div>'+
+            '<div style="display:flex;flex-wrap:wrap;gap:7px">'+
             tms.slice(0,8).map(function(t){
               return '<button class="btn ghost sm" data-vqadd="'+t.id+'" style="width:auto;flex:0 0 auto;padding:8px 12px">'+
-                '＋ มอบหมายงาน '+esc(teamLabel(t))+'</button>'; }).join('')+'</div>') : '')+
+                '＋ ใบงานของ '+esc(teamLabel(t))+'</button>'; }).join('')+'</div></div>') : '')+
         '</div>';
     })(),
     '');
@@ -2288,6 +2335,7 @@ async function vehQueueSheet(key){
     var arr=mine.slice(); var tmp=arr[i]; arr[i]=arr[j]; arr[j]=tmp;
     save(arr.map(function(a,k){ return {id:a.id, vid:vid, seq:k+1}; }));
   };
+  if($('vq_home')) $('vq_home').onclick=function(){ closeSheet(); vehForm(vid); };
   if($('vq_drv')) $('vq_drv').onchange=function(){
     var st=staffOf(this.value); if(st) $('vq_drvn').value = st.name || st.emp_code || '';
   };
@@ -2301,7 +2349,10 @@ async function vehQueueSheet(key){
     closeSheet(); toast('บันทึกคนขับ '+dn+' ให้ '+mine.length+' จุดแล้ว', 3400); loadMgr();
   };
   document.querySelectorAll('[data-vqadd]').forEach(function(b){
-    b.onclick=function(){ quickAssign(b.dataset.vqadd, d); };   /* ไปมอบหมายงานของวันนั้นก่อน */
+    /* สร้างใบงานของวันนั้นก่อน แล้วผูกเข้าคิวรถคันนี้ให้เลย จากนั้นพากลับมาหน้าคิวรถ
+       ไม่งั้นกล่องจะกลายร่างเป็นอีกหน้าหนึ่งเฉย ๆ คนกดจะงงว่าหลุดไปไหน */
+    b.onclick=function(){ quickAssign(b.dataset.vqadd, d,
+      {vehicleId:vid, vehDate:d, vehCode:(v.code||''), back:function(){ vehQueueSheet(key); }}); };
   });
   document.querySelectorAll('[data-up]').forEach(function(b){ b.onclick=function(){ reorder(b.dataset.up,-1); }; });
   document.querySelectorAll('[data-dn]').forEach(function(b){ b.onclick=function(){ reorder(b.dataset.dn, 1); }; });
@@ -3763,10 +3814,10 @@ function renderSchedule(){
   var body=teams.map(function(t){
     var L=leadInfo(t);
     /* รายชื่อในทีม — หัวหน้าขึ้นบรรทัดบนอยู่แล้ว บรรทัดนี้จึงเหลือเฉพาะลูกทีม
-       จอแคบเห็นได้ 3 ชื่อ ที่เหลือนับเป็นตัวเลข ชี้เมาส์ดูรายชื่อเต็มพร้อมเบอร์ */
+       แสดงครบทุกชื่อ ตัดบรรทัดเอง ไม่ย่อเป็น “+อีก n” ชี้เมาส์ดูเบอร์โทรเพิ่มได้ */
     var mem=teamStaff(t.id);
     var crew=mem.filter(function(x){ return !x.is_leader; }).map(function(x){ return x.name||x.emp_code; });
-    var crewTxt=crew.slice(0,3).join(', ')+(crew.length>3? (' +อีก '+(crew.length-3)) : '');
+    var crewTxt=crew.join(', ');
     var tip=mem.length
       ? (teamLabel(t)+' — '+mem.length+' คน\n'+mem.map(function(x){
           return '• '+(x.name||x.emp_code)+(x.is_leader?' (หัวหน้าทีม)':'')+(x.phone?('  '+x.phone):''); }).join('\n'))
@@ -4811,12 +4862,14 @@ function nextSiteCode(){
   return mx? (pre+(mx+1)) : (pre+'0001');
 }
 
-function quickAssign(teamId, date){
+/* opt (ไม่ใส่ก็ได้) = {vehicleId, vehDate, vehCode, back}
+   ใส่มาเมื่อเปิดจากหน้าคิวรถ — บันทึกเสร็จจะผูกใบงานเข้าคิวรถคันนั้นแล้วพากลับไปหน้าเดิม */
+function quickAssign(teamId, date, opt){
   var t=teamOf(teamId);
   var store={keys:[], extra:[]};
   var lbl=function(){ setPickBtn('q_scope', store); };
   var dt=new Date(date+'T00:00:00');
-  sheet('มอบหมายงานให้ทีม',
+  sheet(opt&&opt.vehCode? ('สร้างใบงาน แล้วเข้าคิวรถ '+opt.vehCode) : 'มอบหมายงานให้ทีม',
     '<div style="background:var(--s1);border:1px solid var(--border);border-radius:11px;padding:11px 13px;margin-bottom:14px;font-size:13px;line-height:1.7">'+
       '<b>'+esc(t.name||'—')+'</b>'+
       (String(t.name||'').indexOf(String(t.code||''))<0 ? ' <span style="color:var(--text3)">'+esc(t.code||'')+'</span>' : '')+
@@ -4852,10 +4905,18 @@ function quickAssign(teamId, date){
       '<div class="row"><select id="q_days">'+
         [1,2,3,4,5,6,7,8,9,10,12,14].map(function(n){ return '<option value="'+n+'">'+n+' วัน</option>'; }).join('')+
       '</select>'+
-      '<label class="lg-rem" style="margin:0;flex:1.4"><input type="checkbox" id="q_skipsun" checked> ข้ามวันอาทิตย์และวันหยุด</label></div></div>'+
+      '<label class="lg-rem" style="margin:0;flex:1.4"><input type="checkbox" id="q_skipsun"'+
+        /* เปิดมาจากคิวรถของวันหยุด — ถ้ายังข้ามวันหยุดอยู่ ใบงานจะเด้งไปวันถัดไป
+           แล้วคิวรถของวันที่กดมาก็ยังว่างเหมือนเดิม จึงปลดติ๊กให้ตั้งแต่แรก */
+        ((opt&&opt.vehDate&&isOff(date))?'':' checked')+'> ข้ามวันอาทิตย์และวันหยุด</label></div>'+
+      '<div id="q_shift" style="margin-top:6px"></div></div>'+
     '<div id="q_daylist"></div>',
-    '<button class="btn sm" id="q_save">มอบหมาย</button>');
+    (opt&&opt.back
+      ? '<div class="row"><button class="btn ghost sm" id="q_back" style="flex:0 0 118px">← คิวรถ</button>'+
+        '<button class="btn sm" id="q_save">บันทึก แล้วเข้าคิวรถ</button></div>'
+      : '<button class="btn sm" id="q_save">มอบหมาย</button>'));
   lbl();
+  if($('q_back')) $('q_back').onclick=function(){ closeSheet(); setTimeout(function(){ opt.back(); }, 180); };
   $('q_scope').onclick=function(){ scopePicker(store, lbl); };
 
   /* ขอบเขตงานรายวัน — ว่างไว้ = ใช้ชุดหลัก */
@@ -4864,6 +4925,16 @@ function quickAssign(teamId, date){
 
   var drawDays=function(){
     var ds=dates(), multi=ds.length>1;
+    /* กดช่องวันหยุดมา แต่ยังติ๊กข้ามวันหยุดไว้ — ใบงานจะไม่ได้ลงวันที่กดมา บอกให้เห็นชัด ๆ */
+    if($('q_shift')){
+      var shifted = ds.length && ds[0]!==date;
+      $('q_shift').innerHTML = shifted
+        ? '<div style="background:var(--orange-dim);border:1px solid rgba(255,149,0,.32);border-radius:9px;'+
+          'padding:7px 10px;font-size:11px;line-height:1.65;color:#8a4b00">'+
+          '<b>'+esc(dayText(date))+' เป็นวันหยุด</b> — ติ๊ก “ข้ามวันอาทิตย์และวันหยุด” ไว้ '+
+          'ใบงานจะไปเริ่ม<b>'+esc(dayText(ds[0]))+'</b>แทน ถ้าต้องการลงวันหยุดจริง ๆ ให้ปลดติ๊กออก</div>'
+        : '';
+    }
     $('q_scopelabel').textContent = multi? 'ขอบเขตงานหลัก — ใช้กับทุกวันที่ไม่ได้กำหนดเอง' : 'ขอบเขตงาน — เข้าไปทำอะไรบ้าง';
     if(!multi){ $('q_daylist').innerHTML=''; return; }
     $('q_daylist').innerHTML='<div class="sec-h" style="margin:4px 0 7px">แผนรายวัน '+ds.length+' วัน</div>'+
@@ -4948,12 +5019,31 @@ function quickAssign(teamId, date){
       return {site_id:siteId, team_id:teamId, work_date:d, scope:sc,
               checklist:scopeChecklist(st.keys, st.extra)};
     });
-    var r=await db.from('it_assignments').upsert(rows, {onConflict:'site_id,team_id,work_date'});
+    var r=await db.from('it_assignments').upsert(rows, {onConflict:'site_id,team_id,work_date'}).select();
     if(r.error){ toast('มอบหมายไม่สำเร็จ: '+r.error.message,4000); this.disabled=false; return; }
+    /* เปิดมาจากหน้าคิวรถ — ใส่ใบงานของวันนั้นเข้าคิวรถคันนั้นให้เลย จะได้ไม่ต้องกลับไปกดเองอีกรอบ */
+    var vmsg='';
+    if(opt && opt.vehicleId){
+      var vd=opt.vehDate||date;
+      var base=vehQueue(opt.vehicleId, vd).length;
+      var pick=(r.data||[]).filter(function(x){ return x.work_date===vd; });
+      for(var vi=0; vi<pick.length; vi++){
+        var vr=await db.from('it_assignments')
+          .update({vehicle_id:opt.vehicleId, vehicle_seq:base+vi+1}).eq('id',pick[vi].id);
+        if(vr.error){ toast('สร้างใบงานแล้ว แต่ใส่เข้าคิวรถไม่สำเร็จ: '+vr.error.message+
+                            ' · ไปหยิบเข้าคิวเองได้ที่ช่องคิวรถ', 7000); break; }
+      }
+      if(pick.length) vmsg=' · เข้าคิวรถ '+(opt.vehCode||'')+' ให้แล้ว';
+      else toast('สร้างใบงานแล้ว แต่ไม่มีใบไหนลงวันที่ '+dayText(vd)+
+                 ' จึงยังไม่ได้เข้าคิวรถ '+(opt.vehCode||'')+' — ไปหยิบเข้าคิวที่ช่องของวันที่มีใบงานได้เลย', 7000);
+    }
     closeSheet();
-    toast(rows.length>1? ('มอบหมายแล้ว '+rows.length+' วัน · '+dayText(ds[0])+' – '+dayText(ds[ds.length-1]))
-                       : 'มอบหมายงานแล้ว', 3600);
-    loadMgr();
+    toast((rows.length>1? ('มอบหมายแล้ว '+rows.length+' วัน · '+dayText(ds[0])+' – '+dayText(ds[ds.length-1]))
+                        : 'มอบหมายงานแล้ว')+vmsg, 3900);
+    /* loadMgr ยิง loadSchedule แบบไม่รอผล ถ้าเด้งกลับหน้าคิวรถทันที S.plan จะยังเป็นชุดเก่า
+       คิวจะโชว์ว่างทั้งที่ใบงานเข้าไปแล้ว จึงต้องรอตารางแผนงานโหลดเสร็จก่อนค่อยกลับ */
+    await loadMgr();
+    if(opt && opt.back){ try{ await loadSchedule(); }catch(e){} opt.back(); }
   };
 }
 
