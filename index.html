@@ -742,7 +742,7 @@ body.preview #previewBar{display:flex}
 
 <script>
 /* ── ยามเฝ้า splash: อยู่นอกสคริปต์หลัก ถ้าสคริปต์หลักพัง ตัวนี้ยังทำงาน ── */
-window.APP_VER='18.8';
+window.APP_VER='18.9';
 (function(){
   var fill=function(){
     var a=document.querySelectorAll('.ver');
@@ -2824,14 +2824,40 @@ function odoAlloc(vid, list){
     rest.forEach(function(x,k){
       out[x]={km: left*(w[k]/sw), how:how, from:a, to:b, spanKm:km, spanDays:days.length};
     });
+    /* เลขหน้าปัดตอนเริ่ม–ตอนจบของแต่ละวัน — ไล่สะสมจากเลขต้นช่วง
+       จะได้โชว์ในตารางเป็นช่วง 184,000–184,500 ไม่ต้องคลิกเข้าไปดูทีละวัน */
+    var cur=+a.odo;
+    days.forEach(function(x){
+      var o=out[x]; if(!o) return;
+      var rx=byDay[x];
+      if(rx && rx.odo_start!=null && rx.odo_start!==''){ o.s=+rx.odo_start; o.e=+rx.odo; }
+      else if(rx){ o.s=cur; o.e=+rx.odo; }
+      else { o.s=cur; o.e=cur+o.km; }
+      cur = rx? (+rx.odo) : o.e;
+    });
   }
   /* ครั้งแรกสุดไม่อยู่ในช่วงไหน แต่ถ้ากรอกทั้งเริ่มและจบก็รู้ระยะของวันนั้นอยู่ดี */
   l.forEach(function(x){
     var k=exactKm(x);
     if(k!=null && !out[x.read_on])
-      out[x.read_on]={km:k, how:'exact', from:x, to:x, spanKm:k, spanDays:1};
+      out[x.read_on]={km:k, how:'exact', from:x, to:x, spanKm:k, spanDays:1,
+                      s:+x.odo_start, e:+x.odo};
   });
   return out;
+}
+/* ข้อความช่วงเลขหน้าปัดของวันหนึ่ง — คืน '' ถ้ายังไม่รู้พอจะบอกเป็นช่วงได้
+   ใส่ ~ เฉพาะข้างที่เกลี่ยมา — วันที่กรอกเอง เลขตอนจบเป๊ะ ส่วนตอนเริ่มก็เป๊ะถ้าเมื่อวานกรอกไว้ */
+function odoRangeTxt(vid, d, sep){
+  var a=odoDay(vid,d), rec=odoAt(vid,d);
+  var hasStart=!!(rec && rec.odo_start!=null && rec.odo_start!=='');
+  var s=null, e=null;
+  if(a && a.s!=null && a.e!=null){ s=a.s; e=a.e; }
+  else if(hasStart){ s=+rec.odo_start; e=+rec.odo; }
+  else return '';
+  var ax=!!(a && a.how==='exact');
+  var sx = hasStart || ax || !!odoAt(vid, addDays(d,-1));
+  var ex = !!rec || ax;
+  return (sx?'':'~')+odoFmt(s)+(sep||' – ')+(ex?'':'~')+odoFmt(e);
 }
 function odoDays(vid){
   if(_odoCache[vid]) return _odoCache[vid];
@@ -3458,6 +3484,7 @@ function odoBarHTML(vid, d, btnId){
     'padding:10px 12px;font-size:12px;line-height:1.75">'+
     (rec
       ? ('เลขไมล์หน้าปัด <b style="font-size:14px">'+odoFmt(rec.odo)+'</b>'+
+         (odoRangeTxt(vid,d)? ('<br>เริ่ม–จบวันนี้ <b>'+esc(odoRangeTxt(vid,d))+'</b>') : '')+
          (a? ('<br>วิ่งวันนี้ <b>'+how.s+kmTxt(a.km)+'</b>'+
               (pk!=null? (' · แผน '+kmTxt(pk)+(g? (' · <b style="color:'+(g.km>=0?'#c26c00':'var(--green)')+'">'+gapTxt(g)+'</b>') : '')) : '')) : ''))
       : (a
@@ -3660,9 +3687,16 @@ function odoCell(v, d){
 
   /* วันที่กรอกเลขไมล์ไว้เอง กับวันที่อยู่กลางช่วง ต้องเขียนให้ต่างกัน
      ไม่งั้นวันกลางช่วงจะขึ้นว่า “ยังไม่ได้กรอก” ทั้งที่มีตัวเลขวิ่งอยู่ข้างล่าง คนอ่านจะงง */
-  if(rec) lines.push('<div class="odo-v">เลขไมล์ '+odoFmt(rec.odo)+'</div>');
+  /* โชว์เป็นช่วง เลขตอนเริ่มวัน – เลขตอนจบวัน จะได้เห็นครบโดยไม่ต้องคลิกเข้าไป
+     วันที่เกลี่ยมาจากช่วง ใส่ ~ กำกับไว้ให้รู้ว่าเป็นค่าประมาณ */
+  var rg=odoRangeTxt(v.id, d);
+  if(rg) lines.push('<div class="odo-v" title="เลขหน้าปัดตอนเริ่มวัน ถึง ตอนจบวัน'+
+      (rec? '' : ' (ประมาณจากช่วงที่กรอก)')+'">'+esc(rg)+'</div>');
+  else if(rec) lines.push('<div class="odo-v">เลขไมล์ '+odoFmt(rec.odo)+'</div>');
   else if(a) lines.push('<div class="odo-p">ในช่วง '+esc(dayText(a.from.read_on))+' → '+esc(dayText(a.to.read_on))+'</div>');
   else lines.push('<div class="odo-v none">ยังไม่ได้กรอกเลขไมล์</div>');
+  if(rg && !rec && a) lines.push('<div class="odo-p">ในช่วง '+esc(dayText(a.from.read_on))+
+    ' → '+esc(dayText(a.to.read_on))+'</div>');
 
   if(a){
     var zero=(a.km<0.05);
@@ -4234,6 +4268,7 @@ function vehCellMenu(vid, d){
       (q.length? ('ไปส่ง '+q.length+' จุด — '+esc(q.map(function(x){ return siteOf(x.site_id).name||'—'; }).join(', '))) 
                : '<span style="color:#8a4b00">วันนี้ยังไม่มีงานผูกกับรถคันนี้</span>')+
       (rec? ('<br>เลขไมล์ <b>'+odoFmt(rec.odo)+'</b>') : '<br><span style="color:var(--text2)">ยังไม่ได้กรอกเลขไมล์</span>')+
+      (odoRangeTxt(vid,d)? ('<br>เริ่ม–จบวันนี้ <b>'+esc(odoRangeTxt(vid,d))+'</b>') : '')+
       (a? ('<br>วิ่งวันนี้ <b>'+(ODO_HOW[a.how]||ODO_HOW.flat).s+kmTxt(a.km)+'</b>') : '')+
       (r? ('<br>ใบงานขนส่ง: '+esc(r.scope||'—')+(r.route_km!=null? (' · '+kmTxt(+r.route_km)) : '')) 
         : '<br><span style="color:var(--text2)">ยังไม่มีใบงานขนส่ง</span>')+
@@ -6839,7 +6874,8 @@ function printSchedule(opt){
       if(!rec && !a && pk==null) return '<td'+cls+'></td>';
       var g=odoGap(v.id,x), zero=(a && a.km<0.05);
       return '<td'+cls+'>'+
-        (rec? ('<div class="odr">'+odoFmt(rec.odo)+'</div>') : '')+
+        (odoRangeTxt(v.id,x)? ('<div class="odr">'+esc(odoRangeTxt(v.id,x,'–'))+'</div>')
+           : (rec? ('<div class="odr">'+odoFmt(rec.odo)+'</div>') : ''))+
         (a? ('<div class="odk'+(zero?' z':'')+'">'+
              (zero? 'ไม่ได้ออกรถ' : ((ODO_HOW[a.how]||ODO_HOW.flat).s+kmTxt(a.km)))+'</div>') : '')+
         (pk!=null? ('<div class="odp">แผน '+kmTxt(pk)+(g? (' · '+gapTxt(g)) : '')+'</div>') : '')+
@@ -7042,6 +7078,8 @@ function exportSchedule(){
         วันที่:x, วัน:DW_TH[dt.getDay()],
         รถ:v.code||'', ทะเบียน:v.plate||'',
         เลขไมล์ที่กรอก: rec? rec.odo : '',
+        เลขไมล์ตอนเริ่มวัน: (a&&a.s!=null)? (Math.round(a.s*10)/10) : '',
+        เลขไมล์ตอนจบวัน: (a&&a.e!=null)? (Math.round(a.e*10)/10) : (rec? rec.odo : ''),
         ระยะจริงกม: a? (Math.round(a.km*10)/10) : '',
         ที่มาของระยะ: a? (a.how==='exact'? 'เป๊ะ (เลขไมล์สองครั้งติดกัน)' : 'ประมาณ (เกลี่ยจากช่วง '+a.from.read_on+' ถึง '+a.to.read_on+')') : '',
         แผนกม: pk!=null? pk : '',
