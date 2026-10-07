@@ -99,7 +99,9 @@ button,input,select,textarea{font-family:inherit;color:inherit}
 /* ── ช่องเลือกแบบพิมพ์ค้นหาได้ ──
    <select> ของเบราว์เซอร์พิมพ์ค้นหาไม่ได้ ต้องเลื่อนหาเอง รายการเยอะ ๆ แล้วตาลาย
    ตัวนี้ครอบ <select> เดิมไว้ กดแล้วมีช่องพิมพ์ พิมพ์ปุ๊บกรองปั๊บ */
-.cb{position:relative;display:block;width:100%}
+/* กว้างเท่าที่เนื้อหาต้องการ เว้นแต่ของเดิมเป็นช่องเต็มบรรทัด จะได้ไม่ไปยืดเต็มแถบเครื่องมือ */
+.cb{position:relative;display:inline-block;width:auto;max-width:100%;vertical-align:middle}
+.fld>.cb,.cb.full{display:block;width:100%}
 .cb>select.cb-real{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none;left:-9999px}
 .cb-btn{width:100%;background:#fff;border:1px solid var(--border2);border-radius:10px;
   padding:11px 34px 11px 13px;font-size:14px;font-family:inherit;color:var(--text);text-align:left;
@@ -138,7 +140,8 @@ button,input,select,textarea{font-family:inherit;color:inherit}
 /* ── ช่องวันที่ของเราเอง ──
    <input type="date"> โชว์รูปแบบตามภาษาของเบราว์เซอร์ (ฝรั่งเป็น ด/ว/ป) สั่งจากหน้าเว็บไม่ได้
    จึงซ่อนตัวจริงไว้แล้วโชว์ปุ่ม ว/ด/ป กับปฏิทินไทยของเราเองแทน */
-.dp{position:relative;display:block;width:100%}
+.dp{position:relative;display:inline-block;width:auto;max-width:100%;vertical-align:middle}
+.fld>.dp,.dp.full{display:block;width:100%}
 .dp>input.dp-real{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none;left:-9999px}
 .dp-btn{width:100%;background:#fff;border:1px solid var(--border2);border-radius:10px;
   padding:11px 34px 11px 13px;font-size:14px;font-family:inherit;color:var(--text);text-align:left;
@@ -201,9 +204,16 @@ button,input,select,textarea{font-family:inherit;color:inherit}
 #mgr{display:flex;flex-direction:column;height:100vh;height:100dvh}
 .tb{height:46px;background:rgba(246,246,248,.9);backdrop-filter:blur(20px);border-bottom:1px solid var(--border);
   display:flex;align-items:center;padding:0 14px;gap:12px;flex-shrink:0}
-.tb-title{font-size:13.5px;font-weight:700;letter-spacing:-.01em;display:flex;align-items:center;gap:8px}
-.tb-title span.v{font-size:9.5px;font-weight:600;color:var(--text3);background:var(--s3);border-radius:5px;padding:1px 5px}
-.tb-live{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--text2);margin-left:auto}
+.tb-title{font-size:13.5px;font-weight:700;letter-spacing:-.01em;display:flex;align-items:center;gap:8px;
+  white-space:nowrap;min-width:0;flex-shrink:1;overflow:hidden}
+.tb-title span.v{font-size:9.5px;font-weight:600;color:var(--text3);background:var(--s3);border-radius:5px;
+  padding:1px 5px;white-space:nowrap;flex-shrink:0}
+/* ชื่อคนล็อกอินยาวได้ แต่ต้องอยู่บรรทัดเดียว ยาวเกินก็ตัดท้ายด้วย … ชี้เมาส์ดูเต็ม ๆ ได้ */
+.tb-title span#mgrWho{max-width:230px;overflow:hidden;text-overflow:ellipsis;display:inline-block;
+  vertical-align:middle;line-height:1.5;flex-shrink:1}
+.tb-live{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--text2);margin-left:auto;
+  white-space:nowrap;flex-shrink:0}
+.tb-live #liveTxt{white-space:nowrap}
 .tb-dot{width:7px;height:7px;border-radius:50%;background:var(--text3)}
 .tb-dot.ok{background:var(--green)}
 .tb-dot.busy{background:var(--orange);animation:pulse .8s infinite alternate}
@@ -285,10 +295,18 @@ button,input,select,textarea{font-family:inherit;color:inherit}
 .plan th,.plan td{border-bottom:1px solid var(--border);border-right:1px solid var(--border);padding:5px 6px;vertical-align:top}
 .plan thead th{position:sticky;top:0;z-index:3;background:rgba(250,250,252,.97);backdrop-filter:blur(8px);
   font-size:10.5px;font-weight:700;color:var(--text2);text-align:center;letter-spacing:.2px;line-height:1.35;padding:7px 6px}
-body.dragmode .pjob{cursor:grab}
-body.dragmode .pjob:active{cursor:grabbing}
-.pjob.dragging{opacity:.4;transform:scale(.97)}
+/* กดค้างแล้วลากใบงานไปวางช่องอื่นได้เลย ไม่ต้องกดปุ่มอะไรค้างไว้ก่อน
+   ห้ามให้ลากแล้วกลายเป็นการลากเลือกข้อความ ไม่งั้นเบราว์เซอร์จะไปลากตัวหนังสือแทนใบงาน */
+.pjob{cursor:grab;-webkit-user-select:none;-moz-user-select:none;-ms-user-select:none;user-select:none}
+.pjob:active{cursor:grabbing}
+body.dragging-now,body.dragging-now *{cursor:grabbing!important}
+body.dragging-now{-webkit-user-select:none;user-select:none}
+.pjob.dragging{opacity:.35;transform:scale(.97)}
 .pcell.dropok{outline:2px dashed var(--accent);outline-offset:-2px;background:var(--accent-glow)!important}
+/* เงาใบงานที่ลอยตามเมาส์ตอนลาก */
+.jdrag{position:fixed;z-index:9500;pointer-events:none;background:#fff;border:1px solid var(--accent);
+  border-left:4px solid var(--accent);border-radius:8px;padding:5px 7px;font-size:10.5px;line-height:1.4;
+  color:var(--text2);box-shadow:0 10px 26px rgba(0,0,0,.22);opacity:.96;max-width:220px;overflow:hidden}
 #pnDragHint{font-size:11px;color:var(--text3);white-space:nowrap}
 .pcell.clash{box-shadow:inset 0 0 0 2px var(--orange);background:rgba(255,149,0,.08)}
 .pcell.clash:hover{background:var(--accent-glow)}
@@ -744,7 +762,7 @@ body.preview #previewBar{display:flex}
 
 <script>
 /* ── ยามเฝ้า splash: อยู่นอกสคริปต์หลัก ถ้าสคริปต์หลักพัง ตัวนี้ยังทำงาน ── */
-window.APP_VER='19.0';
+window.APP_VER='19.1';
 (function(){
   var fill=function(){
     var a=document.querySelectorAll('.ver');
@@ -837,7 +855,7 @@ window.APP_VER='19.0';
       <label class="pn-x" style="font-size:11.5px;color:var(--text2);align-items:center;gap:5px">
         <input type="checkbox" id="pnBusy"> เฉพาะทีมที่มีงาน</label>
       <span id="pnNote" style="margin-left:auto;font-size:11.5px;color:var(--text2)">—</span>
-      <span id="pnDragHint" class="hide">⇧ Shift หรือ Ctrl ค้างไว้ = ลากย้ายงาน</span>
+      <span id="pnDragHint" class="hide">✋ กดใบงานค้างแล้วลากไปวางช่องอื่น = ย้ายวันหรือย้ายทีม</span>
       <button class="tb-btn hide pn-x" id="pnShift">⏩ เลื่อนงานยกชุด</button>
       <button class="tb-btn hide pn-x" id="pnHol">🏖 วันหยุด</button>
       <button class="tb-btn pn-x hide" id="pnVMode">🗺 เส้นทางเต็ม</button>
@@ -1284,8 +1302,11 @@ function cbWire(sel, ph){
   if(sel.getAttribute('data-nocb')!=null) return;
   sel._cb=1;
   var wrap=document.createElement('div');
+  var w0=sel.offsetWidth;                      /* วัดความกว้างเดิมไว้ก่อนซ่อน */
+  var full=(sel.style.width==='100%') || /\bfld\b/.test((sel.parentNode||{}).className||'');
   wrap.className='cb'+(/\btin\b/.test(sel.className)?' tin':'')+
-    ((parseFloat(sel.style.fontSize)||99)<=12.5 ? ' sm' : '');
+    ((parseFloat(sel.style.fontSize)||99)<=12.5 ? ' sm' : '')+(full?' full':'');
+  if(!full && w0>40) wrap.style.minWidth=Math.min(w0, 260)+'px';
   sel.parentNode.insertBefore(wrap, sel);
   wrap.appendChild(sel);
   sel.classList.add('cb-real');
@@ -1422,7 +1443,10 @@ function dpWire(inp){
   if(inp.getAttribute('data-nodp')!=null) return;
   inp._dp=1;
   var wrap=document.createElement('div');
-  wrap.className='dp'+(/\btin\b/.test(inp.className)?' tin':'');
+  var w1=inp.offsetWidth;
+  var full1=(inp.style.width==='100%') || /\bfld\b/.test((inp.parentNode||{}).className||'');
+  wrap.className='dp'+(/\btin\b/.test(inp.className)?' tin':'')+(full1?' full':'');
+  if(!full1) wrap.style.minWidth=Math.max(118, Math.min(w1, 190))+'px';
   inp.parentNode.insertBefore(wrap, inp);
   wrap.appendChild(inp);
   inp.classList.add('dp-real');
@@ -5020,6 +5044,14 @@ $('btnDiag').onclick=function(){ diag(); };
 $('btnDb').onclick=function(){ dbPanel(); };
 $('btnToday').onclick=function(){ S.date=todayISO(); $('dtPick').value=S.date; cbSync(); loadMgr(); };
 $('dtPick').onchange=function(){ S.date=this.value||todayISO(); loadMgr(); };
+/* แท็บแผนงานมีช่องวันที่ของตัวเองอยู่แล้ว ช่องบนหัวจอจึงซ่อนไว้ ไม่ให้มีวันที่สองที่ชวนสับสน
+   แท็บอื่นยังต้องใช้ช่องนี้เลือกวัน จึงโชว์ตามเดิม */
+function tbDate(tab){
+  var on=(tab!=='pn');
+  var w=$('dtPick'); if(w && w.parentNode && w.parentNode.className.indexOf('dp')>=0) w=w.parentNode;
+  if(w) w.style.display = on? '' : 'none';
+  if($('btnToday')) $('btnToday').style.display = on? '' : 'none';
+}
 document.querySelectorAll('#mgr .tab').forEach(function(t){
   t.onclick=function(){
     document.querySelectorAll('#mgr .tab').forEach(function(x){x.classList.remove('on');});
@@ -5027,6 +5059,7 @@ document.querySelectorAll('#mgr .tab').forEach(function(t){
     t.classList.add('on');
     var id={pn:'pPn',ov:'pOv',is:'pIs',wk:'pWk',tm:'pTm',rp:'pRp'}[t.dataset.p];
     $(id).classList.add('on');
+    tbDate(t.dataset.p);
     if(t.dataset.p==='ov' && S.map) setTimeout(function(){ S.map.invalidateSize(); },60);
   };
 });
@@ -5386,7 +5419,9 @@ function renderOdo(){
 
 function renderAll(){ renderKPI(); renderChips(); renderBoard(); renderMap(); renderIssues(); renderPlan(); renderStaff(); renderSA(); renderWorkLib(); renderPins(); renderVeh(); renderOdo(); renderDemo(); renderOther();
   /* ทุกแท็บ: ช่องเลือกที่รายการยาวต้องพิมพ์ค้นหาได้ ตัวที่ครอบไว้แล้วจะถูกข้าม */
-  cbAll(document); cbSync(document); }
+  cbAll(document); cbSync(document);
+  /* ครอบเสร็จแล้วค่อยซ่อน/โชว์ช่องวันที่บนหัวจอ ไม่งั้นจะไปซ่อนช่องตัวจริงที่ซ่อนอยู่แล้ว */
+  tbDate(((document.querySelector('#mgr .tab.on')||{}).dataset||{}).p||'pn'); }
 
 function renderKPI(){
   var a=S.asgs, tot=a.length;
@@ -6346,36 +6381,91 @@ function renderSchedule(){
     td.onclick=function(){ runForm({date:td.dataset.runadd}); };
   });
 
-  /* ── ลากย้ายงาน (กด Shift หรือ Ctrl ค้าง) — แอดมินขึ้นไป ── */
-  if(rank(S.me)>=1){
-    wrap.querySelectorAll('[data-job]').forEach(function(el){
-      el.draggable=true;
-      el.ondragstart=function(e){
-        if(!(e.shiftKey||e.ctrlKey||e.metaKey)){ e.preventDefault(); return false; }
-        DRAG_JOB=el.dataset.job;
-        el.classList.add('dragging');
-        try{ e.dataTransfer.setData('text/plain', DRAG_JOB); e.dataTransfer.effectAllowed='move'; }catch(_){}
-      };
-      el.ondragend=function(){
-        el.classList.remove('dragging'); DRAG_JOB=null;
-        wrap.querySelectorAll('.dropok').forEach(function(c){ c.classList.remove('dropok'); });
-      };
-    });
-    wrap.querySelectorAll('[data-add]').forEach(function(td){
-      td.ondragover=function(e){
-        if(!DRAG_JOB) return;
-        e.preventDefault(); try{ e.dataTransfer.dropEffect='move'; }catch(_){}
-        td.classList.add('dropok');
-      };
-      td.ondragleave=function(){ td.classList.remove('dropok'); };
-      td.ondrop=function(e){
-        e.preventDefault(); td.classList.remove('dropok');
-        var v=td.dataset.add.split('|'), id=DRAG_JOB; DRAG_JOB=null;
-        if(id) moveJobTo(id, v[0], v[1]);
-      };
-    });
+  /* ── ลากย้ายงาน — แอดมินขึ้นไป ──
+     ของเดิมใช้ drag ของเบราว์เซอร์และบังคับกด Shift/Ctrl ค้าง ซึ่งพังง่ายมาก
+     เพราะกด Shift แล้วคลิกคือการ “ลากเลือกข้อความ” ของเบราว์เซอร์ มันเลยไปลากข้อความแทนใบงาน
+     ตอนนี้จับเมาส์เอง กดค้างแล้วลากเกิน 6 px = ย้ายงาน ขยับไม่ถึงนั้น = คลิกเปิดใบงานเหมือนเดิม */
+  if(rank(S.me)>=1) wrap.querySelectorAll('[data-job]').forEach(function(el){
+    el.draggable=false;
+    el.onmousedown=function(e){
+      if(e.button!==0) return;           /* ปุ่มขวา/กลาง ปล่อยให้เมนูคลิกขวาทำงาน */
+      jobDragStart(el, e.clientX, e.clientY, wrap);
+    };
+  });
+}
+
+/* ── ย้ายใบงานด้วยการกดค้างแล้วลาก ── */
+var JD=null;
+function jobDragStart(el, x0, y0, wrap){
+  jobDragEnd();
+  JD={el:el, id:el.dataset.job, x0:x0, y0:y0, on:false, wrap:wrap, cell:null, ghost:null};
+  document.addEventListener('mousemove', jobDragMove, true);
+  document.addEventListener('mouseup', jobDragDrop, true);
+}
+function jobDragMove(e){
+  if(!JD) return;
+  if(!JD.on){
+    if(Math.abs(e.clientX-JD.x0)+Math.abs(e.clientY-JD.y0) < 6) return;   /* ยังไม่ถึงเกณฑ์ = ยังนับเป็นคลิก */
+    JD.on=true;
+    JD.el.classList.add('dragging');
+    document.body.classList.add('dragging-now');
+    var g=document.createElement('div');
+    g.className='jdrag';
+    g.innerHTML=JD.el.innerHTML;
+    g.style.width=Math.min(JD.el.offsetWidth, 220)+'px';
+    document.body.appendChild(g);
+    JD.ghost=g;
+  }
+  e.preventDefault();
+  if(JD.ghost){ JD.ghost.style.left=(e.clientX+12)+'px'; JD.ghost.style.top=(e.clientY+12)+'px'; }
+  /* หาช่องที่เมาส์อยู่บน — ต้องซ่อนเงาก่อน ไม่งั้น elementFromPoint เจอแต่เงาตัวเอง */
+  if(JD.ghost) JD.ghost.style.display='none';
+  var t=document.elementFromPoint(e.clientX, e.clientY);
+  if(JD.ghost) JD.ghost.style.display='';
+  var td=t? (t.closest? t.closest('[data-add]') : null) : null;
+  if(td!==JD.cell){
+    if(JD.cell) JD.cell.classList.remove('dropok');
+    JD.cell=td;
+    if(td) td.classList.add('dropok');
+  }
+  /* ลากไปชนขอบจอ ให้ตารางเลื่อนตามเอง ไม่งั้นย้ายข้ามสัปดาห์ไม่ได้ */
+  var sc=JD.wrap;
+  if(sc && sc.scrollWidth>sc.clientWidth){
+    var r=sc.getBoundingClientRect();
+    if(e.clientX > r.right-50) sc.scrollLeft += 18;
+    else if(e.clientX < r.left+50) sc.scrollLeft -= 18;
   }
 }
+function jobDragDrop(e){
+  if(!JD) return;
+  var moved=JD.on, id=JD.id, cell=JD.cell;
+  jobDragEnd();
+  if(!moved) return;                     /* ไม่ได้ลาก = คลิกธรรมดา ปล่อยให้ onclick ทำงาน */
+  e.preventDefault(); e.stopPropagation();
+  /* กัน click ที่จะตามมาหลัง mouseup ไม่ให้เปิดใบงานขึ้นมาซ้อน
+     ถ้าปล่อยเมาส์คนละที่กับที่กดลง เบราว์เซอร์จะไม่ยิง click เลย ตัวกันต้องถอดตัวเองตามเวลาด้วย
+     ไม่งั้นมันจะไปกินคลิกถัดไปของคนใช้ */
+  var k=function(ev){ ev.preventDefault(); ev.stopPropagation(); off(); };
+  var off=function(){ document.removeEventListener('click', k, true); clearTimeout(kt); };
+  var kt=setTimeout(off, 350);
+  document.addEventListener('click', k, true);
+  if(!cell) return;
+  var v=cell.dataset.add.split('|');
+  moveJobTo(id, v[0], v[1]);
+}
+function jobDragEnd(){
+  document.removeEventListener('mousemove', jobDragMove, true);
+  document.removeEventListener('mouseup', jobDragDrop, true);
+  if(!JD) return;
+  if(JD.el) JD.el.classList.remove('dragging');
+  if(JD.cell) JD.cell.classList.remove('dropok');
+  if(JD.ghost && JD.ghost.parentNode) JD.ghost.parentNode.removeChild(JD.ghost);
+  document.body.classList.remove('dragging-now');
+  JD=null;
+}
+document.addEventListener('keydown', function(e){
+  if((e.key==='Escape'||e.keyCode===27) && JD) jobDragEnd();
+});
 
 /* วันหยุดราชการไทยที่ตรงวันเดิมทุกปี — ใช้เติมชื่อให้อัตโนมัติ
    ไม่รวมวันพระ (มาฆบูชา วิสาขบูชา อาสาฬหบูชา เข้าพรรษา) เพราะเลื่อนตามจันทรคติทุกปี
@@ -7189,15 +7279,8 @@ function shiftTool(){
   };
 }
 
-/* ── ย้ายงานด้วยการลาก ── */
-var DRAG_JOB=null;
-document.addEventListener('keydown', function(e){
-  if(e.shiftKey||e.ctrlKey||e.metaKey) document.body.classList.add('dragmode');
-});
-document.addEventListener('keyup', function(e){
-  if(!(e.shiftKey||e.ctrlKey||e.metaKey)) document.body.classList.remove('dragmode');
-});
-window.addEventListener('blur', function(){ document.body.classList.remove('dragmode'); });
+/* หน้าต่างเสียโฟกัสกลางคัน (สลับแท็บ เปิดโปรแกรมอื่น) ต้องยกเลิกการลางค้าง */
+window.addEventListener('blur', function(){ jobDragEnd(); });
 
 async function moveJobTo(id, teamId, date){
   if(rank(S.me)<1) return;
@@ -7886,7 +7969,7 @@ var HELP_DASH=[
     'ในกล่องเดียวกันเพิ่มไซต์ใหม่ได้เลย เลือก “＋ เพิ่มไซต์ใหม่” ในช่องไซต์งาน',
     'แต่ละวันกด “กำหนดเอง” เพื่อแบ่งขอบเขตงานคนละอย่างได้ เช่น วันแรกตู้ล่าง วันสองท็อป',
     'คลิกขวาที่ใบงาน = เปิดหน้าเลื่อนวัน ย้ายทีม หรือลบงานทันที',
-    'กด Shift หรือ Ctrl ค้างไว้แล้วลากใบงานไปวางช่องอื่น = ย้ายวันหรือย้ายทีมทันที (แอดมินขึ้นไป)',
+    'กดใบงานค้างแล้วลากไปวางช่องอื่น = ย้ายวันหรือย้ายทีมทันที · กดแล้วปล่อยเฉย ๆ = เปิดใบงาน (แอดมินขึ้นไป)',
     'ปุ่ม ⏩ เลื่อนงานยกชุด ใช้ตอนต้องเลื่อนทั้งแผน เช่นประกาศหยุดเพิ่ม เลือกทีม ช่วงวัน แล้วเลื่อนทีเดียวทั้งก้อน',
     'การเลื่อนนับเป็น “วันทำงาน” ข้ามวันอาทิตย์และวันหยุดโรงงานให้เอง ไม่มีงานตกวันหยุด (ปิดโหมดนี้ได้ถ้าต้องการนับวันปฏิทิน)',
     'ใบงานที่มีพื้นสีอ่อนคือชุดงานหลายวันของไซต์+ทีมเดียวกัน แต่ละชุดคนละสี บนใบบอกว่าเป็นวันที่เท่าไหร่ของชุด',
