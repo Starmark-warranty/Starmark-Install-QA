@@ -297,8 +297,10 @@ button,input,select,textarea{font-family:inherit;color:inherit}
   font-size:10.5px;font-weight:700;color:var(--text2);text-align:center;letter-spacing:.2px;line-height:1.35;padding:7px 6px}
 /* กดค้างแล้วลากใบงานไปวางช่องอื่นได้เลย ไม่ต้องกดปุ่มอะไรค้างไว้ก่อน
    ห้ามให้ลากแล้วกลายเป็นการลากเลือกข้อความ ไม่งั้นเบราว์เซอร์จะไปลากตัวหนังสือแทนใบงาน */
-.pjob{cursor:grab;-webkit-user-select:none;-moz-user-select:none;-ms-user-select:none;user-select:none}
-.pjob:active{cursor:grabbing}
+.pjob,[data-vjob]{cursor:grab;-webkit-user-select:none;-moz-user-select:none;-ms-user-select:none;user-select:none}
+.pjob:active,[data-vjob]:active{cursor:grabbing}
+[data-vjob].dragging{opacity:.35}
+.drv-wrap.dropok,td.dropok{outline:2px dashed var(--accent);outline-offset:-2px;background:var(--accent-glow)!important}
 body.dragging-now,body.dragging-now *{cursor:grabbing!important}
 body.dragging-now{-webkit-user-select:none;user-select:none}
 .pjob.dragging{opacity:.35;transform:scale(.97)}
@@ -762,7 +764,7 @@ body.preview #previewBar{display:flex}
 
 <script>
 /* ── ยามเฝ้า splash: อยู่นอกสคริปต์หลัก ถ้าสคริปต์หลักพัง ตัวนี้ยังทำงาน ── */
-window.APP_VER='19.1';
+window.APP_VER='19.2';
 (function(){
   var fill=function(){
     var a=document.querySelectorAll('.ver');
@@ -1389,12 +1391,16 @@ function cbWire(sel, ph){
     var vh=window.innerHeight||600, vw=window.innerWidth||800;
     var want=Math.min(330, Math.max(190, vh-28));
     var below=vh-r.bottom-10, above=r.top-10;
-    var h=Math.min(want, Math.max(below, above));
-    pan.style.width=Math.max(r.width, 220)+'px';
-    pan.style.left=Math.max(8, Math.min(r.left, vw-Math.max(r.width,220)-8))+'px';
+    /* เปิดลงล่างถ้าที่พอ ไม่พอก็เปิดขึ้นบน แล้ว “จำกัดความสูงตามข้างที่เลือก” ด้วย
+       ของเดิมเอาข้างที่กว้างกว่ามาตั้งความสูง แต่ไปเปิดอีกข้าง แผงเลยทะลุขอบจอบนมือถือ */
+    var down = (below>=Math.min(want,240)) || (below>=above);
+    var h=Math.max(150, Math.min(want, down? below : above));
+    var w=Math.min(Math.max(r.width, 220), vw-16);
+    pan.style.width=w+'px';
+    pan.style.left=Math.max(8, Math.min(r.left, vw-w-8))+'px';
     pan.style.maxHeight=h+'px';
-    if(below>=Math.min(want,240) || below>=above){ pan.style.top=(r.bottom+5)+'px'; pan.style.bottom='auto'; }
-    else { pan.style.bottom=(vh-r.top+5)+'px'; pan.style.top='auto'; }
+    if(down){ pan.style.top=Math.min(r.bottom+5, vh-h-8)+'px'; pan.style.bottom='auto'; }
+    else { pan.style.bottom=Math.min(vh-r.top+5, vh-8)+'px'; pan.style.top='auto'; }
   };
   var open=function(){
     if(_cbOpen && _cbOpen.pan!==pan) cbShut();
@@ -1536,9 +1542,13 @@ function dpWire(inp){
     var r=btn.getBoundingClientRect();
     var vh=window.innerHeight||600, vw=window.innerWidth||800;
     var h=pan.offsetHeight||330;
-    pan.style.left=Math.max(8, Math.min(r.left, vw-288))+'px';
-    if(vh-r.bottom-10>=h || vh-r.bottom-10>=r.top-10){ pan.style.top=(r.bottom+5)+'px'; pan.style.bottom='auto'; }
-    else { pan.style.bottom=(vh-r.top+5)+'px'; pan.style.top='auto'; }
+    var w=Math.min(280, vw-16);
+    pan.style.width=w+'px';
+    pan.style.left=Math.max(8, Math.min(r.left, vw-w-8))+'px';
+    /* ปฏิทินสูงคงที่ ถ้าทั้งบนทั้งล่างไม่พอ ให้ดันเข้ามาอยู่ในจอแทนที่จะทะลุออกไป */
+    if(vh-r.bottom-10>=h) { pan.style.top=(r.bottom+5)+'px'; pan.style.bottom='auto'; }
+    else if(r.top-10>=h)  { pan.style.bottom=(vh-r.top+5)+'px'; pan.style.top='auto'; }
+    else { pan.style.top=Math.max(8, Math.min(r.bottom+5, vh-h-8))+'px'; pan.style.bottom='auto'; }
   };
   btn.onclick=function(e){
     e.preventDefault(); e.stopPropagation();
@@ -3713,7 +3723,7 @@ function odoCell(v, d){
      ไม่งั้นช่องจะมีแต่ตัวเลขลอย ๆ ไม่รู้ว่าของงานไหน */
   if(q.length) lines.push('<div class="odo-stops">'+q.map(function(a2,qi){
     var si=siteOf(a2.site_id), tm=teamOf(a2.team_id), st=astOf(a2);
-    return '<div class="srow"><span><i style="background:'+st.x+'"></i>'+esc(teamLabel(tm))+
+    return '<div class="srow" data-vjob="'+a2.id+'"><span><i style="background:'+st.x+'"></i>'+esc(teamLabel(tm))+
       ' · <b>'+esc(si.name||'—')+'</b></span>'+
       (q.length>1? qmvHTML(a2.id, v.id, d, qi===0, qi===q.length-1) : '')+'</div>';
   }).join('')+'</div>');
@@ -4243,7 +4253,8 @@ function vehDayCell(v, d){
   };
   var body=seq.map(function(x,i){
     return (i>0? legHTML(legs[i-1]) : '')+
-      '<div class="vq" style="background:'+(x.off? 'var(--orange-dim)' : vt.bg)+
+      '<div class="vq"'+(x.aid? (' data-vjob="'+x.aid+'"') : '')+
+          ' style="background:'+(x.off? 'var(--orange-dim)' : vt.bg)+
           ';border-color:'+(x.off? 'rgba(255,149,0,.35)' : vt.line)+'">'+
         (x.n? ('<span class="vq-n" style="background:'+(x.off? '#c26c00' : vt.ink)+'">'+x.n+'</span>')
             : ('<span class="vq-n start" style="color:'+vt.ink+'">▶</span>'))+
@@ -4347,11 +4358,13 @@ function planDriverRow(t, days, today, mv){
         if(vehMode()==='odo'){
           var oc=odoCell(v, d);
           if(!oc) return '';
-          return '<div class="drv-wrap" data-odo="'+v.id+'|'+d+'" title="แตะเพื่อกรอกเลขไมล์">'+oc.html+'</div>';
+          return '<div class="drv-wrap" data-odo="'+v.id+'|'+d+'" data-vdrop="'+v.id+'|'+d+'" '+
+            'title="แตะเพื่อกรอกเลขไมล์ · ลากจุดส่งมาวางได้">'+oc.html+'</div>';
         }
         var c=vehDayCell(v, d);
         if(!c) return '';
-        return '<div class="drv-wrap" '+(c.hasRun? ('data-run="'+c.runId+'"') : ('data-runnew="'+v.id+'|'+d+'"'))+
+        return '<div class="drv-wrap" data-vdrop="'+v.id+'|'+d+'" '+
+            (c.hasRun? ('data-run="'+c.runId+'"') : ('data-runnew="'+v.id+'|'+d+'"'))+
             ' title="'+esc((v.code||'')+' · '+(c.hasRun?'แตะเพื่อแก้ใบงานขนส่ง':'ยังไม่มีใบงานขนส่ง แตะเพื่อสร้าง'))+'">'+
           '<div class="vq-h">🚚 '+esc(v.code||'—')+
             (c.hasRun? '' : ' · <b style="color:#c26c00">ยังไม่มีใบงานขนส่ง</b>')+'</div>'+
@@ -6157,6 +6170,8 @@ function renderSchedule(){
 
   /* มุมมองรายวัน — เรียงตามวัน ไม่ต้องเลื่อนแนวนอน เหมาะกับมือถือ */
   wrap.classList.toggle('list', planListMode());
+  /* มุมมองรายวันไม่มีช่องให้ลากไปวาง และบนมือถือก็ลากด้วยนิ้วไม่ได้ ซ่อนคำแนะนำไว้ จะได้ไม่หลอกกัน */
+  if($('pnDragHint')) $('pnDragHint').classList.toggle('hide', rank(S.me)<1 || planListMode());
   if(planListMode()){
     wrap.innerHTML='<div class="agenda">'+days.map(function(d){
       var dt=new Date(d+'T00:00:00'), hd=isHoliday(d);
@@ -6229,15 +6244,16 @@ function renderSchedule(){
         days.map(function(d){
           if(vehMode()==='odo'){
             var oc=odoCell(v, d);
-            return '<td class="pcell" data-odo="'+v.id+'|'+d+'">'+
+            return '<td class="pcell" data-odo="'+v.id+'|'+d+'" data-vdrop="'+v.id+'|'+d+'">'+
               (oc? oc.html : '<div class="padd">+</div>')+'</td>';
           }
           var c=vehDayCell(v, d);
           var nFree=(S.plan||[]).filter(function(a){ return a.work_date===d && !a.vehicle_id; }).length;
-          if(!c) return '<td class="pcell" data-vq="'+v.id+'|'+d+'">'+
+          if(!c) return '<td class="pcell" data-vq="'+v.id+'|'+d+'" data-vdrop="'+v.id+'|'+d+'">'+
             (nFree? '<div class="padd">+</div>' : '')+'</td>';
           var sp=vehSpan(vehQueue(v.id,d), v);
-          return '<td class="pcell'+(sp.far&&!c.hasRun?' clash':'')+'" data-vq="'+v.id+'|'+d+'">'+
+          return '<td class="pcell'+(sp.far&&!c.hasRun?' clash':'')+'" data-vq="'+v.id+'|'+d+'" '+
+            'data-vdrop="'+v.id+'|'+d+'">'+
             '<div class="vq-h">'+c.head+
               (c.hasRun? '' : ' · <b style="color:#c26c00">ยังไม่มีใบขนส่ง</b>')+'</div>'+
             c.body+'</td>';
@@ -6385,10 +6401,13 @@ function renderSchedule(){
      ของเดิมใช้ drag ของเบราว์เซอร์และบังคับกด Shift/Ctrl ค้าง ซึ่งพังง่ายมาก
      เพราะกด Shift แล้วคลิกคือการ “ลากเลือกข้อความ” ของเบราว์เซอร์ มันเลยไปลากข้อความแทนใบงาน
      ตอนนี้จับเมาส์เอง กดค้างแล้วลากเกิน 6 px = ย้ายงาน ขยับไม่ถึงนั้น = คลิกเปิดใบงานเหมือนเดิม */
-  if(rank(S.me)>=1) wrap.querySelectorAll('[data-job]').forEach(function(el){
+  /* ลากได้ทั้งใบงานในแถวทีม และจุดส่งในแถวคิวรถ/กลุ่มคนขับ — เป็นใบงานชุดเดียวกัน
+     ลากไปวางช่องทีม = เปลี่ยนทีม/วัน · ลากไปวางช่องรถ = เปลี่ยนรถที่ไปส่ง/วัน */
+  if(rank(S.me)>=1) wrap.querySelectorAll('[data-job],[data-vjob]').forEach(function(el){
     el.draggable=false;
     el.onmousedown=function(e){
       if(e.button!==0) return;           /* ปุ่มขวา/กลาง ปล่อยให้เมนูคลิกขวาทำงาน */
+      if(e.target && e.target.closest && e.target.closest('button,.qmvs,.uacc-x')) return;   /* ปุ่ม ▲▼ ไม่ใช่ที่จับลาก */
       jobDragStart(el, e.clientX, e.clientY, wrap);
     };
   });
@@ -6398,7 +6417,7 @@ function renderSchedule(){
 var JD=null;
 function jobDragStart(el, x0, y0, wrap){
   jobDragEnd();
-  JD={el:el, id:el.dataset.job, x0:x0, y0:y0, on:false, wrap:wrap, cell:null, ghost:null};
+  JD={el:el, id:el.dataset.job||el.dataset.vjob, x0:x0, y0:y0, on:false, wrap:wrap, cell:null, ghost:null};
   document.addEventListener('mousemove', jobDragMove, true);
   document.addEventListener('mouseup', jobDragDrop, true);
 }
@@ -6422,7 +6441,7 @@ function jobDragMove(e){
   if(JD.ghost) JD.ghost.style.display='none';
   var t=document.elementFromPoint(e.clientX, e.clientY);
   if(JD.ghost) JD.ghost.style.display='';
-  var td=t? (t.closest? t.closest('[data-add]') : null) : null;
+  var td=t? (t.closest? t.closest('[data-add],[data-vdrop]') : null) : null;
   if(td!==JD.cell){
     if(JD.cell) JD.cell.classList.remove('dropok');
     JD.cell=td;
@@ -6450,8 +6469,8 @@ function jobDragDrop(e){
   var kt=setTimeout(off, 350);
   document.addEventListener('click', k, true);
   if(!cell) return;
-  var v=cell.dataset.add.split('|');
-  moveJobTo(id, v[0], v[1]);
+  if(cell.dataset.add){ var v=cell.dataset.add.split('|'); moveJobTo(id, v[0], v[1]); }
+  else if(cell.dataset.vdrop){ var w=cell.dataset.vdrop.split('|'); moveJobToVeh(id, w[0], w[1]); }
 }
 function jobDragEnd(){
   document.removeEventListener('mousemove', jobDragMove, true);
@@ -7304,6 +7323,39 @@ async function moveJobTo(id, teamId, date){
       : ('ย้ายไม่สำเร็จ: '+r.error.message), 5000);
   }
   toast('ย้าย “'+(si.name||'')+'” ไป '+(to.name||'')+' · '+dayText(date), 4000);
+  loadMgr();
+}
+
+/* ลากใบงานมาวางในช่องของรถ = ให้รถคันนั้นไปส่งงานนี้ในวันนั้น
+   ต่อท้ายคิวของวันปลายทางเสมอ แล้วไล่เลขใหม่ทั้งแถว กันเลขซ้ำหรือเลขขาด */
+async function moveJobToVeh(id, vid, date){
+  if(rank(S.me)<1) return toast('เฉพาะแอดมินขึ้นไปที่ย้ายงานได้', 3000);
+  var a=(S.plan||[]).filter(function(x){ return x.id===id; })[0]; if(!a) return;
+  if(a.vehicle_id===vid && a.work_date===date) return;
+  var si=siteOf(a.site_id), tm=teamOf(a.team_id), v=vehOf(vid), hd=isHoliday(date);
+  var msg='ให้รถ '+(v.code||'—')+' ไปส่ง “'+(si.name||'—')+'” ของ '+(teamLabel(tm))+'\n';
+  if(a.work_date!==date) msg+='\nวัน: '+dayText(a.work_date)+'  →  '+dayText(date);
+  if(a.vehicle_id && a.vehicle_id!==vid) msg+='\nรถ: '+((vehOf(a.vehicle_id).code)||'—')+'  →  '+(v.code||'—');
+  else if(!a.vehicle_id) msg+='\nเดิมยังไม่ได้ผูกกับรถคันไหน';
+  if(hd) msg+='\n\n🏖 วันปลายทางเป็นวันหยุด: '+hd.name;
+  if(!confirm(msg+'\n\nยืนยันหรือไม่?')) return;
+
+  var q=vehQueue(vid, date).filter(function(x){ return x.id!==id; });
+  var r=await db.from('it_assignments')
+    .update({vehicle_id:vid, work_date:date, vehicle_seq:q.length+1}).eq('id', id);
+  if(r.error){
+    return toast(/duplicate|unique/i.test(r.error.message||'')
+      ? 'ย้ายไม่ได้ — ทีมนี้มีงานที่ไซต์เดียวกันในวันนั้นอยู่แล้ว'
+      : ('ย้ายไม่สำเร็จ: '+r.error.message), 5000);
+  }
+  /* ที่เดิมอาจเหลือเลขคิวขาดช่วง ไล่ใหม่ให้เริ่มที่ 1 เสมอ */
+  if(a.vehicle_id && (a.vehicle_id!==vid || a.work_date!==date)){
+    var old=vehQueue(a.vehicle_id, a.work_date).filter(function(x){ return x.id!==id; });
+    for(var m=0;m<old.length;m++) if(old[m].vehicle_seq!==m+1)
+      await db.from('it_assignments').update({vehicle_seq:m+1}).eq('id', old[m].id);
+  }
+  toast('รถ '+(v.code||'')+' ไปส่ง '+(si.name||'')+' วัน '+dayText(date)+' แล้ว', 4000);
+  odoClearCache();
   loadMgr();
 }
 
