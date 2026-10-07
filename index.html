@@ -300,7 +300,8 @@ button,input,select,textarea{font-family:inherit;color:inherit}
 .pjob,[data-vjob]{cursor:grab;-webkit-user-select:none;-moz-user-select:none;-ms-user-select:none;user-select:none}
 .pjob:active,[data-vjob]:active{cursor:grabbing}
 [data-vjob].dragging{opacity:.35}
-.drv-wrap.dropok,td.dropok{outline:2px dashed var(--accent);outline-offset:-2px;background:var(--accent-glow)!important}
+.drv-wrap.dropok,td.dropok,[data-vdropd].dropok{outline:2px dashed var(--accent);outline-offset:-2px;
+  background:var(--accent-glow)!important}
 body.dragging-now,body.dragging-now *{cursor:grabbing!important}
 body.dragging-now{-webkit-user-select:none;user-select:none}
 .pjob.dragging{opacity:.35;transform:scale(.97)}
@@ -764,7 +765,7 @@ body.preview #previewBar{display:flex}
 
 <script>
 /* ── ยามเฝ้า splash: อยู่นอกสคริปต์หลัก ถ้าสคริปต์หลักพัง ตัวนี้ยังทำงาน ── */
-window.APP_VER='19.2';
+window.APP_VER='19.3';
 (function(){
   var fill=function(){
     var a=document.querySelectorAll('.ver');
@@ -4370,7 +4371,7 @@ function planDriverRow(t, days, today, mv){
             (c.hasRun? '' : ' · <b style="color:#c26c00">ยังไม่มีใบงานขนส่ง</b>')+'</div>'+
           '<div class="vq-h2">'+c.head+'</div>'+c.body+'</div>';
       }).join('');
-      return '<td class="'+cls+'" data-runadd="'+d+'">'+inner+'<div class="padd">+</div></td>';
+      return '<td class="'+cls+'" data-runadd="'+d+'" data-vdropd="'+d+'">'+inner+'<div class="padd">+</div></td>';
     }).join('')+'</tr>';
 }
 
@@ -6250,7 +6251,7 @@ function renderSchedule(){
           var c=vehDayCell(v, d);
           var nFree=(S.plan||[]).filter(function(a){ return a.work_date===d && !a.vehicle_id; }).length;
           if(!c) return '<td class="pcell" data-vq="'+v.id+'|'+d+'" data-vdrop="'+v.id+'|'+d+'">'+
-            (nFree? '<div class="padd">+</div>' : '')+'</td>';
+            '<div class="padd">+</div></td>';
           var sp=vehSpan(vehQueue(v.id,d), v);
           return '<td class="pcell'+(sp.far&&!c.hasRun?' clash':'')+'" data-vq="'+v.id+'|'+d+'" '+
             'data-vdrop="'+v.id+'|'+d+'">'+
@@ -6437,22 +6438,46 @@ function jobDragMove(e){
   }
   e.preventDefault();
   if(JD.ghost){ JD.ghost.style.left=(e.clientX+12)+'px'; JD.ghost.style.top=(e.clientY+12)+'px'; }
-  /* หาช่องที่เมาส์อยู่บน — ต้องซ่อนเงาก่อน ไม่งั้น elementFromPoint เจอแต่เงาตัวเอง */
+  JD.mx=e.clientX; JD.my=e.clientY;
+  jobHover();
+  /* ลากไปชนขอบจอ ให้ตารางเลื่อนตามเอง ไม่งั้นย้ายข้ามสัปดาห์ไม่ได้
+     ต้องเลื่อนตามเวลา ไม่ใช่ตามจำนวนครั้งที่เมาส์ขยับ — จ่อขอบค้างไว้เฉย ๆ เมาส์ไม่ขยับ
+     ก็ต้องเลื่อนต่อ ของเดิมเลื่อนทีละ 18 px ต่อการขยับหนึ่งครั้ง กว่าจะถึงวันที่อยู่ไกล ๆ นานมาก */
+  JD.mx=e.clientX; JD.my=e.clientY;
+  jobScroll();
+}
+/* เลื่อนตารางตอนลากค้างไว้ที่ขอบ — ยิ่งใกล้ขอบยิ่งเร็ว */
+function jobScroll(){
+  if(!JD || !JD.on){ if(JD&&JD._t){ clearInterval(JD._t); JD._t=null; } return; }
+  var sc=JD.wrap; if(!sc) return;
+  var step=function(){
+    if(!JD || !JD.on) return;
+    var r=sc.getBoundingClientRect(), E=70, vx=0, vy=0;
+    if(sc.scrollWidth>sc.clientWidth+2){
+      if(JD.mx > r.right-E)     vx =  Math.min(34, 10+(JD.mx-(r.right-E))*0.7);
+      else if(JD.mx < r.left+E) vx = -Math.min(34, 10+((r.left+E)-JD.mx)*0.7);
+    }
+    if(sc.scrollHeight>sc.clientHeight+2){
+      if(JD.my > r.bottom-E)   vy =  Math.min(26, 8+(JD.my-(r.bottom-E))*0.6);
+      else if(JD.my < r.top+E) vy = -Math.min(26, 8+((r.top+E)-JD.my)*0.6);
+    }
+    if(vx) sc.scrollLeft += vx;
+    if(vy) sc.scrollTop  += vy;
+    if(vx||vy) jobHover();        /* เลื่อนแล้วช่องใต้เมาส์เปลี่ยน ต้องไฮไลต์ตามด้วย */
+  };
+  if(!JD._t) JD._t=setInterval(step, 16);
+}
+/* หาช่องที่อยู่ใต้เมาส์ตอนนี้ แล้วไฮไลต์ */
+function jobHover(){
+  if(!JD || !JD.on) return;
   if(JD.ghost) JD.ghost.style.display='none';
-  var t=document.elementFromPoint(e.clientX, e.clientY);
+  var t=document.elementFromPoint(JD.mx, JD.my);
   if(JD.ghost) JD.ghost.style.display='';
-  var td=t? (t.closest? t.closest('[data-add],[data-vdrop]') : null) : null;
+  var td=t? (t.closest? t.closest('[data-add],[data-vdrop],[data-vdropd]') : null) : null;
   if(td!==JD.cell){
     if(JD.cell) JD.cell.classList.remove('dropok');
     JD.cell=td;
     if(td) td.classList.add('dropok');
-  }
-  /* ลากไปชนขอบจอ ให้ตารางเลื่อนตามเอง ไม่งั้นย้ายข้ามสัปดาห์ไม่ได้ */
-  var sc=JD.wrap;
-  if(sc && sc.scrollWidth>sc.clientWidth){
-    var r=sc.getBoundingClientRect();
-    if(e.clientX > r.right-50) sc.scrollLeft += 18;
-    else if(e.clientX < r.left+50) sc.scrollLeft -= 18;
   }
 }
 function jobDragDrop(e){
@@ -6471,11 +6496,20 @@ function jobDragDrop(e){
   if(!cell) return;
   if(cell.dataset.add){ var v=cell.dataset.add.split('|'); moveJobTo(id, v[0], v[1]); }
   else if(cell.dataset.vdrop){ var w=cell.dataset.vdrop.split('|'); moveJobToVeh(id, w[0], w[1]); }
+  else if(cell.dataset.vdropd){
+    /* ช่องของแถวกลุ่มคนขับที่วันนั้นยังไม่มีการ์ดรถเลย เดารถให้จากของเดิม ถ้าไม่มีก็ใช้คันเดียวที่มี */
+    var a0=(S.plan||[]).filter(function(x){ return x.id===id; })[0];
+    var act=(S.vehicles||[]).filter(function(x){ return x.active!==false; });
+    var vid=(a0 && a0.vehicle_id) || (act.length===1? act[0].id : null);
+    if(!vid) return toast('วันนั้นยังไม่มีการ์ดรถให้วาง — ลากไปวางในแถว "คิวรถ" ของคันที่ต้องการแทน', 6000);
+    moveJobToVeh(id, vid, cell.dataset.vdropd);
+  }
 }
 function jobDragEnd(){
   document.removeEventListener('mousemove', jobDragMove, true);
   document.removeEventListener('mouseup', jobDragDrop, true);
   if(!JD) return;
+  if(JD._t){ clearInterval(JD._t); JD._t=null; }
   if(JD.el) JD.el.classList.remove('dragging');
   if(JD.cell) JD.cell.classList.remove('dropok');
   if(JD.ghost && JD.ghost.parentNode) JD.ghost.parentNode.removeChild(JD.ghost);
