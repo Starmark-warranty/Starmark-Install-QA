@@ -765,7 +765,7 @@ body.preview #previewBar{display:flex}
 
 <script>
 /* ── ยามเฝ้า splash: อยู่นอกสคริปต์หลัก ถ้าสคริปต์หลักพัง ตัวนี้ยังทำงาน ── */
-window.APP_VER='19.3';
+window.APP_VER='19.4';
 (function(){
   var fill=function(){
     var a=document.querySelectorAll('.ver');
@@ -861,6 +861,7 @@ window.APP_VER='19.3';
       <span id="pnDragHint" class="hide">✋ กดใบงานค้างแล้วลากไปวางช่องอื่น = ย้ายวันหรือย้ายทีม</span>
       <button class="tb-btn hide pn-x" id="pnShift">⏩ เลื่อนงานยกชุด</button>
       <button class="tb-btn hide pn-x" id="pnHol">🏖 วันหยุด</button>
+      <button class="tb-btn hide pn-x" id="pnImp">📷 อัปแผนจากรูป</button>
       <button class="tb-btn pn-x hide" id="pnVMode">🗺 เส้นทางเต็ม</button>
       <button class="tb-btn" id="pnView">📋 รายวัน</button>
       <button class="tb-btn pn-x" id="pnPrint">🖨 พิมพ์</button>
@@ -1977,6 +1978,7 @@ function applyRoleUI(){
   set('btnField', canField(S.me));              /* สลับไปมุมมองหน้างาน — ผู้จัดการขึ้นไป */
   set('btnCats',  isAdmin(S.me));               /* ประเภทปัญหา — ผู้จัดการขึ้นไป */
   set('pnHol',    rank(S.me)>=1);               /* วันหยุด — แอดมินขึ้นไป */
+  set('pnImp',    rank(S.me)>=1);               /* อัปแผนจากรูป — แอดมินขึ้นไป */
   set('pnDragHint', rank(S.me)>=1);             /* ลากย้ายงาน — แอดมินขึ้นไป */
   set('pnShift',  rank(S.me)>=1);               /* เลื่อนงานยกชุด — แอดมินขึ้นไป */
   set('geoWrap',  rank(S.me)>=2);               /* ตรวจตำแหน่งเช็คอิน — ผู้จัดการขึ้นไป */
@@ -5019,6 +5021,7 @@ $('pnDays').onchange=function(){
 };
 $('pnTeam').onchange=function(){ S.pnTeam=this.value; renderSchedule(); };
 $('pnHol').onclick=holidayManager;
+$('pnImp').onclick=function(){ impSheet(); };
 $('pnShift').onclick=shiftTool;
 $('pnView').onclick=function(){ setPlanView(!planListMode()); };
 if($('pnVMode')) $('pnVMode').onclick=function(){ setVehMode(vehMode()==='odo'?'route':'odo'); };
@@ -6414,6 +6417,409 @@ function renderSchedule(){
   });
 }
 
+/* ══════════ อัปแผนจากรูป ══════════
+   แผนสัปดาห์ที่ทำกันเป็นการ์ดสี ถ่ายรูปมาแล้วให้ระบบอ่านเป็นใบงานให้เลย
+   อ่านตัวหนังสือไทยจากรูปไม่เคยแม่น 100% จึงต้องให้ดูและแก้ก่อนเสมอ ไม่บันทึกเองเงียบ ๆ
+   ข้อความที่อ่านได้แก้มือได้ตลอด ถ้าอ่านไม่ออกเลยก็พิมพ์เองแล้วใช้ตัวแยกแผนตัวเดียวกันได้ */
+
+/* จำไว้ว่าชื่อย่อในแผนตัวไหน = ไซต์ไหน ครั้งหน้าจะจับคู่ให้เอง ไม่ต้องเลือกซ้ำ */
+function impAlias(){
+  try{ return JSON.parse(localStorage.getItem('it_impalias')||'{}') || {}; }catch(e){ return {}; }
+}
+function impAliasPut(word, siteId){
+  if(!word || !siteId) return;
+  try{
+    var a=impAlias(); a[impNorm(word)]=siteId;
+    localStorage.setItem('it_impalias', JSON.stringify(a));
+  }catch(e){}
+}
+/* ตัดช่องว่าง วรรคตอน และเลขที่ไม่เกี่ยว ออกก่อนเทียบ เพราะ OCR ชอบใส่เกินมา */
+function impNorm(x){
+  return String(x==null?'':x).toLowerCase()
+    .replace(/[\s .·\-_,:;()\[\]{}'"`~!@#$%^&*+=|\\\/?<>]/g,'');
+}
+/* แปลงวันที่แบบไทย 12/10/69 → 2026-10-12 (ปี 2 หลัก = พ.ศ. ย่อ) */
+function impDate(dd, mm, yy){
+  var d=parseInt(dd,10), m=parseInt(mm,10), y=parseInt(yy,10);
+  if(!(d>=1&&d<=31) || !(m>=1&&m<=12)) return null;
+  if(y<100) y+=2500;          /* 69 → 2569 */
+  if(y>2400) y-=543;          /* พ.ศ. → ค.ศ. */
+  if(y<2000 || y>2100) return null;
+  return y+'-'+('0'+m).slice(-2)+'-'+('0'+d).slice(-2);
+}
+/* หาไซต์ที่ตรงกับข้อความมากที่สุด — คืน {site, rest} โดย rest คือส่วนที่เหลือ = ขอบเขตงาน */
+function impSite(line){
+  var n=impNorm(line);
+  if(!n) return {site:null, rest:''};
+  var al=impAlias();
+  /* ชื่อย่อที่เคยจับคู่ไว้เอง มาก่อนเสมอ */
+  var keys=Object.keys(al).sort(function(a,b){ return b.length-a.length; });
+  for(var k=0;k<keys.length;k++){
+    if(keys[k] && n.indexOf(keys[k])>=0){
+      var sv=siteOf(al[keys[k]]);
+      if(sv && sv.id) return {site:sv, rest:impRest(line, keys[k].length), by:'alias'};
+    }
+  }
+  var best=null, bestLen=0;
+  (S.sites||[]).forEach(function(x){
+    [x.name, x.code, x.customer].forEach(function(w){
+      var nw=impNorm(w);
+      if(nw.length>=3 && n.indexOf(nw)>=0 && nw.length>bestLen){ best=x; bestLen=nw.length; }
+    });
+  });
+  if(best) return {site:best, rest:impRest(line, bestLen), by:'name'};
+  /* ตรงเป๊ะไม่เจอ ลองเทียบแบบใกล้เคียง — OCR สลับตัวอักษรนิดเดียวก็ไม่ตรงแล้ว
+     เช่น "แพนแปซิกฟิก" ที่จริงคือ "แพนแปซิฟิก" ต่างกันตัวเดียว */
+  var fb=null, fbSc=0, fbLen=0;
+  (S.sites||[]).forEach(function(x){
+    [x.name, x.code, x.customer].forEach(function(w){
+      var nw=impNorm(w); if(nw.length<4) return;
+      var sc=impFuzzy(n, nw);
+      if(sc>=0.72 && (sc>fbSc || (sc===fbSc && nw.length>fbLen))){ fb=x; fbSc=sc; fbLen=nw.length; }
+    });
+  });
+  if(fb) return {site:fb, rest:impRest(line, fbLen), by:'fuzzy', score:fbSc};
+  return {site:null, rest:String(line||'').trim()};
+}
+/* ระยะห่างของคำสองคำ (แก้กี่ตัวถึงจะเหมือนกัน) */
+function impLev(a, b){
+  var m=a.length, n=b.length;
+  if(!m) return n;
+  if(!n) return m;
+  if(Math.abs(m-n)>6) return Math.abs(m-n)+99;
+  var prev=[], cur=[], i, j;
+  for(j=0;j<=n;j++) prev[j]=j;
+  for(i=1;i<=m;i++){
+    cur[0]=i;
+    for(j=1;j<=n;j++){
+      cur[j]=Math.min(prev[j]+1, cur[j-1]+1, prev[j-1]+(a.charAt(i-1)===b.charAt(j-1)?0:1));
+    }
+    for(j=0;j<=n;j++) prev[j]=cur[j];
+  }
+  return prev[n];
+}
+/* คะแนนความเหมือน 0–1 ของชื่อไซต์กับส่วนต้นของบรรทัด (ชื่อไซต์มักขึ้นต้นบรรทัด) */
+function impFuzzy(hay, needle){
+  var L=needle.length, best=0;
+  if(L<4 || !hay) return 0;
+  for(var w=Math.max(4, L-2); w<=L+2; w++){
+    for(var st=0; st<=6 && st<hay.length; st++){
+      var seg=hay.substr(st, w);
+      if(seg.length<4) continue;
+      var sc=1-(impLev(seg, needle)/Math.max(seg.length, L));
+      if(sc>best) best=sc;
+    }
+  }
+  return best;
+}
+/* ตัดส่วนหัวที่เป็นชื่อไซต์ออก เหลือไว้เป็นขอบเขตงาน — นับตามจำนวนอักษรที่ใช้จริง */
+function impRest(line, nNorm){
+  var out='', cnt=0, started=false;
+  for(var i=0;i<line.length;i++){
+    var c=line[i];
+    if(!started){
+      if(impNorm(c)) cnt++;
+      if(cnt>=nNorm) started=true;
+      continue;
+    }
+    out+=c;
+  }
+  out=out.replace(/^[\s.·\-:,]+/,'').trim();
+  /* เทียบแบบใกล้เคียงอาจเหลือเศษตัวอักษรติดมา 1-2 ตัว ไม่ใช่ขอบเขตงาน ตัดทิ้ง */
+  if(out.length<=2 && !/\s/.test(out)) out='';
+  return out;
+}
+/* หาทีมจากคำในวงเล็บ เช่น (ทีมชาญ) (ทีมอารมณ์) */
+function impTeam(word){
+  var n=impNorm(word).replace(/^ทีม/,'');
+  if(!n) return null;
+  var ts=(S.teams||[]).filter(function(t){ return t.active!==false && !isDriverTeam(t); });
+  var best=null, len=0;
+  ts.forEach(function(t){
+    [t.name, t.code, (leadInfo(t)||{}).name].forEach(function(w){
+      var nw=impNorm(w).replace(/^ทีม/,'');
+      if(!nw) return;
+      var hit=(nw.indexOf(n)>=0 || n.indexOf(nw)>=0);
+      if(hit && nw.length>len){ best=t; len=nw.length; }
+    });
+  });
+  return best;
+}
+
+/* แยกข้อความแผนออกเป็นรายการใบงาน */
+function impParse(txt){
+  var lines=String(txt||'').split(/\r?\n/).map(function(x){ return x.replace(/\s+/g,' ').trim(); });
+  var rows=[], cur=null, days=[], veh=null, drv=null, warn=[];
+  var dRe=/(\d{1,2})\s*[\/\-.]\s*(\d{1,2})\s*[\/\-.]\s*(\d{2,4})/;
+  var rangeRe=/\d{1,2}\s*-\s*\d{1,2}\s*[\/\-.]\s*\d{1,2}/;   /* 12-17/10/69 = หัวเรื่อง ไม่ใช่วัน */
+
+  lines.forEach(function(ln){
+    if(!ln) return;
+    /* หัวเรื่อง — มีทะเบียนรถกับชื่อคนขับติดมาด้วย */
+    if(!veh){
+      var vm=(S.vehicles||[]).filter(function(v){
+        var c=impNorm(v.code), pl=impNorm(v.plate);
+        return (c.length>=4 && impNorm(ln).indexOf(c)>=0) || (pl.length>=4 && impNorm(ln).indexOf(pl)>=0); })[0];
+      if(vm){
+        veh=vm;
+        /* ชื่อคนขับมักต่อท้ายทะเบียน คั่นด้วยจุดหรือช่องว่าง */
+        var crew=(S.staff||[]).filter(function(x){ return x.active!==false; });
+        var dm=crew.filter(function(x){ var nn=impNorm(x.name);
+          return nn.length>=3 && impNorm(ln).indexOf(nn)>=0; })[0];
+        if(dm) drv=dm;
+      }
+    }
+    var isRange=rangeRe.test(ln);
+    var m=ln.match(dRe);
+    if(m && !isRange){
+      var iso=impDate(m[1],m[2],m[3]);
+      if(iso){ cur={d:iso, hol:/วันหยุด|ขัตฤกษ|หยุดราชการ|นักขัตฤกษ/.test(ln), n:0}; days.push(cur); return; }
+    }
+    if(!cur) return;                      /* ยังไม่เจอหัววัน บรรทัดนี้คือหัวเรื่อง ข้ามไป */
+    if(/^[(（]?\s*วันหยุด|ขัตฤกษ|นักขัตฤกษ/.test(ln)){ cur.hol=true; return; }
+    /* บรรทัดงาน — ชื่อไซต์ + (ทีม…) */
+    var tm=ln.match(/[(（]\s*([^)）]*ทีม[^)）]*|ทีม[^)）]*)\s*[)）]/) || ln.match(/[(（]\s*([^)）]+)\s*[)）]\s*$/);
+    var body=ln, teamWord=null;
+    if(tm){ teamWord=tm[1]; body=ln.slice(0, tm.index).trim(); }
+    if(!body) return;
+    var team=teamWord? impTeam(teamWord) : null;
+    var hit=impSite(body);
+    rows.push({d:cur.d, team:team, teamWord:(teamWord||''), site:hit.site, siteWord:body,
+               scope:hit.rest, by:hit.by||'', raw:ln});
+    cur.n++;
+  });
+  days.forEach(function(x){ if(!x.hol && !x.n) warn.push(dayText(x.d)+' อ่านไม่เจอว่าทีมไหนไปไหน'); });
+  return {rows:rows, days:days, veh:veh, drv:drv, warn:warn};
+}
+
+/* ── กล่องอัปแผนจากรูป ── */
+var IMP={img:null, txt:'', rows:[], veh:null, drv:null, busy:false};
+function impSheet(){
+  if(rank(S.me)<1) return toast('เฉพาะแอดมินขึ้นไปที่อัปแผนได้', 3200);
+  IMP={img:null, txt:'', rows:[], veh:null, drv:null, busy:false};
+  impDraw();
+}
+function impDraw(){
+  sheet('📷 อัปแผนจากรูป',
+    '<div style="font-size:11.5px;color:var(--text2);line-height:1.8;margin-bottom:12px">'+
+      'ถ่ายรูปหรือเลือกรูปแผนสัปดาห์ ระบบจะอ่านเป็นใบงานให้ดูก่อน '+
+      '<b style="color:var(--text)">แก้ได้ทุกช่อง แล้วค่อยกดยืนยัน</b> ยังไม่บันทึกจนกว่าจะกดยืนยัน<br>'+
+      '<span style="color:var(--text3)">อ่านตัวหนังสือไทยจากรูปไม่แม่น 100% — ชื่อโครงการที่จับคู่ไม่ได้จะให้เลือกเอง '+
+      'เลือกครั้งเดียว ครั้งหน้าจำให้</span></div>'+
+
+    '<div class="fld"><label>รูปแผน</label>'+
+      '<input type="file" id="im_f" accept="image/*" style="font-size:12px">'+
+      '<div id="im_prev" style="margin-top:9px"></div></div>'+
+
+    '<div class="fld"><label>ข้อความที่อ่านได้ — แก้ตรงนี้ได้เลย แล้วกด “แยกเป็นใบงาน”</label>'+
+      '<textarea id="im_t" rows="7" style="font-family:inherit;font-size:12.5px;line-height:1.7" '+
+        'placeholder="อ่านจากรูปแล้วจะขึ้นตรงนี้ · หรือพิมพ์เองก็ได้ เช่น&#10;วันจันทร์ที่ 12/10/69&#10;แพนแปซิฟิก(ทีมชาญ)&#10;คอนราด โครงแผ่นฟิล์มชั้น 19(ทีมอารมณ์)">'+
+        esc(IMP.txt)+'</textarea>'+
+      '<div class="row" style="margin-top:7px">'+
+        '<button class="btn ghost sm" type="button" id="im_ocr">🔍 อ่านตัวหนังสือจากรูป</button>'+
+        '<button class="btn ghost sm" type="button" id="im_go">🧩 แยกเป็นใบงาน</button></div>'+
+      '<div id="im_msg" style="font-size:11.5px;line-height:1.7;margin-top:7px"></div></div>'+
+
+    '<div id="im_box"></div>',
+
+    '<button class="btn sm" id="im_ok">ยืนยันบันทึกลงแผนงาน</button>');
+
+  $('im_f').onchange=function(){
+    var f=this.files && this.files[0]; if(!f) return;
+    var r=new FileReader();
+    r.onload=function(){
+      IMP.img=r.result;
+      $('im_prev').innerHTML='<img src="'+IMP.img+'" style="max-width:100%;max-height:260px;'+
+        'border-radius:11px;border:1px solid var(--border2);display:block">';
+      impMsg('โหลดรูปแล้ว — กด “อ่านตัวหนังสือจากรูป” หรือพิมพ์ข้อความเองก็ได้', '');
+    };
+    r.readAsDataURL(f);
+  };
+  if(IMP.img) $('im_prev').innerHTML='<img src="'+IMP.img+'" style="max-width:100%;max-height:260px;'+
+    'border-radius:11px;border:1px solid var(--border2);display:block">';
+
+  $('im_ocr').onclick=impOCR;
+  $('im_go').onclick=function(){ IMP.txt=$('im_t').value; impRun(); };
+  $('im_ok').onclick=impSave;
+  if(IMP.rows.length) impRows();
+}
+function impMsg(m, kind){
+  var b=$('im_msg'); if(!b) return;
+  var c = kind==='err'? '#c9251c' : (kind==='warn'? '#8a4b00' : 'var(--text2)');
+  b.innerHTML='<span style="color:'+c+'">'+m+'</span>';
+}
+
+/* อ่านตัวหนังสือจากรูปด้วย Tesseract — โหลดเฉพาะตอนใช้ ไม่ถ่วงตอนเปิดโปรแกรม */
+async function impOCR(){
+  if(!IMP.img) return toast('เลือกรูปก่อน', 3000);
+  if(IMP.busy) return;
+  IMP.busy=true;
+  var btn=$('im_ocr'); btn.disabled=true; btn.textContent='กำลังอ่าน…';
+  impMsg('กำลังโหลดตัวอ่านตัวหนังสือ (ครั้งแรกใช้เวลาสักครู่ ประมาณ 2–5 MB)…','');
+  try{
+    if(!window.Tesseract) await impLoad('https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js');
+    if(!window.Tesseract) throw new Error('โหลดตัวอ่านไม่สำเร็จ');
+    var r=await window.Tesseract.recognize(IMP.img, 'tha+eng', {
+      langPath:'https://cdn.jsdelivr.net/npm/@tesseract.js-data/',
+      logger:function(m){
+        if(m && m.status && $('im_msg')){
+          var pc=m.progress? (' '+Math.round(m.progress*100)+'%') : '';
+          impMsg('กำลังอ่านรูป… '+esc(m.status)+pc, '');
+        }
+      }
+    });
+    var t=(r && r.data && r.data.text) || '';
+    if(!t.trim()) throw new Error('อ่านไม่ออกเลย');
+    IMP.txt=t;
+    if($('im_t')) $('im_t').value=t;
+    impMsg('อ่านเสร็จแล้ว — <b>ตรวจข้อความก่อน</b> ตัวไหนเพี้ยนแก้ได้เลย แล้วกด “แยกเป็นใบงาน”','warn');
+    impRun();
+  }catch(e){
+    impMsg('อ่านจากรูปไม่สำเร็จ: '+esc(e.message||'ไม่ทราบสาเหตุ')+
+      '<br>พิมพ์ข้อความในแผนลงช่องข้างบนเองได้เลย แล้วกด “แยกเป็นใบงาน” ใช้ได้เหมือนกัน', 'err');
+  }
+  IMP.busy=false;
+  if($('im_ocr')){ $('im_ocr').disabled=false; $('im_ocr').textContent='🔍 อ่านตัวหนังสือจากรูป'; }
+}
+function impLoad(src){
+  return new Promise(function(ok, bad){
+    var s=document.createElement('script');
+    s.src=src; s.async=true;
+    s.onload=function(){ ok(); };
+    s.onerror=function(){ bad(new Error('เครือข่ายโหลดไฟล์ไม่ได้')); };
+    document.head.appendChild(s);
+    setTimeout(function(){ if(!window.Tesseract) bad(new Error('โหลดนานเกินไป')); }, 60000);
+  });
+}
+
+function impRun(){
+  var r=impParse(IMP.txt);
+  IMP.rows=r.rows; IMP.veh=r.veh; IMP.drv=r.drv;
+  if(!r.rows.length){
+    impMsg('ยังแยกเป็นใบงานไม่ได้ — ต้องมีบรรทัดวันที่ (เช่น 12/10/69) '+
+      'แล้วบรรทัดถัดมาเป็นชื่อโครงการกับทีมในวงเล็บ เช่น <b>แพนแปซิฟิก(ทีมชาญ)</b>','err');
+    $('im_box').innerHTML=''; return;
+  }
+  var nd=r.days.filter(function(x){ return !x.hol; }).length;
+  impMsg('แยกได้ <b>'+r.rows.length+' ใบงาน</b> จาก '+nd+' วัน'+
+    (r.days.some(function(x){ return x.hol; })? ' (ข้ามวันหยุดให้แล้ว)' : '')+
+    (r.veh? (' · เห็นรถ <b>'+esc(r.veh.code||'')+'</b>'+(r.drv? (' คนขับ '+esc(r.drv.name||'')) : '')) : '')+
+    (r.warn.length? ('<br><span style="color:#8a4b00">⚠️ '+esc(r.warn.join(' · '))+'</span>') : ''), '');
+  impRows();
+}
+
+/* ตารางให้ตรวจก่อนบันทึก — แก้ได้ทุกช่อง */
+function impRows(){
+  var box=$('im_box'); if(!box) return;
+  var teams=workTeams();
+  var sOpts=function(cur){
+    return '<option value="">— เลือกโครงการ —</option>'+
+      siteSorted().map(function(x){
+        return '<option value="'+x.id+'"'+(cur===x.id?' selected':'')+'>'+esc(siteOptText(x))+'</option>';
+      }).join('');
+  };
+  var tOpts=function(cur){
+    return '<option value="">— เลือกทีม —</option>'+
+      teams.map(function(t){
+        return '<option value="'+t.id+'"'+(cur===t.id?' selected':'')+'>'+esc(teamLabel(t))+'</option>';
+      }).join('');
+  };
+  box.innerHTML='<div class="sec-h" style="margin:6px 0 8px">ตรวจก่อนบันทึก '+IMP.rows.length+' ใบงาน</div>'+
+    IMP.rows.map(function(r,i){
+      var dup=(S.plan||[]).filter(function(a){
+        return a.work_date===r.d && r.site && a.site_id===r.site.id && r.team && a.team_id===r.team.id; })[0];
+      if(r.use===undefined) r.use=!dup;
+      var bad=(!r.site||!r.team);
+      return '<div style="background:'+(dup?'var(--s3)':(bad?'var(--orange-dim)':'var(--s1)'))+
+        ';border:1px solid '+(bad?'rgba(255,149,0,.4)':'var(--border)')+';border-radius:11px;'+
+        'padding:10px 11px;margin-bottom:7px">'+
+        '<div style="display:flex;align-items:center;gap:9px;margin-bottom:7px">'+
+          '<input type="checkbox" data-iu="'+i+'"'+(r.use?' checked':'')+'>'+
+          '<b style="font-size:12.5px;flex:1">'+esc(dayText(r.d))+'</b>'+
+          (dup? '<span class="chip c-gray">มีอยู่แล้ว</span>' : '')+
+          (bad? '<span class="chip c-orange">ยังเลือกไม่ครบ</span>' : '')+
+          ((!bad && r.by==='fuzzy')? '<span class="chip c-orange" title="ชื่อในแผนไม่ตรงเป๊ะ ระบบเดาให้จากชื่อที่ใกล้เคียง">เดาให้ · ตรวจด้วย</span>' : '')+
+          '<button type="button" class="uacc-x" data-ix="'+i+'" title="เอาแถวนี้ออก">✕</button></div>'+
+        '<div style="font-size:10.5px;color:var(--text3);margin-bottom:6px">อ่านได้ว่า: '+esc(r.raw)+'</div>'+
+        '<div class="row"><select data-it="'+i+'" style="height:32px;font-size:12px">'+tOpts(r.team&&r.team.id)+'</select>'+
+          '<select data-is="'+i+'" style="height:32px;font-size:12px">'+sOpts(r.site&&r.site.id)+'</select></div>'+
+        '<input data-ic="'+i+'" value="'+esc(r.scope||'')+'" placeholder="ขอบเขตงาน" '+
+          'style="margin-top:6px;height:32px;font-size:12px">'+
+      '</div>';
+    }).join('')+
+    (IMP.veh? ('<label style="display:flex;align-items:center;gap:9px;background:var(--accent-glow);'+
+      'border:1px solid rgba(0,122,255,.3);border-radius:11px;padding:10px 12px;font-size:12px;margin-top:4px">'+
+      '<input type="checkbox" id="im_veh" checked>'+
+      '<span>ให้รถ <b>'+esc(IMP.veh.code||'')+'</b>'+(IMP.drv? (' · '+esc(IMP.drv.name||'')) : '')+
+      ' ไปส่งทุกใบงานที่ติ๊กไว้</span></label>') : '');
+
+  box.querySelectorAll('[data-iu]').forEach(function(c){
+    c.onchange=function(){ IMP.rows[+c.dataset.iu].use=c.checked; };
+  });
+  box.querySelectorAll('[data-ix]').forEach(function(b){
+    b.onclick=function(){ IMP.rows.splice(+b.dataset.ix,1); impRows(); };
+  });
+  box.querySelectorAll('[data-it]').forEach(function(sel){
+    sel.onchange=function(){ IMP.rows[+sel.dataset.it].team = sel.value? teamOf(sel.value) : null; impRows(); };
+  });
+  box.querySelectorAll('[data-is]').forEach(function(sel){
+    sel.onchange=function(){
+      var r=IMP.rows[+sel.dataset.is];
+      r.site = sel.value? siteOf(sel.value) : null;
+      /* จำไว้ว่าชื่อย่อนี้คือไซต์ไหน ครั้งหน้าจะจับคู่ให้เอง */
+      if(r.site && r.siteWord) impAliasPut(r.siteWord.replace(/\s.*$/,''), r.site.id);
+      impRows();
+    };
+  });
+  box.querySelectorAll('[data-ic]').forEach(function(inp){
+    inp.oninput=function(){ IMP.rows[+inp.dataset.ic].scope=inp.value; };
+  });
+  cbAll(box); cbSync(box);
+}
+
+async function impSave(){
+  var want=IMP.rows.filter(function(r){ return r.use && r.site && r.team; });
+  var miss=IMP.rows.filter(function(r){ return r.use && (!r.site || !r.team); });
+  if(miss.length) return toast('ยังมี '+miss.length+' แถวที่ยังไม่ได้เลือกทีมหรือโครงการ — เลือกให้ครบ หรือติ๊กออก', 6500);
+  if(!want.length) return toast('ยังไม่ได้ติ๊กแถวไหนเลย', 3500);
+
+  var useVeh = IMP.veh && $('im_veh') && $('im_veh').checked;
+  if(!confirm('บันทึก '+want.length+' ใบงานลงแผนงาน?\n\n'+
+      want.slice(0,6).map(function(r){
+        return '• '+dayText(r.d)+' · '+(teamOf(r.team.id).name||'')+' · '+(r.site.name||''); }).join('\n')+
+      (want.length>6? ('\n… และอีก '+(want.length-6)+' ใบ') : '')+
+      (useVeh? ('\n\nผูกกับรถ '+(IMP.veh.code||'')+' ให้ด้วย') : ''))) return;
+
+  var btn=$('im_ok'); btn.disabled=true; btn.textContent='กำลังบันทึก…';
+  var ok=0, skip=0, err=[];
+  for(var i=0;i<want.length;i++){
+    var r=want[i];
+    var dup=(S.plan||[]).filter(function(a){
+      return a.work_date===r.d && a.site_id===r.site.id && a.team_id===r.team.id; })[0];
+    if(dup){ skip++; continue; }
+    var p={site_id:r.site.id, team_id:r.team.id, work_date:r.d,
+           scope:(r.scope||'').trim()||null, checklist:[]};
+    if(useVeh){
+      p.vehicle_id=IMP.veh.id;
+      p.vehicle_seq=vehQueue(IMP.veh.id, r.d).length+1+ok;
+      if(IMP.drv){ p.driver_id=IMP.drv.id; p.driver_name=IMP.drv.name||null; }
+    }
+    var ins=await db.from('it_assignments').insert(p).select().single();
+    if(ins.error){
+      if(/duplicate|unique/i.test(ins.error.message||'')) skip++;
+      else err.push(dayText(r.d)+' '+(r.site.name||'')+': '+ins.error.message);
+      continue;
+    }
+    (S.plan=S.plan||[]).push(ins.data);
+    ok++;
+  }
+  closeSheet();
+  toast('บันทึกแล้ว '+ok+' ใบงาน'+(skip?(' · ข้ามที่ซ้ำ '+skip):'')+
+    (err.length? (' · ไม่สำเร็จ '+err.length) : ''), 5200);
+  if(err.length) alert('บางใบบันทึกไม่สำเร็จ:\n\n'+err.join('\n'));
+  await loadMgr(); try{ await loadSchedule(); }catch(e){}
+}
+
 /* ── ย้ายใบงานด้วยการกดค้างแล้วลาก ── */
 var JD=null;
 function jobDragStart(el, x0, y0, wrap){
@@ -7581,18 +7987,34 @@ function quickAssign(teamId, date, opt){
   if(!S.sites.length){ $('q_site').value='__new'; $('q_site').onchange(); }
 
   $('q_save').onclick=async function(){
-    if(!store.keys.length && !store.extra.length) return toast('เลือกก่อนว่าเข้าไปทำอะไรบ้าง');
+    /* เช็คขอบเขตงาน “รายวัน” ด้วย ไม่ใช่ดูแต่ชุดหลัก
+       คนที่กด “กำหนดเอง” ใส่ขอบเขตครบทุกวันแล้ว แต่ไม่ได้ใส่ชุดหลัก ของเดิมจะกดมอบหมายไม่ได้
+       แล้วไม่รู้ว่าติดตรงไหน เพราะตารางรายวันก็ขึ้นขอบเขตครบทุกบรรทัด */
+    var ds0=dates();
+    var noSc=ds0.filter(function(d){
+      var st=dayScope[d]||store;
+      return !st.keys.length && !st.extra.length;
+    });
+    if(noSc.length) return toast(noSc.length===ds0.length
+      ? 'ยังไม่ได้เลือกว่าเข้าไปทำอะไร — กดที่ช่อง “ขอบเขตงาน” ข้างบน หรือกด “กำหนดเอง” ของแต่ละวัน'
+      : ('ยังไม่ได้ใส่ขอบเขตงานของ '+noSc.map(function(d){ return dayText(d); }).join(', ')+
+         ' — ใส่ขอบเขตงานหลัก หรือกด “กำหนดเอง” ของวันนั้น'), 8000);
     var siteId=$('q_site').value;
-    this.disabled=true;
+    if(!siteId) return toast('เลือกไซต์งานก่อน', 4000);
+    var btn=this;
+    btn.disabled=true;
+    /* ห่อไว้ทั้งก้อน — มีอะไรพลาดกลางทาง ปุ่มต้องกลับมากดได้ และต้องบอกว่าพลาดเพราะอะไร
+       ไม่ใช่ค้างเป็นปุ่มสีจางเงียบ ๆ */
+    try{
 
     if(siteId==='__new'){
       var np={code:$('q_code').value.trim(), name:$('q_name').value.trim(),
         customer:$('q_cus').value.trim()||null, address:$('q_addr').value.trim()||null,
         lat:parseFloat($('q_lat').value)||null, lng:parseFloat($('q_lng').value)||null,
         start_date:date, status:'active'};
-      if(!np.code||!np.name){ this.disabled=false; return toast('ไซต์ใหม่ต้องมีรหัสงานและชื่องาน'); }
+      if(!np.code||!np.name){ btn.disabled=false; return toast('ไซต์ใหม่ต้องมีรหัสงานและชื่องาน'); }
       var ins=await db.from('it_sites').insert(np).select().single();
-      if(ins.error){ toast('เพิ่มไซต์ไม่สำเร็จ: '+ins.error.message,4000); this.disabled=false; return; }
+      if(ins.error){ toast('เพิ่มไซต์ไม่สำเร็จ: '+ins.error.message,6000); btn.disabled=false; return; }
       siteId=ins.data.id;
     }
 
@@ -7604,7 +8026,7 @@ function quickAssign(teamId, date, opt){
               checklist:scopeChecklist(st.keys, st.extra)};
     });
     var r=await db.from('it_assignments').upsert(rows, {onConflict:'site_id,team_id,work_date'}).select();
-    if(r.error){ toast('มอบหมายไม่สำเร็จ: '+r.error.message,4000); this.disabled=false; return; }
+    if(r.error){ toast('มอบหมายไม่สำเร็จ: '+r.error.message,9000); btn.disabled=false; return; }
     /* เปิดมาจากหน้าคิวรถ — ใส่ใบงานของวันนั้นเข้าคิวรถคันนั้นให้เลย จะได้ไม่ต้องกลับไปกดเองอีกรอบ */
     var vmsg='';
     if(opt && opt.vehicleId){
@@ -7628,6 +8050,11 @@ function quickAssign(teamId, date, opt){
        คิวจะโชว์ว่างทั้งที่ใบงานเข้าไปแล้ว จึงต้องรอตารางแผนงานโหลดเสร็จก่อนค่อยกลับ */
     await loadMgr();
     if(opt && opt.back){ try{ await loadSchedule(); }catch(e){} opt.back(); }
+    }catch(err){
+      btn.disabled=false;
+      toast('มอบหมายไม่สำเร็จ: '+((err&&err.message)||err)+
+            ' — ลองกดใหม่อีกครั้ง ถ้ายังไม่ได้ให้กด 🩺 ตรวจระบบ แล้วส่งผลมาให้ดู', 9000);
+    }
   };
 }
 
